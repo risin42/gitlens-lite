@@ -1057,10 +1057,7 @@ class FileGeneratorPlugin {
 				}
 			} catch (ex) {
 				callback(new WebpackError(`[${this.pluginName}] Error checking source file: ${ex}`));
-				return;
 			}
-
-			callback();
 		});
 	}
 }
