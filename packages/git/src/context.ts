@@ -5,7 +5,6 @@ import type { SigningErrorReason } from './errors.js';
 import type { GitRemote } from './models/remote.js';
 import type { RemoteProvider, RemoteProviderId } from './models/remoteProvider.js';
 import type { RepositoryChange } from './models/repository.js';
-import type { SearchQuery } from './models/search.js';
 import type { SigningFormat } from './models/signature.js';
 import type { GitConflictFile } from './models/staging.js';
 import type { RemoteProviderConfig } from './remotes/matcher.js';
@@ -29,8 +28,6 @@ export interface GitServiceContext {
 	readonly hooks?: GitServiceHooks;
 	/** Host-side remote capabilities (custom providers, sorting, repo info) */
 	readonly remotes?: RemotesProvider;
-	/** Search query preprocessing hooks (e.g., NLP → structured search). */
-	readonly searchQuery?: SearchQueryProvider;
 	/** Workspace environment (folder resolution, trust state) */
 	readonly workspace?: WorkspaceProvider;
 }
@@ -48,8 +45,11 @@ export interface GitServiceContext {
  */
 export interface GitServiceConfig {
 	readonly commits: {
-		/** Whether to include file details in commit/stash queries by default. */
-		readonly includeFileDetails?: boolean;
+		/**
+		 * Whether commit/stash queries include per-commit file details by default, resolved per
+		 * repository so a host can defer them where loading them has proven slow.
+		 */
+		readonly includeFileDetails?: (repoPath: string) => boolean;
 		/** Default commit ordering for log/branch queries (e.g., `'date'`, `'author-date'`, `'topo'`). */
 		readonly ordering?: 'date' | 'author-date' | 'topo' | null;
 		/** Default maximum items for operations (0 = unlimited). */
@@ -79,7 +79,7 @@ export interface GitServiceConfig {
 		/** Whether to keep git's commit-graph file up to date in the background after graph loads —
 		 *  written when missing, periodically refreshed to cover new commits (accelerates ordered
 		 *  history walks — the graph's initial load). Fed from the master switch
-		 *  (`gitlens.gitOptimizations.enabled`); `false` disables the background write. */
+		 *  (`gitlens-lite.gitOptimizations.enabled`); `false` disables the background write. */
 		readonly writeCommitGraph?: boolean;
 		/** Graph commit ordering (falls back to `commits.ordering` or `'date'`). */
 		readonly commitOrdering?: 'date' | 'author-date' | 'topo';
@@ -93,7 +93,7 @@ export interface GitServiceConfig {
 
 	/** Auto-tier git-optimization (maintenance) preferences. */
 	readonly maintenance?: {
-		/** Master switch for the auto-tier optimizations (maps to `gitlens.gitOptimizations.enabled`). Defaults to `true`. */
+		/** Master switch for the auto-tier optimizations (maps to `gitlens-lite.gitOptimizations.enabled`). Defaults to `true`. */
 		readonly enabled?: boolean;
 	};
 
@@ -126,7 +126,7 @@ export type GitConflictCommand = 'merge' | 'rebase' | 'cherry-pick' | 'revert' |
  * Hooks for outbound events from library to host.
  *
  * All hooks are optional — the library calls them when events occur,
- * and the host decides what to do (telemetry, logging, UI updates, etc.).
+ * and the host decides what to do (logging, UI updates, etc.).
  *
  * Provider-augmented hooks (`cache`, `repository`) are wired by the provider
  * to its emitters at construction time. Pass-through hooks (`commits`,
@@ -189,7 +189,7 @@ export interface GitServiceHooks {
  * Subset of {@link RemotesProvider} — only the fields individual providers need.
  */
 export interface RemoteProviderContext {
-	/** Returns repository info (e.g., ID) from the host's integration system */
+	/** Returns optional repository info (e.g., an ID) from the host */
 	readonly getRepositoryInfo?: (
 		providerId: RemoteProviderId,
 		target: { owner: string; name: string; project?: string },
@@ -234,23 +234,21 @@ export interface FileSystemProvider {
 /**
  * Host-side remote capabilities: custom provider configs, sorting, and repository info.
  *
- * The host provides extra provider configs (user custom remotes, cloud self-managed hosts)
- * and the library combines them with built-in providers to build a matcher.
- * Sorting lets the host control remote priority (integration metadata, user preferences).
- * Repository info enables cross-fork PR URLs via integration API lookups.
+ * The host provides extra provider configs and the library combines them with built-in
+ * providers to build a matcher. Sorting lets the host control remote priority, while
+ * repository info can supply identifiers needed when building remote URLs.
  */
 export interface RemotesProvider {
 	/**
 	 * Returns extra remote provider configurations beyond built-ins.
-	 * Includes user-configured custom remotes (from settings) and
-	 * cloud self-managed host integrations.
+	 * Includes user-configured custom remotes (from settings).
 	 */
 	getCustomProviders?(repoPath: string): Promise<RemoteProviderConfig[] | undefined>;
 
 	/**
-	 * Returns repository info from the host's integration system.
-	 * Used by remote providers for cross-fork PR creation URLs.
-	 * Returns `undefined` if no integration is available or connected.
+	 * Returns optional repository information from the host.
+	 * Used by remote providers when constructing URLs that need a repository id.
+	 * Returns `undefined` when no additional information is available.
 	 */
 	getRepositoryInfo?(
 		providerId: RemoteProviderId,
@@ -259,24 +257,10 @@ export interface RemotesProvider {
 
 	/**
 	 * Sorts remotes by priority. The host owns the full ranking policy
-	 * (remote name heuristics, integration metadata, user preferences).
+	 * (remote name heuristics and user preferences).
 	 * If not provided, the library returns remotes in their original order.
 	 */
 	sort?(remotes: GitRemote<RemoteProvider>[], cancellation?: AbortSignal): Promise<GitRemote<RemoteProvider>[]>;
-}
-
-/**
- * Provides search query preprocessing.
- *
- * Hosts implement this to add capabilities like NLP → structured search
- * conversion before the library executes the query.
- */
-export interface SearchQueryProvider {
-	/**
-	 * Pre-processes a search query before execution (e.g., converts natural language to structured search).
-	 * Called by commits sub-provider before executing `searchCommits`.
-	 */
-	preprocessQuery?(search: SearchQuery, source?: unknown): Promise<SearchQuery>;
 }
 
 /**

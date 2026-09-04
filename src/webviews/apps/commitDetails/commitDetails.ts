@@ -5,9 +5,7 @@ import { customElement } from 'lit/decorators.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import type { StashApplyCommandArgs } from '../../../commands/stashApply.js';
 import type { ViewFilesLayout } from '../../../config.js';
-import type { InspectWebviewTelemetryContext } from '../../../constants.telemetry.js';
 import type { CommitDetailsServices } from '../../commitDetails/commitDetailsService.js';
-import type { ExecuteCommitActionsParams } from '../../commitDetails/protocol.js';
 import type { CopyCommitPatchEventDetail, OpenMultipleChangesArgs } from '../shared/actions/file.js';
 import { SignalWatcherWebviewApp } from '../shared/appBase.js';
 import { getHost } from '../shared/host/context.js';
@@ -18,7 +16,7 @@ import type { CommitDetailsActions, CommitDetailsResources } from './actions.js'
 import { createActions } from './actions.js';
 import type { FileChangeListItemDetail } from './components/gl-details-base.js';
 import { setupSubscriptions } from './events.js';
-import type { CommitDetailsState, ExplainState } from './state.js';
+import type { CommitDetailsState } from './state.js';
 import { createCommitDetailsState } from './state.js';
 import '../shared/components/gl-error-banner.js';
 import './components/gl-details-commit-panel.js';
@@ -33,8 +31,7 @@ export const uncommittedSha = '0000000000000000000000000000000000000000';
  * - RpcController for RPC lifecycle management
  * - Instance-owned state created via createCommitDetailsState()
  * - HostContext for portable persistence and RPC endpoint creation
- * - RemoteSignalBridge for host-pushed signals (orgSettings, hasAccount)
- * - Resources for async data lifecycle (commit, reachability, explain)
+ * - Resources for async data lifecycle (commit and reachability)
  */
 @customElement('gl-commit-details-app')
 export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
@@ -101,12 +98,7 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 		// Dispose all resources
 		this._resources?.commit.dispose();
 		this._resources?.reachability.dispose();
-		this._resources?.explain.dispose();
 		this._resources = undefined;
-
-		// Disconnect remote signal bridges
-		this._state.orgSettings.disconnect();
-		this._state.hasAccount.disconnect();
 
 		// Clear actions reference
 		this._actions = undefined;
@@ -114,7 +106,7 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 		// Reset state
 		this._state.resetAll();
 
-		// GlWebviewApp: cleans up focus tracker, disposes ipc/promos/telemetry/DOM listeners
+		// GlWebviewApp cleans up focus and theme listeners
 		// Lit framework: calls RpcController.hostDisconnected() → ends the RPC session (the connection lives on)
 		super.disconnectedCallback?.();
 	}
@@ -128,54 +120,16 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 		const s = this._state;
 
 		// Resolve all sub-services in parallel (one await per sub-service)
-		const [
-			inspect,
-			repository,
-			repositories,
-			commands,
-			config,
-			storage,
-			ai,
-			autolinks,
-			subscription,
-			integrations,
-			files,
-			pullRequests,
-			drafts,
-			telemetry,
-		] = await Promise.all([
+		const [inspect, repository, repositories, commands, config, storage, autolinks, files] = await Promise.all([
 			services.inspect,
 			services.repository,
 			services.repositories,
 			services.commands,
 			services.config,
 			services.storage,
-			services.ai,
 			services.autolinks,
-			services.subscription,
-			services.integrations,
 			services.files,
-			services.pullRequests,
-			services.drafts,
-			services.telemetry,
 		]);
-
-		// Promo cache invalidation — the surface renders promos via `gl-feature-badge`.
-		this._promos.connect(this._rpc.connection!);
-
-		// Supertalk remote proxy properties are thenable at runtime (ProxyProperty with .then()),
-		// but Remote<T> types them as synchronous values. The lint rule correctly detects the
-		// thenable; the disable is required — this is how Supertalk property access works.
-		/* oxlint-disable typescript/await-thenable */
-		const [orgSettingsSignal, hasAccountSignal] = await Promise.all([
-			subscription.orgSettingsState,
-			subscription.hasAccountState,
-		]);
-		/* oxlint-enable typescript/await-thenable */
-
-		// Connect remote signal bridges — single .get() instead of double .get().get()
-		s.orgSettings.connect(orgSettingsSignal);
-		s.hasAccount.connect(hasAccountSignal);
 
 		// Create resources — fetchers read current state signals via closure
 		const resources: CommitDetailsResources = {
@@ -185,38 +139,18 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 				if (commit == null) return undefined;
 				return repository.getCommitReachability(commit.repoPath, commit.sha, _signal);
 			}),
-			explain: createResource<ExplainState | undefined, [string | undefined]>(async (signal, prompt) => {
-				const commit = s.currentCommit.get();
-				if (commit == null) return undefined;
-
-				try {
-					const result = await inspect.explainCommit(commit.repoPath, commit.sha, prompt, signal);
-					if (result.error) {
-						return { error: { message: result.error.message ?? 'Error retrieving content' } };
-					}
-					return { result: result.result };
-				} catch (_ex) {
-					return { error: { message: 'Error retrieving content' } };
-				}
-			}),
 		};
 		this._resources = resources;
 
 		const resolvedServices = {
 			inspect: inspect,
-			drafts: drafts,
 			repositories: repositories,
 			repository: repository,
 			commands: commands,
 			config: config,
 			storage: storage,
-			ai: ai,
 			autolinks: autolinks,
-			subscription: subscription,
-			integrations: integrations,
 			files: files,
-			pullRequests: pullRequests,
-			telemetry: telemetry,
 		};
 
 		// Create actions instance with resolved sub-services and resources
@@ -276,27 +210,6 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 
 	override updated(_changedProperties: Map<PropertyKey, unknown>): void {
 		this.updateDocumentProperties();
-		this.pushTelemetryContext();
-	}
-
-	private _lastTelemetryContextStr = '';
-	private pushTelemetryContext(): void {
-		const actions = this._actions;
-		if (actions == null) return;
-
-		const s = this._state;
-		const commit = s.currentCommit.get();
-		const context: InspectWebviewTelemetryContext = {
-			'context.autolinks': s.autolinks.get()?.length ?? 0,
-			'context.type': commit?.stashNumber != null ? 'stash' : commit != null ? 'commit' : undefined,
-			'context.uncommitted': s.isUncommitted.get(),
-		};
-
-		const str = JSON.stringify(context);
-		if (str !== this._lastTelemetryContextStr) {
-			this._lastTelemetryContextStr = str;
-			actions.updateTelemetryContext(context);
-		}
 	}
 
 	private indentPreference = 16;
@@ -324,8 +237,6 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 		const resources = this._resources;
 		const commit = s.currentCommit.get();
 		const prefs = s.preferences.get();
-		const org = s.orgSettings.get();
-		const explain = resources?.explain.value.get();
 		const reach = resources?.reachability.value.get();
 		const reachStatus = resources?.reachability.status.get() ?? 'idle';
 		const reachState = mapReachabilityStatus(reachStatus);
@@ -342,7 +253,6 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 						.panelActions=${commit != null}
 						?show-pin=${commit != null}
 						?pinned=${s.pinned.get()}
-						?show-graph-action=${commit != null}
 						.navigation=${s.navigationStack.get()}
 						.commit=${commit}
 						.loading=${resources?.commit.loading.get() ?? false}
@@ -350,26 +260,17 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 						.preferences=${prefs}
 						.showSearchBox=${prefs?.showSearchBox ?? true}
 						.searchBoxFilter=${prefs?.searchBoxFilter ?? true}
-						.orgSettings=${org}
 						.isUncommitted=${s.isUncommitted.get()}
 						.filesCollapsable=${false}
 						.autolinksEnabled=${s.capabilities.autolinksEnabled}
 						.autolinks=${s.autolinks.get()}
 						.formattedMessage=${s.formattedMessage.get()}
-						.autolinkedIssues=${s.autolinkedIssues.get()}
-						.pullRequest=${s.pullRequest.get()}
 						.signature=${s.signature.get()}
-						.hasAccount=${s.hasAccount.get()}
-						.hasIntegrationsConnected=${s.capabilities.hasIntegrationsConnected}
 						.hasRemotes=${s.hasRemotes.get()}
-						.explain=${explain}
 						.searchContext=${searchCtx}
 						.reachability=${reach}
 						.reachabilityState=${reachState}
 						.branchName=${commit?.stashOnRef}
-						.aiEnabled=${org?.ai !== false}
-						.aiModel=${s.aiModel.get()}
-						@switch-model=${() => actions?.executeCommand('gitlens.ai.switchProvider')}
 						@gl-pick-commit=${() => this._actions?.pickCommit()}
 						@gl-search-commit=${() => this._actions?.searchCommit()}
 						@gl-pin=${() => actions?.togglePin()}
@@ -377,12 +278,8 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 						@gl-nav-forward=${() => actions?.navigateForward()}
 						@gl-commit-actions=${(e: CustomEvent<{ action: string; alt: boolean }>) =>
 							this.onCommitActions(e)}
-						@toggle-mode=${(e: CustomEvent<{ mode: 'review' | 'compose' | 'compare' }>) =>
-							actions?.openCommitInGraphMode(e.detail.mode, commit)}
 						@gl-stash-apply=${(e: CustomEvent<StashApplyCommandArgs>) =>
 							actions?.executeCommand('gitlens.stashesApply', e.detail)}
-						@explain-commit=${(e: CustomEvent<{ prompt?: string }>) =>
-							void actions?.explainCommit(e.detail?.prompt)}
 						@load-reachability=${() => void actions?.loadReachability()}
 						@refresh-reachability=${() => actions?.refreshReachability()}
 						@open-on-remote=${(e: CustomEvent<{ sha: string }>) =>
@@ -404,7 +301,6 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 							actions?.openMultipleChanges(e.detail)}
 						@copy-commit-patch=${(e: CustomEvent<CopyCommitPatchEventDetail>) =>
 							actions?.copyCommitPatchToClipboard(e.detail.repoPath, e.detail.to, e.detail.from)}
-						@gl-issue-pull-request-details=${() => actions?.openPullRequestDetails()}
 						@gl-show-search-box-change=${(e: CustomEvent<boolean>) =>
 							actions?.updateShowSearchBox(e.detail)}
 						@gl-search-box-filter-change=${(e: CustomEvent<boolean>) =>
@@ -423,7 +319,10 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 		const commit = this._state.currentCommit.get();
 		if (commit == null) return;
 
-		this._actions?.executeCommitAction(e.detail.action as ExecuteCommitActionsParams['action'], e.detail.alt);
+		const action = e.detail.action;
+		if (action !== 'more' && action !== 'scm' && action !== 'sha') return;
+
+		this._actions?.executeCommitAction(action, e.detail.alt);
 	}
 }
 

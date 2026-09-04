@@ -3,17 +3,14 @@ import { MarkdownString, TreeItem, TreeItemCollapsibleState, window } from 'vsco
 import { GitContributor } from '@gitlens/git/models/contributor.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
 import { formatNumeric } from '@gitlens/utils/date.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { map } from '@gitlens/utils/iterable.js';
 import { pluralize } from '@gitlens/utils/string.js';
-import { getPresenceDataUri } from '../../avatars.js';
-import { GlyphChars } from '../../constants.js';
 import type { GitUri } from '../../git/gitUri.js';
 import { formatCurrentUserDisplayName } from '../../git/utils/-webview/commit.utils.js';
 import { getContributorAvatarUri } from '../../git/utils/-webview/contributor.utils.js';
 import { configuration } from '../../system/-webview/configuration.js';
-import { gate } from '../../system/decorators/gate.js';
-import type { ContactPresence } from '../../vsls/vsls.js';
 import type { ViewsWithContributors } from '../viewBase.js';
 import type { ClipboardType, PageableViewNode } from './abstract/viewNode.js';
 import { ContextValues, getViewNodeId, ViewNode } from './abstract/viewNode.js';
@@ -33,7 +30,6 @@ export class ContributorNode extends ViewNode<'contributor', ViewsWithContributo
 		private readonly options?: {
 			all?: boolean;
 			ref?: string;
-			presence: Map<string, ContactPresence> | undefined;
 			showMergeCommits?: boolean;
 			pathspec?: { uri: Uri; isFolder: boolean };
 		},
@@ -99,8 +95,6 @@ export class ContributorNode extends ViewNode<'contributor', ViewsWithContributo
 	}
 
 	async getTreeItem(): Promise<TreeItem> {
-		const presence = this.options?.presence?.get(this.contributor.email!);
-
 		const shortStats =
 			this.contributor.stats != null
 				? ` (${pluralize('file', this.contributor.stats.files)}, +${formatNumeric(
@@ -121,11 +115,7 @@ export class ContributorNode extends ViewNode<'contributor', ViewsWithContributo
 		item.contextValue = this.contributor.current
 			? `${ContextValues.Contributor}+current`
 			: ContextValues.Contributor;
-		item.description = `${
-			presence != null && presence.status !== 'offline'
-				? `${presence.statusText} ${GlyphChars.Space}${GlyphChars.Dot}${GlyphChars.Space} `
-				: ''
-		}${this.contributor.latestCommitDate != null ? `${GitContributor.formatDateFromNow(this.contributor)}, ` : ''}${pluralize(
+		item.description = `${this.contributor.latestCommitDate != null ? `${GitContributor.formatDateFromNow(this.contributor)}, ` : ''}${pluralize(
 			'commit',
 			this.contributor.contributionCount,
 		)}${shortStats}`;
@@ -139,28 +129,9 @@ export class ContributorNode extends ViewNode<'contributor', ViewsWithContributo
 				size: size,
 			});
 
-			if (presence != null) {
-				let subjectAndVerb: string;
-				if (this.contributor.current) {
-					const style = configuration.get('defaultCurrentUserNameStyle');
-					subjectAndVerb = `${formatCurrentUserDisplayName(this.contributor.label, style)} ${style === 'you' ? 'are' : 'is'}`;
-				} else {
-					subjectAndVerb = `${this.contributor.label} is`;
-				}
-				const title = `${subjectAndVerb} ${
-					presence.status === 'dnd' ? 'in ' : ''
-				}${presence.statusText.toLocaleLowerCase()}`;
-
-				avatarMarkdown = `![${title}](${avatarUri.toString(
-					true,
-				)}|width=${size},height=${size} "${title}")![${title}](${getPresenceDataUri(
-					presence.status,
-				)} "${title}")`;
-			} else {
-				avatarMarkdown = `![${this.contributor.label}](${avatarUri.toString(
-					true,
-				)}|width=${size},height=${size} "${this.contributor.label}")`;
-			}
+			avatarMarkdown = `![${this.contributor.label}](${avatarUri.toString(
+				true,
+			)}|width=${size},height=${size} "${this.contributor.label}")`;
 		}
 
 		const stats =

@@ -8,7 +8,7 @@ import type { Event } from '@gitlens/utils/event.js';
 import type { Uri } from '@gitlens/utils/uri.js';
 import type { Commit, InputBox } from '../@types/vscode.git.d.js';
 import type { ForcePushMode } from '../@types/vscode.git.enums.js';
-import type { Source } from '../constants.telemetry.js';
+import type { Source } from '../constants.context.js';
 import type { Features } from '../features.js';
 import type { GitUri } from './gitUri.js';
 import type { GlRepository, RepositoryChangeEvent } from './models/repository.js';

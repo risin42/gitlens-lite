@@ -1,18 +1,16 @@
 import type { Disposable, OutputChannel } from 'vscode';
 import { window } from 'vscode';
-import { createDisposable, disposableInterval } from '@gitlens/utils/disposable.js';
+import { createDisposable } from '@gitlens/utils/disposable.js';
 import type { ResourceUsage, ResourceUsageMetric } from '@gitlens/utils/resourceUsage.js';
 import { getAvatarResourceUsage } from './avatars.js';
-import type { ExtensionResourceUsageEvent } from './constants.telemetry.js';
 import type { Container } from './container.js';
 import { registerCommand } from './system/-webview/command.js';
 import type { ResourceUsageRegistry } from './system/resourceUsage.js';
 
-/** How often resource-usage telemetry is sampled, when the window is focused. */
-const sampleInterval = 1000 * 60 * 60; // 1 hour
-
 /** Collects resource usage from registered, already-instantiated extension services. */
-export function collectResourceUsage(registry: ResourceUsageRegistry): ExtensionResourceUsageEvent {
+export function collectResourceUsage(
+	registry: ResourceUsageRegistry,
+): ResourceUsage & { 'extensionHost.memory.heapUsed.bytes': number | undefined } {
 	const usage = registry.collect();
 	return { 'extensionHost.memory.heapUsed.bytes': usage['extensionHost.memory.heapUsed.bytes'], ...usage };
 }
@@ -27,7 +25,7 @@ export function formatResourceUsage(usage: Readonly<ResourceUsage>): string {
 }
 
 /**
- * Registers the public resource-usage command and hourly telemetry sampler. Providers are pulled only
+ * Registers the public resource-usage command. Providers are pulled only
  * when a snapshot is collected, and collecting a snapshot never initializes otherwise-unused services.
  */
 export function registerResourceUsage(container: Container): Disposable[] {
@@ -44,17 +42,10 @@ export function registerResourceUsage(container: Container): Disposable[] {
 		output.show();
 	};
 
-	const sampler = disposableInterval(() => {
-		if (!window.state.focused || !container.telemetry.enabled) return;
-
-		container.telemetry.sendEvent('extension/resourceUsage', collectResourceUsage(container.resourceUsage));
-	}, sampleInterval);
-
 	return [
 		extensionHostRegistration,
 		avatarsRegistration,
 		registerCommand('gitlens.showResourceUsage', show),
-		sampler,
 		createDisposable(() => output?.dispose()),
 	];
 }

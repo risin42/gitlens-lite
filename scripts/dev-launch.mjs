@@ -2,10 +2,8 @@
 /**
  * Launches a real, interactive VS Code Extension Development Host running the
  * GitLens build from a chosen worktree — so you can see that worktree's code
- * live. Unlike scripts/e2e-dev-inspect.mjs (which spins up a separate, headless
- * Electron instance under Xvfb for Playwright to drive), this drives your
- * ALREADY-RUNNING desktop VS Code via the remote CLI, so it works over
- * Remote-WSL and Remote-SSH: the new window opens on your desktop, connected to
+ * live. This drives your ALREADY-RUNNING desktop VS Code via the remote CLI, so it
+ * works over Remote-WSL and Remote-SSH: the new window opens on your desktop, connected to
  * the remote, with the dev extension host loaded in the remote.
  *
  * It does the same thing as the "Run" config in .vscode/launch.json
@@ -383,10 +381,8 @@ async function main() {
 	// something that looks right and silently does nothing.
 	if (openIsUri && opts.open.startsWith('vscode-vfs:') && !opts.web) {
 		console.warn(
-			`⚠ ${opts.open} is a VIRTUAL workspace — it needs the web extension host, which this script does not launch.\n` +
-				'  `pnpm run web` runs the web host, but note @vscode/test-web bundles no RemoteHub/GitHub\n' +
-				'  Repositories extension, so a `vscode-vfs://github/...` folder has no filesystem provider there\n' +
-				'  and the repo will not be discovered. Real virtual testing needs vscode.dev.',
+			`⚠ ${opts.open} is a VIRTUAL workspace — it needs the web extension host and a\n` +
+				'  filesystem provider. Use vscode.dev or another host that provides the remote repository.',
 		);
 	}
 	const openTarget = opts.open == null ? worktree : openIsUri ? opts.open : path.resolve(process.cwd(), opts.open);

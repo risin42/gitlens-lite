@@ -9,38 +9,23 @@
  * 1. Persisted (survive hide/show/refresh) — pinned, commitRef
  * 2. Ephemeral UI — navigationStack
  * 3. Domain Data — currentCommit, preferences, enrichment signals
- * 4. Remote Bridges — orgSettings, hasAccount (connected to host signals post-RPC)
- * 5. Resource-owned (NOT in state) — loading, reachability, explain
+ * 4. Repository context — remote availability and local metadata
+ * 5. Resource-owned (NOT in state) — loading and reachability
  * 6. Derived — computed from above (canNavigateBack, isUncommitted, etc.)
  *
  * Signals removed from state (now resource-owned in commitDetails.ts):
  * - loadingCommit → commitResource.loading
  * - reachabilityState → reachabilityResource.status
  * - reachability → reachabilityResource.value
- * - explainState → explainResource.value
  */
 import { computed } from '@lit-labs/signals';
 import { signalObject } from 'signal-utils/object';
-import type { IssueOrPullRequest } from '@gitlens/git/models/issueOrPullRequest.js';
-import type { PullRequestShape } from '@gitlens/git/models/pullRequest.js';
 import type { GitCommitSearchContext } from '@gitlens/git/models/search.js';
 import type { Autolink } from '../../../autolinks/models/autolinks.js';
 import type { CommitDetails, CommitSignatureShape, Preferences } from '../../commitDetails/protocol.js';
-import type { AiModelInfo } from '../../rpc/services/types.js';
 import type { NavigationState } from '../shared/controllers/navigationStack.js';
 import type { HostStorage } from '../shared/host/storage.js';
-import { createRemoteSignalBridge } from '../shared/state/remoteSignal.js';
 import { createStateGroup } from '../shared/state/signals.js';
-
-// ============================================================
-// Explain/Generate State (for AI features)
-// ============================================================
-
-export interface ExplainState {
-	cancelled?: boolean;
-	error?: { message: string };
-	result?: { summary: string; body: string };
-}
 
 /**
  * Creates a new Commit Details state instance with all signals initialized to defaults.
@@ -77,16 +62,7 @@ export function createCommitDetailsState(storage?: HostStorage) {
 	const searchContext = signal<GitCommitSearchContext | undefined>(undefined);
 	const preferences = signal<Preferences | undefined>(undefined);
 
-	/** Currently selected AI model — populated live from the AI service (for the Explain input chip). */
-	const aiModel = signal<AiModelInfo | undefined>(undefined);
-
-	/** Organization settings — connected to remote signal once RPC connects. Single `.get()`. */
-	const orgSettings = createRemoteSignalBridge({ ai: false, drafts: false });
-
-	/** Whether the user has a GitKraken account — connected to remote signal once RPC connects. Single `.get()`. */
-	const hasAccount = createRemoteSignalBridge(false);
-
-	const capabilities = signalObject({ hasIntegrationsConnected: false, autolinksEnabled: false });
+	const capabilities = signalObject({ autolinksEnabled: false });
 
 	// ── Repository context ──
 
@@ -96,8 +72,6 @@ export function createCommitDetailsState(storage?: HostStorage) {
 
 	const autolinks = signal<Autolink[] | undefined>(undefined);
 	const formattedMessage = signal<string | undefined>(undefined);
-	const autolinkedIssues = signal<IssueOrPullRequest[] | undefined>(undefined);
-	const pullRequest = signal<PullRequestShape | undefined>(undefined);
 	const signature = signal<CommitSignatureShape | undefined>(undefined);
 
 	// ── Derived State ──
@@ -127,9 +101,6 @@ export function createCommitDetailsState(storage?: HostStorage) {
 		currentCommit: currentCommit,
 		searchContext: searchContext,
 		preferences: preferences,
-		aiModel: aiModel,
-		orgSettings: orgSettings,
-		hasAccount: hasAccount,
 		capabilities: capabilities,
 
 		// Repository context
@@ -138,8 +109,6 @@ export function createCommitDetailsState(storage?: HostStorage) {
 		// Enrichment
 		autolinks: autolinks,
 		formattedMessage: formattedMessage,
-		autolinkedIssues: autolinkedIssues,
-		pullRequest: pullRequest,
 		signature: signature,
 
 		// Derived State (read-only)

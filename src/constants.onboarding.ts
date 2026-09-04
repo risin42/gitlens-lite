@@ -2,88 +2,9 @@ import type { OnboardingItemDefinition } from './onboarding/models/onboarding.js
 
 /** Central registry of all dismissible/onboarding keys */
 export const onboardingDefinitions = {
-	// Home View
-	'home:integrationBanner': { schema: '17.8.0', scope: 'global' },
-	'home:walkthrough': { schema: '17.8.0', scope: 'global' },
-
-	// Agents Banner (MCP + hooks combined; shown in home and graph)
-	'agents:banner': { schema: '18.3.0', scope: 'global' },
-
-	// Rebase Editor
-	'rebaseEditor:closeWarning': { schema: '17.8.0', scope: 'global' },
-
-	// Composer
-	'composer:onboarding': {
-		schema: '17.9.0',
-		scope: 'global',
-		reshowAfter: '17.9.0',
-		// oxlint-disable-next-line typescript/no-unnecessary-type-assertion
-		state: undefined as unknown as { stepReached: number },
-	},
-
-	// Graph Visualizations Toggle (first-interaction callout; re-armed for Repository Health)
-	'graph:visualizations:buttonCallout': { schema: '18.0.0', scope: 'global', reshowAfter: '19.1.0' },
-
-	// Graph Visualizations switcher's Repository Health entry (first-interaction callout)
-	'graph:visualizations:health:callout': { schema: '19.1.0', scope: 'global' },
-
-	// Graph Kanban Toggle (first-interaction callout)
-	'graph:kanban:buttonCallout': { schema: '18.2.0', scope: 'global' },
-
-	// Graph side bar Pull Requests panel (first-interaction callout)
-	'graph:sidebar:pullRequests:callout': { schema: '18.5.0', scope: 'global' },
-
-	// Graph side bar Agents panel (first-interaction callout)
-	'graph:sidebar:agents:callout': { schema: '18.5.0', scope: 'global' },
-
-	// Graph Intro (welcome to the New Commit Graph; wraps the optional layout prompt)
-	'graph:intro': { schema: '18.5.0', scope: 'global' },
-
-	// Graph Layout Prompt (one-time layout choice on first entry to the Graph view)
-	'graph:layoutPrompt': { schema: '18.4.0', scope: 'global' },
-
-	// Graph Coach Marks (contextual feature popovers, #5516)
-	// Aggregate "already shown" set; the per-mark keys below carry the permanent "Got it" dismissal.
-	'graph:coachMarks': {
-		schema: '19.0.0',
-		scope: 'global',
-		// oxlint-disable-next-line typescript/no-unnecessary-type-assertion
-		state: undefined as unknown as { seen: Partial<Record<string, true>> },
-	},
-	'graph:coachMark:details': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:compose': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:review': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:conflicts': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:resolve': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:composeReady': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:resolveReady': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:agents': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:compare': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:overviewBar': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:kanban': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:visualizations': { schema: '19.0.0', scope: 'global' },
-	'graph:coachMark:gitHealth': { schema: '19.1.0', scope: 'global' },
-	'graph:coachMark:followTerminal': { schema: '19.0.0', scope: 'global' },
-	// Not a tip: records that the marks have already stood down for the walkthrough banner once.
-	'graph:coachMarks:bannerDeferral': { schema: '19.0.0', scope: 'global' },
-
-	// Graph Walkthrough Banner
-	'graph-walkthrough:banner': {
-		schema: '18.0.0',
-		scope: 'global',
-	},
-
-	// Details Header Toggles (first-interaction callouts)
-	'details:compose:buttonCallout': { schema: '18.2.0', scope: 'global' },
-	'details:review:buttonCallout': { schema: '18.2.0', scope: 'global' },
-	'details:compare:buttonCallout': { schema: '18.2.0', scope: 'global' },
-	'details:resolve:buttonCallout': { schema: '18.2.0', scope: 'global' },
-
-	// Terminal
-	'terminal:locationCallout': { schema: '19.0.1', scope: 'global' },
-
-	// Views
 	'views:scmGrouped:welcome': { schema: '17.8.0', scope: 'global' },
+	'rebaseEditor:closeWarning': { schema: '17.8.0', scope: 'global' },
+	'terminal:locationCallout': { schema: '19.1.0', scope: 'global' },
 } as const satisfies Record<string, OnboardingItemDefinition<unknown>>;
 
 export type OnboardingKeys = keyof typeof onboardingDefinitions;

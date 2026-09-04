@@ -9,12 +9,6 @@ import { getScopedLogger } from '@gitlens/utils/logger.scoped.js';
 import { maybeStopWatch, Stopwatch } from '@gitlens/utils/stopwatch.js';
 import type { GlWebviewCommands } from '../constants.commands.js';
 import type {
-	Source,
-	TelemetryEvents,
-	WebviewTelemetryContext,
-	WebviewTelemetryEvents,
-} from '../constants.telemetry.js';
-import type {
 	CustomEditorIds,
 	CustomEditorTypes,
 	WebviewIds,
@@ -25,12 +19,8 @@ import type {
 	WebviewViewTypes,
 } from '../constants.views.js';
 import type { Container } from '../container.js';
-import { executeCommand, executeCoreCommand } from '../system/-webview/command.js';
-import {
-	includesContextDelimitedString,
-	removeFromContextDelimitedString,
-	setContext,
-} from '../system/-webview/context.js';
+import { executeCoreCommand } from '../system/-webview/command.js';
+import { setContext } from '../system/-webview/context.js';
 import { getViewFocusCommand } from '../system/-webview/vscode/views.js';
 import type { WebviewContext } from '../system/webview.js';
 import { serializeWireData } from '../system/wireSerialize.js';
@@ -340,7 +330,7 @@ export class WebviewController<
 							// already alive (`_ready`). During panel restoration the first view-state event is
 							// the panel settling into its restored column — not a user move — and forcing a
 							// reload there tears down the just-created iframe mid-bootstrap, cancelling the
-							// deferred-rows delivery and leaving the Graph stuck on its loading spinner.
+							// deferred data delivery and leaving the webview stuck on its loading spinner.
 							this.onParentVisibilityChanged(
 								visible,
 								active,
@@ -358,28 +348,6 @@ export class WebviewController<
 				{ dispose: () => disposeServices(rpcServices) },
 			);
 		});
-	}
-
-	private async removePlusFeatureOverride() {
-		if (!this.descriptor.plusFeature) {
-			return;
-		}
-
-		if (includesContextDelimitedString('gitlens:plus:disabled:view:overrides', this.descriptor.id)) {
-			const action = 'Enable Pro Features';
-			void window
-				.showInformationMessage(
-					`${this.descriptor.title} was closed as Pro features have been disabled.`,
-					action,
-				)
-				.then(selection => {
-					if (selection === action) {
-						void executeCommand('gitlens.plus.restore');
-					}
-				});
-		}
-
-		return removeFromContextDelimitedString('gitlens:plus:disabled:view:overrides', [this.descriptor.id]);
 	}
 
 	/** True while a `refreshCore` reload window is open (html reset → session announcement →
@@ -403,12 +371,8 @@ export class WebviewController<
 		this.cancellation?.dispose();
 		resetContextKeys(this.descriptor.contextKeyPrefix);
 
-		void this.removePlusFeatureOverride();
-
 		this.provider?.onFocusChanged?.(false);
 		this.provider?.onVisibilityChanged?.(false);
-
-		this.sendTelemetryEvent(`${this.descriptor.type}/closed`, {});
 
 		this._ready = false;
 		this.invalidateSession();
@@ -553,38 +517,6 @@ export class WebviewController<
 		return Promise.resolve();
 	}
 
-	getTelemetryContext(): WebviewTelemetryContext {
-		return {
-			'context.webview.id': this.id,
-			'context.webview.type': this.descriptor.type,
-			'context.webview.instanceId': this.instanceId,
-			'context.webview.host': this.is('editor')
-				? 'editor'
-				: (this.descriptor as WebviewViewDescriptor).location === 'panel'
-					? 'panel'
-					: 'view',
-		};
-	}
-
-	sendTelemetryEvent<T extends keyof TelemetryEvents>(
-		name: T,
-		...args: [keyof WebviewTelemetryEvents[T]] extends [never]
-			? [data?: never, source?: Source]
-			: [data: WebviewTelemetryEvents[T], source?: Source]
-	): void {
-		if (!this.container.telemetry.enabled) return;
-
-		this.container.telemetry.sendEvent(
-			name,
-			{
-				...this.getTelemetryContext(),
-				...this.provider.getTelemetryContext?.(),
-				...(args[0] as any),
-			},
-			args[1],
-		);
-	}
-
 	is(
 		type: 'editor',
 	): this is WebviewController<ID & (WebviewPanelIds | CustomEditorIds), State, SerializedState, ShowingArgs>;
@@ -667,21 +599,9 @@ export class WebviewController<
 	): Promise<void> {
 		options ??= {};
 
-		using sw = new Stopwatch(`WebviewController.show(${this.id})`);
+		using _sw = new Stopwatch(`WebviewController.show(${this.id})`);
 
-		let context;
-		const result = await this.provider.onShowing?.(loading, options, ...args);
-		if (result != null) {
-			let show;
-			[show, context] = result;
-			if (show === false) {
-				this.sendTelemetryEvent(`${this.descriptor.type}/showAborted`, {
-					loading: loading,
-					duration: sw.elapsed(),
-				});
-				return;
-			}
-		}
+		if ((await this.provider.onShowing?.(loading, options, ...args)) === false) return;
 
 		if (loading) {
 			this.cancellation ??= new CancellationTokenSource();
@@ -718,16 +638,6 @@ export class WebviewController<
 		}
 
 		setContextKeys(this.descriptor.contextKeyPrefix);
-
-		this.sendTelemetryEvent(
-			`${this.descriptor.type}/shown`,
-			{
-				loading: loading,
-				duration: sw.elapsed(),
-				...context,
-			},
-			options.source,
-		);
 	}
 
 	get baseWebviewState(): WebviewState<ID> {
@@ -872,14 +782,10 @@ export class WebviewController<
 				this.provider.onActiveChanged?.(active);
 				if (!active) {
 					this.handleFocusChanged(false);
-
-					void this.removePlusFeatureOverride();
 				}
 			}
 		} else {
 			resetContextKeys(this.descriptor.contextKeyPrefix);
-
-			void this.removePlusFeatureOverride();
 
 			if (active != null) {
 				this.provider.onActiveChanged?.(false);

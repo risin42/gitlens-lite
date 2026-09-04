@@ -3,7 +3,6 @@ import { Disposable, MarkdownString, ThemeColor, ThemeIcon, TreeItem, TreeItemCo
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
-import type { PullRequest, PullRequestState } from '@gitlens/git/models/pullRequest.js';
 import type { GitBranchReference } from '@gitlens/git/models/reference.js';
 import type { GitUser } from '@gitlens/git/models/user.js';
 import { GitWorktree } from '@gitlens/git/models/worktree.js';
@@ -11,13 +10,13 @@ import { getLastFetchedUpdateInterval } from '@gitlens/git/utils/fetch.utils.js'
 import { getHighlanderProviders } from '@gitlens/git/utils/remote.utils.js';
 import { formatIndicators, formatTrackingTooltip } from '@gitlens/git/utils/tooltip.utils.js';
 import { fromNow } from '@gitlens/utils/date.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import { memoize } from '@gitlens/utils/decorators/memoize.js';
 import { disposableInterval } from '@gitlens/utils/disposable.js';
 import { weakEvent } from '@gitlens/utils/event.js';
 import { map } from '@gitlens/utils/iterable.js';
-import type { Deferred } from '@gitlens/utils/promise.js';
-import { defer, getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
+import { getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
 import { pad } from '@gitlens/utils/string.js';
 import type { IconPath } from '../../@types/vscode.iconpath.d.js';
 import type { ViewShowBranchComparison } from '../../config.js';
@@ -30,14 +29,11 @@ import { unknownGitUri } from '../../git/gitUri.js';
 import type { GlRepository, RepositoryChangeEvent } from '../../git/models/repository.js';
 import {
 	getBranchAheadRange,
-	getBranchAssociatedPullRequest,
 	getBranchMergeTargetName,
 	getBranchRemote,
 	setBranchDisposition,
 } from '../../git/utils/-webview/branch.utils.js';
 import { getBranchIconPath, getRemoteIconPath, getWorktreeBranchIconPath } from '../../git/utils/-webview/icons.js';
-import { getContext } from '../../system/-webview/context.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { View, ViewsWithBranches } from '../viewBase.js';
 import { disposeChildren } from '../viewBase.js';
 import { createViewDecorationUri } from '../viewDecorationProvider.js';
@@ -50,14 +46,8 @@ import { CommitNode } from './commitNode.js';
 import { LoadMoreNode, MessageNode } from './common.js';
 import { CompareBranchNode } from './compareBranchNode.js';
 import { PausedOperationStatusNode } from './pausedOperationStatusNode.js';
-import { PullRequestNode } from './pullRequestNode.js';
 import { StashNode } from './stashNode.js';
 import { insertDateMarkers } from './utils/-webview/node.utils.js';
-
-type State = {
-	pullRequest: PullRequest | null | undefined;
-	pendingPullRequest: Promise<PullRequest | undefined> | undefined;
-};
 
 type Options = {
 	expand: boolean;
@@ -73,7 +63,7 @@ type Options = {
 };
 
 export class BranchNode
-	extends ViewRefNode<'branch', ViewsWithBranches, GitBranchReference, State>
+	extends ViewRefNode<'branch', ViewsWithBranches, GitBranchReference>
 	implements PageableViewNode
 {
 	limit: number | undefined;
@@ -170,10 +160,6 @@ export class BranchNode
 		if (this.children == null) {
 			const branch = this.branch;
 
-			let onCompleted: Deferred<void> | undefined;
-			let pullRequest;
-			let pullRequestInsertIndex = 0;
-
 			let comparison: CompareBranchNode | undefined;
 			let loadComparisonDefaultCompareWith = false;
 			if (this.options.showComparison !== false && this.view.type !== 'remotes') {
@@ -188,215 +174,156 @@ export class BranchNode
 				loadComparisonDefaultCompareWith = comparison.compareWith == null;
 			}
 
-			let prPromise: Promise<PullRequest | undefined> | undefined;
-			if (
-				this.view.config.pullRequests.enabled &&
-				this.view.config.pullRequests.showForBranches &&
-				(branch.upstream != null || branch.remote) &&
-				getContext('gitlens:repos:withHostingIntegrationsConnected')?.includes(branch.repoPath)
-			) {
-				pullRequest = this.getState('pullRequest');
-				if (pullRequest === undefined && this.getState('pendingPullRequest') === undefined) {
-					onCompleted = defer<void>();
-					prPromise = this.getAssociatedPullRequest(
-						branch,
-						this.root ? { include: ['opened', 'merged'] } : undefined,
-					);
+			const svc = this.view.container.git.getRepositoryService(this.uri.repoPath!);
+			const [
+				logResult,
+				getBranchAndTagTipsResult,
+				pausedOpStatusResult,
+				unpublishedCommitsResult,
+				baseResult,
+				targetResult,
+			] = await Promise.allSettled([
+				this.getLog(svc),
+				svc.getBranchesAndTagsTipsLookup(branch.name),
+				this.options.showStatus && branch.current ? svc.pausedOps?.getPausedOperationStatus?.() : undefined,
+				!branch.remote
+					? getBranchAheadRange(svc, branch).then(range =>
+							range
+								? svc.commits.getLogShas(range, { limit: 0, merges: this.options.showMergeCommits })
+								: undefined,
+						)
+					: undefined,
+				loadComparisonDefaultCompareWith ? svc.branches.getBaseBranchName?.(this.branch.name) : undefined,
+				loadComparisonDefaultCompareWith
+					? getBranchMergeTargetName(this.view.container, this.branch, {
+							timeout: 100,
+						})
+					: undefined,
+			]);
+			const log = getSettledValue(logResult);
+			if (log == null) return [new MessageNode(this.view, this, 'No commits could be found.')];
 
-					queueMicrotask(async () => {
-						await onCompleted?.promise;
+			const children = [];
 
-						// If we are waiting too long, refresh this node to show a spinner while the pull request is loading
-						let spinner = false;
-						const timeout = setTimeout(() => {
-							spinner = true;
-							this.view.triggerNodeChange(this);
-						}, 250);
+			const pausedOpsStatus = getSettledValue(pausedOpStatusResult);
+			const unpublishedCommits = new Set(getSettledValue(unpublishedCommitsResult));
 
-						const pr = await prPromise;
-						clearTimeout(timeout);
+			if (pausedOpsStatus != null) {
+				children.push(new PausedOperationStatusNode(this.view, this, branch, pausedOpsStatus, this.root));
+			} else if (this.options.showTracking) {
+				const status = {
+					ref: branch.ref,
+					repoPath: branch.repoPath,
+					upstream: branch.upstream,
+				};
 
-						// If we found a pull request, insert it into the children cache (if loaded) and refresh the node
-						if (pr != null && this.children != null) {
-							this.children.splice(
-								pullRequestInsertIndex,
-								0,
-								new PullRequestNode(this.view, this, pr, branch),
+				if (status.upstream != null) {
+					if (this.root && status.upstream.missing) {
+						children.push(
+							new BranchTrackingStatusNode(this.view, this, branch, status, 'missing', this.root),
+						);
+					} else if (this.root && !status.upstream.state.behind && !status.upstream.state.ahead) {
+						children.push(new BranchTrackingStatusNode(this.view, this, branch, status, 'same', this.root));
+					} else {
+						if (status.upstream.state.behind) {
+							children.push(
+								new BranchTrackingStatusNode(this.view, this, branch, status, 'behind', this.root),
 							);
 						}
 
-						// Refresh this node to add the pull request node or remove the spinner
-						if (spinner || pr != null) {
-							this.view.triggerNodeChange(this.root ? (this.parent ?? this) : this);
+						if (status.upstream.state.ahead) {
+							children.push(
+								new BranchTrackingStatusNode(this.view, this, branch, status, 'ahead', this.root, {
+									unpublishedCommits: unpublishedCommits,
+								}),
+							);
 						}
-					});
+					}
+				} else if (!branch.detached) {
+					children.push(new BranchTrackingStatusNode(this.view, this, branch, status, 'none', this.root));
 				}
 			}
 
-			try {
-				const svc = this.view.container.git.getRepositoryService(this.uri.repoPath!);
-				const [
-					logResult,
-					getBranchAndTagTipsResult,
-					pausedOpStatusResult,
-					unpublishedCommitsResult,
-					baseResult,
-					targetResult,
-				] = await Promise.allSettled([
-					this.getLog(svc),
-					svc.getBranchesAndTagsTipsLookup(branch.name),
-					this.options.showStatus && branch.current ? svc.pausedOps?.getPausedOperationStatus?.() : undefined,
-					!branch.remote
-						? getBranchAheadRange(svc, branch).then(range =>
-								range
-									? svc.commits.getLogShas(range, { limit: 0, merges: this.options.showMergeCommits })
-									: undefined,
-							)
-						: undefined,
-					loadComparisonDefaultCompareWith ? svc.branches.getBaseBranchName?.(this.branch.name) : undefined,
-					loadComparisonDefaultCompareWith
-						? getBranchMergeTargetName(this.view.container, this.branch, {
-								associatedPullRequest: prPromise,
-								timeout: 100,
-							})
-						: undefined,
-				]);
-				const log = getSettledValue(logResult);
-				if (log == null) return [new MessageNode(this.view, this, 'No commits could be found.')];
+			if (comparison != null) {
+				children.push(comparison);
 
-				const children = [];
+				if (loadComparisonDefaultCompareWith) {
+					const baseBranchName = getSettledValue(baseResult);
+					const targetMaybeResult = getSettledValue(targetResult);
 
-				const pausedOpsStatus = getSettledValue(pausedOpStatusResult);
-				const unpublishedCommits = new Set(getSettledValue(unpublishedCommitsResult));
-
-				if (pullRequest != null) {
-					children.push(new PullRequestNode(this.view, this, pullRequest, branch));
-				}
-
-				if (pausedOpsStatus != null) {
-					children.push(new PausedOperationStatusNode(this.view, this, branch, pausedOpsStatus, this.root));
-				} else if (this.options.showTracking) {
-					const status = {
-						ref: branch.ref,
-						repoPath: branch.repoPath,
-						upstream: branch.upstream,
-					};
-
-					if (status.upstream != null) {
-						if (this.root && status.upstream.missing) {
-							children.push(
-								new BranchTrackingStatusNode(this.view, this, branch, status, 'missing', this.root),
-							);
-						} else if (this.root && !status.upstream.state.behind && !status.upstream.state.ahead) {
-							children.push(
-								new BranchTrackingStatusNode(this.view, this, branch, status, 'same', this.root),
-							);
-						} else {
-							if (status.upstream.state.behind) {
-								children.push(
-									new BranchTrackingStatusNode(this.view, this, branch, status, 'behind', this.root),
-								);
-							}
-
-							if (status.upstream.state.ahead) {
-								children.push(
-									new BranchTrackingStatusNode(this.view, this, branch, status, 'ahead', this.root, {
-										unpublishedCommits: unpublishedCommits,
-									}),
-								);
-							}
-						}
-					} else if (!branch.detached) {
-						children.push(new BranchTrackingStatusNode(this.view, this, branch, status, 'none', this.root));
+					let baseOrTargetBranchName: string | undefined;
+					if (targetMaybeResult?.paused) {
+						baseOrTargetBranchName = baseBranchName;
+					} else {
+						baseOrTargetBranchName = targetMaybeResult?.value ?? baseBranchName;
 					}
-				}
 
-				pullRequestInsertIndex = 0;
+					if (baseOrTargetBranchName != null) {
+						void comparison.setDefaultCompareWith({
+							ref: baseOrTargetBranchName,
+							label: baseOrTargetBranchName,
+							notation: '...',
+							type: 'branch',
+							checkedFiles: [],
+						});
+					}
 
-				if (comparison != null) {
-					children.push(comparison);
+					if (targetMaybeResult?.paused) {
+						void targetMaybeResult.value.then(target => {
+							if (target == null) return;
 
-					if (loadComparisonDefaultCompareWith) {
-						const baseBranchName = getSettledValue(baseResult);
-						const targetMaybeResult = getSettledValue(targetResult);
-
-						let baseOrTargetBranchName: string | undefined;
-						if (targetMaybeResult?.paused) {
-							baseOrTargetBranchName = baseBranchName;
-						} else {
-							baseOrTargetBranchName = targetMaybeResult?.value ?? baseBranchName;
-						}
-
-						if (baseOrTargetBranchName != null) {
 							void comparison.setDefaultCompareWith({
-								ref: baseOrTargetBranchName,
-								label: baseOrTargetBranchName,
+								ref: target,
+								label: target,
 								notation: '...',
 								type: 'branch',
 								checkedFiles: [],
 							});
-						}
-
-						if (targetMaybeResult?.paused) {
-							void targetMaybeResult.value.then(target => {
-								if (target == null) return;
-
-								void comparison.setDefaultCompareWith({
-									ref: target,
-									label: target,
-									notation: '...',
-									type: 'branch',
-									checkedFiles: [],
-								});
-							});
-						}
+						});
 					}
 				}
-
-				if (children.length !== 0) {
-					if (this.view.type === 'commits') {
-						children.push(new CommitsCurrentBranchNode(this.view, this, this.branch));
-					} else {
-						children.push(new MessageNode(this.view, this, '', GlyphChars.Dash.repeat(2), ''));
-					}
-				}
-
-				const getBranchAndTagTips = getSettledValue(getBranchAndTagTipsResult);
-
-				children.push(
-					...insertDateMarkers(
-						map(log.commits.values(), c =>
-							GitCommit.isStash(c)
-								? new StashNode(this.view, this, c, { icon: true })
-								: new CommitNode(
-										this.view,
-										this,
-										c,
-										unpublishedCommits?.has(c.ref),
-										branch,
-										getBranchAndTagTips,
-									),
-						),
-						this,
-					),
-				);
-
-				if (log.hasMore) {
-					children.push(
-						new LoadMoreNode(this.view, this, children.at(-1)!, {
-							getCount: () =>
-								this.view.container.git
-									.getRepositoryService(branch.repoPath)
-									.commits.getCommitCount(branch.name),
-						}),
-					);
-				}
-
-				this.children = children;
-			} finally {
-				// Always fulfill the deferred to prevent orphaned microtasks
-				setTimeout(() => onCompleted?.fulfill(), 1);
 			}
+
+			if (children.length !== 0) {
+				if (this.view.type === 'commits') {
+					children.push(new CommitsCurrentBranchNode(this.view, this, this.branch));
+				} else {
+					children.push(new MessageNode(this.view, this, '', GlyphChars.Dash.repeat(2), ''));
+				}
+			}
+
+			const getBranchAndTagTips = getSettledValue(getBranchAndTagTipsResult);
+
+			children.push(
+				...insertDateMarkers(
+					map(log.commits.values(), c =>
+						GitCommit.isStash(c)
+							? new StashNode(this.view, this, c, { icon: true })
+							: new CommitNode(
+									this.view,
+									this,
+									c,
+									unpublishedCommits?.has(c.ref),
+									branch,
+									getBranchAndTagTips,
+								),
+					),
+					this,
+				),
+			);
+
+			if (log.hasMore) {
+				children.push(
+					new LoadMoreNode(this.view, this, children.at(-1)!, {
+						getCount: () =>
+							this.view.container.git
+								.getRepositoryService(branch.repoPath)
+								.commits.getCommitCount(branch.name),
+					}),
+				);
+			}
+
+			this.children = children;
 		}
 
 		return this.children;
@@ -420,7 +347,6 @@ export class BranchNode
 		const parts = await getBranchNodeParts(this.view.container, this.branch, this.current, {
 			avatars: this.view.config.avatars,
 			hasWorkingChanges: hasWorkingChanges,
-			pendingPullRequest: this.getState('pendingPullRequest'),
 			showAsCommits: this.options.showAsCommits,
 			showingLocalAndRemoteBranches: this.view.type === 'branches' && this.view.config.showRemoteBranches,
 			showStatusDecorationOnly: this.options.showStatusDecorationOnly,
@@ -478,28 +404,6 @@ export class BranchNode
 		return this._worktreeHasWorkingChanges;
 	}
 
-	private async getAssociatedPullRequest(
-		branch: GitBranch,
-		options?: { include?: PullRequestState[] },
-	): Promise<PullRequest | undefined> {
-		let pullRequest = this.getState('pullRequest');
-		if (pullRequest !== undefined) return Promise.resolve(pullRequest ?? undefined);
-
-		let pendingPullRequest = this.getState('pendingPullRequest');
-		if (pendingPullRequest == null) {
-			pendingPullRequest = getBranchAssociatedPullRequest(this.view.container, branch, options);
-			this.storeState('pendingPullRequest', pendingPullRequest);
-
-			pullRequest = await pendingPullRequest;
-			this.storeState('pullRequest', pullRequest ?? null);
-			this.deleteState('pendingPullRequest');
-
-			return pullRequest;
-		}
-
-		return pendingPullRequest;
-	}
-
 	private _log: GitLog | undefined;
 	private async getLog(svc: GitRepositoryService): Promise<GitLog | undefined> {
 		if (this._log == null) {
@@ -554,7 +458,6 @@ export async function getBranchNodeParts(
 	options?: {
 		avatars?: boolean;
 		hasWorkingChanges?: boolean;
-		pendingPullRequest?: Promise<PullRequest | undefined> | undefined;
 		showAsCommits?: boolean;
 		showingLocalAndRemoteBranches?: boolean;
 		showStatusDecorationOnly?: boolean;
@@ -676,18 +579,22 @@ export async function getBranchNodeParts(
 			switch (status) {
 				case 'ahead':
 					contextValue += '+ahead';
-					iconColor = new ThemeColor('gitlens.decorations.branchAheadForegroundColor' satisfies Colors);
+					iconColor = new ThemeColor('gitlens-lite.decorations.branchAheadForegroundColor' satisfies Colors);
 					break;
 				case 'behind':
 					contextValue += '+behind';
-					iconColor = new ThemeColor('gitlens.decorations.branchBehindForegroundColor' satisfies Colors);
+					iconColor = new ThemeColor('gitlens-lite.decorations.branchBehindForegroundColor' satisfies Colors);
 					break;
 				case 'diverged':
 					contextValue += '+ahead+behind';
-					iconColor = new ThemeColor('gitlens.decorations.branchDivergedForegroundColor' satisfies Colors);
+					iconColor = new ThemeColor(
+						'gitlens-lite.decorations.branchDivergedForegroundColor' satisfies Colors,
+					);
 					break;
 				case 'upToDate':
-					iconColor = new ThemeColor('gitlens.decorations.branchUpToDateForegroundColor' satisfies Colors);
+					iconColor = new ThemeColor(
+						'gitlens-lite.decorations.branchUpToDateForegroundColor' satisfies Colors,
+					);
 					break;
 			}
 		} else {
@@ -717,10 +624,6 @@ export async function getBranchNodeParts(
 		tooltip.appendMarkdown('\\\n$(star-full) Favorited');
 	}
 
-	if (options?.pendingPullRequest != null) {
-		tooltip.appendMarkdown(`\n\n$(loading~spin) Loading associated pull request${GlyphChars.Ellipsis}`);
-	}
-
 	let label;
 	if (options?.showAsCommits) {
 		label = 'Commits';
@@ -739,9 +642,7 @@ export async function getBranchNodeParts(
 	}
 
 	let iconPath: IconPath;
-	if (options?.pendingPullRequest != null) {
-		iconPath = new ThemeIcon('loading~spin');
-	} else if (options?.showAsCommits) {
+	if (options?.showAsCommits) {
 		iconPath = new ThemeIcon('git-commit', iconColor);
 	} else if (options?.worktree != null) {
 		iconPath = getWorktreeBranchIconPath(container, branch, options?.hasWorkingChanges);

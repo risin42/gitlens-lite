@@ -5,7 +5,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import type { RendererObject, RendererThis, Tokens } from 'marked';
 import { Marked } from 'marked';
 import type { ThemeIcon } from 'vscode';
-import { ruleStyles } from '../../../plus/shared/components/vscode.css.js';
+import { ruleStyles } from '../styles/vscode.css.js';
 import { applyCspSafeStyles, rewriteInlineStylesToData } from './css-inline-styles.js';
 import '../overlays/tooltip.js';
 

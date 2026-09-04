@@ -1,10 +1,6 @@
 import { css } from 'lit';
 
 export const detailsCommitPanelStyles = css`
-	:host {
-		--mode-header-bg: var(--titlebar-bg, var(--vscode-sideBar-background, var(--color-background)));
-	}
-
 	/* Split panel layout */
 	:host([variant='embedded']) .split {
 		flex: 1;
@@ -35,26 +31,6 @@ export const detailsCommitPanelStyles = css`
 		padding-left: var(--gl-space-6);
 		margin-top: var(--gl-space-4);
 		overflow: hidden;
-	}
-
-	/* Explain input override */
-	:host([variant='embedded']) .explain-input {
-		flex: 1;
-		width: 0;
-		min-width: 0;
-		max-width: none;
-		padding: 0.4rem 0.7rem;
-		margin: 0;
-		font-family: var(--vscode-font-family);
-		font-size: var(--vscode-font-size);
-		color: var(--vscode-input-foreground);
-		outline: none;
-		background: transparent;
-		border: none !important;
-	}
-
-	:host([variant='embedded']) .explain-input::placeholder {
-		color: var(--vscode-input-placeholderForeground);
 	}
 
 	/* Child Shadow DOM component overrides */
@@ -97,104 +73,8 @@ export const detailsCommitPanelStyles = css`
 		min-width: 0;
 	}
 
-	/* Mode-active title (replaces the author row in review mode). Verb on top, commit
-	   message subtitle beneath. Keeps the same vertical rhythm as the author row so the
-	   header doesn't jump height when entering/leaving the mode. */
-	.mode-title {
-		display: flex;
-		flex: 1;
-		flex-direction: column;
-		gap: var(--gl-space-2);
-		justify-content: center;
-		min-width: 0;
-	}
-
-	.mode-title__verb {
-		display: inline-flex;
-		gap: 0.5rem;
-		align-items: center;
-		font-size: var(--gl-font-base);
-		font-weight: 600;
-		color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground));
-	}
-
-	.mode-title__icon {
-		flex: 0 0 auto;
-		color: var(--vscode-foreground);
-	}
-
-	.mode-title__subtitle {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		font-size: var(--gl-font-md);
-		color: var(--color-foreground--65);
-		white-space: nowrap;
-	}
-
 	.metadata-bar {
 		color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
-	}
-
-	/* Right-side mode-status snippet in the metadata bar (compose/review). Replaces the
-	   commit-stats render when present so the bar's right side carries the mode's current
-	   state rather than the static stats. */
-	.metadata-bar .mode-status {
-		font-size: var(--gl-font-md);
-		color: var(--color-foreground--65);
-		white-space: nowrap;
-	}
-
-	/* Resume affordance — the same snippet that the Graph's WIP / multi-commit panels render
-	   when a back-snapshot exists. The Graph renders this panel for single-commit rows, so the
-	   styles must live here too; without them the Resume button surfaces as a bare unstyled
-	   button. Mirrors gl-details-wip-header.css.ts. */
-	.metadata-bar .mode-status__group {
-		display: inline-flex;
-		gap: var(--gl-space-4);
-		align-items: center;
-	}
-
-	.metadata-bar .mode-status__group code-icon {
-		--code-icon-size: 1.2rem;
-		--code-icon-v-align: text-bottom;
-
-		opacity: 0.85;
-	}
-
-	.metadata-bar .mode-status__resume {
-		display: inline-flex;
-		gap: var(--gl-space-8);
-		align-items: center;
-		padding: var(--gl-space-2) var(--gl-space-6);
-		font: inherit;
-		color: inherit;
-		cursor: pointer;
-		background: transparent;
-		border: none;
-		border-radius: var(--gl-radius-sm);
-	}
-
-	.metadata-bar .mode-status__resume:hover {
-		color: var(--vscode-foreground);
-		background: var(--vscode-toolbar-hoverBackground);
-	}
-
-	.metadata-bar .mode-status__resume:focus-visible {
-		color: var(--vscode-foreground);
-		outline: var(--gl-border-width) solid var(--vscode-focusBorder);
-		outline-offset: -0.1rem;
-		background: var(--vscode-toolbar-hoverBackground);
-	}
-
-	.metadata-bar .mode-status__resume-verb {
-		font-weight: 500;
-	}
-
-	.metadata-bar .mode-status__resume-arrow {
-		--code-icon-size: 1.2rem;
-		--code-icon-v-align: text-bottom;
-
-		opacity: 0.85;
 	}
 
 	/* ── Zone 2: Metadata bar ── */
@@ -246,7 +126,7 @@ export const detailsCommitPanelStyles = css`
 		flex: 0 1 auto;
 		min-width: 0;
 		font-size: var(--gl-font-base);
-		color: var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, #4ec9b0);
+		color: var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, #4ec9b0);
 		text-transform: lowercase;
 	}
 
@@ -509,13 +389,6 @@ export const detailsCommitPanelStyles = css`
 
 	:host([variant='embedded']) .autolinks__label code-icon {
 		opacity: 0.5;
-	}
-
-	/* ── Zone 5: AI input ── */
-	:host([variant='embedded']) gl-ai-input {
-		width: calc(100% - var(--gl-panel-padding-left) - var(--gl-panel-padding-right));
-		max-width: var(--gl-max-input);
-		margin: 0.2rem auto;
 	}
 
 	/* ── Zone 6: Bottom section (split panel end slot) ── */

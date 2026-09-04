@@ -1,7 +1,5 @@
 import type { QuickPick, QuickPickItem, Uri } from 'vscode';
 import { ThemeIcon } from 'vscode';
-import { pluralize } from '@gitlens/utils/string.js';
-import { proTrialLengthInDays } from '../../constants.subscription.js';
 
 export enum Directive {
 	Back,
@@ -9,12 +7,6 @@ export enum Directive {
 	Reset,
 	LoadMore,
 	Noop,
-
-	SignIn,
-	StartProTrial,
-
-	RequiresVerification,
-	RequiresPaidSubscription,
 
 	RefsAllBranches,
 	ReposAll,
@@ -43,7 +35,7 @@ export function createDirectiveQuickPickItem(
 	},
 ): DirectiveQuickPickItem {
 	let label = options?.label;
-	let detail = options?.detail;
+	const detail = options?.detail;
 	let description = options?.description;
 	if (label == null) {
 		switch (directive) {
@@ -61,30 +53,6 @@ export function createDirectiveQuickPickItem(
 				break;
 			case Directive.Reset:
 				label = 'Reset';
-				break;
-
-			case Directive.SignIn:
-				label = 'Sign In';
-				break;
-			case Directive.StartProTrial:
-				label = 'Try GitLens Pro';
-				detail = `Get ${pluralize(
-					'day',
-					proTrialLengthInDays,
-				)} of GitLens Pro for free — no credit card required.`;
-				break;
-
-			case Directive.RequiresVerification:
-				label = 'Resend Email';
-				detail = 'You must verify your email before you can continue';
-				break;
-			case Directive.RequiresPaidSubscription:
-				label = 'Upgrade to Pro';
-				if (detail != null) {
-					description ??= ' \u2014\u00a0\u00a0 GitLens Pro is required to use this feature';
-				} else {
-					detail = 'Upgrading to GitLens Pro is required to use this feature';
-				}
 				break;
 
 			case Directive.RefsAllBranches:

@@ -1,5 +1,3 @@
-import { EntityIdentifierUtils } from '@gitkraken/provider-apis/entity-identifiers';
-import type { TextEditor } from 'vscode';
 import { env, Uri, window, workspace } from 'vscode';
 import { ApplyPatchCommitError } from '@gitlens/git/errors.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
@@ -7,9 +5,7 @@ import type { GitDiff } from '@gitlens/git/models/diff.js';
 import { uncommitted, uncommittedStaged } from '@gitlens/git/models/revision.js';
 import { splitCommitMessage } from '@gitlens/git/utils/commit.utils.js';
 import { getFileDiffPathspecs } from '@gitlens/git/utils/fileStatus.utils.js';
-import { isSha, isUncommitted, isUncommittedStaged, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
-import type { IntegrationIds } from '@gitlens/integrations/constants.js';
-import { getProviderIdFromEntityIdentifier } from '@gitlens/integrations/providers/utils.js';
+import { isUncommitted, isUncommittedStaged, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { isCancellationError } from '@gitlens/utils/cancellation.js';
 import { map } from '@gitlens/utils/iterable.js';
 import { Logger } from '@gitlens/utils/logger.js';
@@ -17,16 +13,11 @@ import type { ScmResource } from '../@types/vscode.git.resources.d.js';
 import { ScmResourceGroupType, ScmStatus } from '../@types/vscode.git.resources.enums.js';
 import type { GlCommands } from '../constants.commands.js';
 import type { Container } from '../container.js';
-import type { GlRepository } from '../git/models/repository.js';
 import { showGitErrorMessage } from '../messages.js';
-import { showPatchesView } from '../plus/drafts/actions.js';
-import type { ProviderAuth } from '../plus/drafts/draftsService.js';
-import type { Draft, LocalDraft } from '../plus/drafts/models/drafts.js';
 import { getRepositoryOrShowPicker } from '../quickpicks/repositoryPicker.js';
 import { command } from '../system/-webview/command.js';
 import { isViewRefFileNode } from '../views/nodes/utils/-webview/node.utils.js';
-import type { Change, CreateDraft } from '../webviews/plus/patchDetails/protocol.js';
-import { ActiveEditorCommand, GlCommandBase } from './commandBase.js';
+import { GlCommandBase } from './commandBase.js';
 import type { CommandContext, CommandScmStatesContext } from './commandContext.js';
 import {
 	isCommandContextViewNodeHasCommit,
@@ -278,17 +269,8 @@ export class CreatePatchCommand extends CreatePatchCommandBase {
 		const diff = await this.getDiff('Create Patch', args);
 		if (diff == null) return;
 
-		debugger;
 		const d = await workspace.openTextDocument({ content: diff.contents, language: 'diff' });
 		await window.showTextDocument(d);
-
-		// const uri = await window.showSaveDialog({
-		// 	filters: { Patches: ['patch'] },
-		// 	saveLabel: 'Create Patch',
-		// });
-		// if (uri == null) return;
-
-		// await workspace.fs.writeFile(uri, new TextEncoder().encode(patch.contents));
 	}
 }
 
@@ -358,194 +340,4 @@ export class ApplyPatchFromClipboardCommand extends GlCommandBase {
 			}
 		}
 	}
-}
-
-@command()
-export class CreateCloudPatchCommand extends CreatePatchCommandBase {
-	constructor(container: Container) {
-		super(container, ['gitlens.createCloudPatch', 'gitlens.shareAsCloudPatch']);
-	}
-
-	async execute(args?: CreatePatchCommandArgs): Promise<void> {
-		if (args?.repoPath == null) {
-			return showPatchesView({ mode: 'create' });
-		}
-
-		const repo = this.container.git.getRepository(args.repoPath);
-		if (repo == null) {
-			return showPatchesView({ mode: 'create' });
-		}
-
-		const create = await createDraft(repo, args);
-		if (create == null) {
-			return showPatchesView({ mode: 'create', create: { repositories: [repo] } });
-		}
-		return showPatchesView({ mode: 'create', create: create });
-	}
-}
-
-@command()
-export class OpenPatchCommand extends ActiveEditorCommand {
-	constructor(private readonly container: Container) {
-		super('gitlens.openPatch');
-	}
-
-	async execute(editor?: TextEditor): Promise<void> {
-		let document;
-		if (editor?.document?.languageId === 'diff') {
-			document = editor.document;
-		} else {
-			const uris = await window.showOpenDialog({
-				canSelectFiles: true,
-				canSelectFolders: false,
-				canSelectMany: false,
-				filters: { Patches: ['diff', 'patch'] },
-				openLabel: 'Open Patch',
-				title: 'Open Patch File',
-			});
-			const uri = uris?.[0];
-			if (uri == null) return;
-
-			document = await workspace.openTextDocument(uri);
-			await window.showTextDocument(document);
-		}
-
-		const patch: LocalDraft = {
-			draftType: 'local',
-			patch: {
-				type: 'local',
-				uri: document.uri,
-				contents: document.getText(),
-			},
-		};
-
-		void showPatchesView({ mode: 'view', draft: patch });
-	}
-}
-
-export type OpenCloudPatchCommandArgs =
-	| {
-			type: 'patch' | 'code_suggestion';
-			id: string;
-			draft?: Draft;
-			patchId?: string;
-			prEntityId?: string;
-	  }
-	| {
-			type: 'patch' | 'code_suggestion';
-			id?: string;
-			draft: Draft;
-			patchId?: string;
-			prEntityId?: string;
-	  };
-
-@command()
-export class OpenCloudPatchCommand extends GlCommandBase {
-	constructor(private readonly container: Container) {
-		super('gitlens.openCloudPatch');
-	}
-
-	async execute(args?: OpenCloudPatchCommandArgs): Promise<void> {
-		const type = args?.type === 'code_suggestion' ? 'Code Suggestion' : 'Cloud Patch';
-		if (args?.id == null && args?.draft == null) {
-			void window.showErrorMessage(`Cannot open ${type}; no patch or patch id provided`);
-			return;
-		}
-
-		let providerAuth: ProviderAuth | undefined;
-		if (args.prEntityId != null && args.type === 'code_suggestion') {
-			let providerId: IntegrationIds | undefined;
-			let providerDomain: string | undefined;
-			try {
-				const identifier = EntityIdentifierUtils.decode(args.prEntityId);
-				providerId = getProviderIdFromEntityIdentifier(identifier);
-				providerDomain = identifier.domain ?? undefined;
-			} catch {
-				void window.showErrorMessage(`Cannot open ${type}; invalid provider details.`);
-				return;
-			}
-
-			if (providerId == null) {
-				void window.showErrorMessage(`Cannot open ${type}; unsupported provider.`);
-				return;
-			}
-
-			const integration = await this.container.integrations.get(providerId, providerDomain);
-			if (integration == null) {
-				void window.showErrorMessage(`Cannot open ${type}; provider not found.`);
-				return;
-			}
-
-			const session = await integration.getSession('cloud-patches');
-			if (session == null) {
-				void window.showErrorMessage(`Cannot open ${type}; provider not connected.`);
-				return;
-			}
-
-			providerAuth = { provider: integration.id, token: session.accessToken };
-		}
-
-		try {
-			const draft =
-				args.draft ?? (await this.container.drafts.getDraft(args.id!, { providerAuth: providerAuth }));
-			void showPatchesView({ mode: 'view', draft: draft });
-		} catch (ex) {
-			Logger.error(ex, 'OpenCloudPatchCommand');
-			void window.showErrorMessage(`Unable to open ${type} '${args.id}'`);
-		}
-	}
-}
-
-async function createDraft(repository: GlRepository, args: CreatePatchCommandArgs): Promise<CreateDraft | undefined> {
-	if (args.to == null) return undefined;
-
-	const to = args.to ?? 'HEAD';
-
-	const change: Change = {
-		type: 'revision',
-		repository: {
-			name: repository.name,
-			path: repository.path,
-			uri: repository.uri.toString(),
-		},
-		files: undefined!,
-		revision: { to: to, from: args.from ?? `${to}^` },
-	};
-
-	const create: CreateDraft = { changes: [change], title: args.title, description: args.description };
-
-	const { git: svc } = repository;
-
-	const commit = await svc.commits.getCommit(to);
-	if (commit == null) return undefined;
-
-	if (args.from == null) {
-		if (commit.fileset?.files == null) return;
-
-		change.files = [...commit.fileset.files];
-	} else {
-		const diff = await svc.diff.getDiff?.(to, args.from);
-		if (diff == null) return;
-
-		const result = await svc.diff.getDiffFiles?.(diff.contents);
-		if (result?.files == null) return;
-
-		change.files = result.files;
-
-		if (!isSha(args.to)) {
-			const commit = await svc.commits.getCommit(args.to);
-			if (commit != null) {
-				change.revision.to = commit.sha;
-			}
-		}
-
-		if (!isSha(args.from)) {
-			const commit = await svc.commits.getCommit(args.from);
-			if (commit != null) {
-				change.revision.from = commit.sha;
-			}
-		}
-	}
-
-	return create;
 }

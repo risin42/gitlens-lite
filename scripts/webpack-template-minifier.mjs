@@ -8,7 +8,7 @@ import { createCssProcessor } from './css-minify-preset.mjs';
  * `CssMinimizerPlugin` only sees what `MiniCssExtractPlugin` emits — the `*.css` files — and nothing
  * minifies markup written as a template literal at all. To the TS/JS pipeline both are ordinary
  * template literals, so they ship with every space of indentation, every blank line and every
- * authoring comment. Together that is a quarter of the Commit Graph webview bundle.
+ * authoring comment. Keeping the template small improves every webview bundle.
  *
  * `minify-html-literals` locates the templates and handles the `${…}` round-trip: it swaps each
  * interpolation for a placeholder so the contents parse, then splits the minified text back apart on

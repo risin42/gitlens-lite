@@ -158,8 +158,8 @@ export class GlTreeItem extends GlElement {
 
 	private onChevronClick(e: MouseEvent) {
 		// The chevron is a dedicated expand/collapse affordance — stop the click from bubbling to the
-		// host's onComponentClick, which would fire the row's open/select action (e.g. focusing the
-		// graph to a worktree in the agents panel). Emit a toggle-only event instead.
+		// host's onComponentClick, which would fire the row's open/select action. Emit a toggle-only
+		// event instead.
 		e.stopPropagation();
 		this.emit('gl-tree-item-toggle');
 	}

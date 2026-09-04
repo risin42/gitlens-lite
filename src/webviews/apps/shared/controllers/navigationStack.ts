@@ -1,6 +1,6 @@
 import { MRU } from '@gitlens/utils/mru.js';
 
-/** Derived back/forward state shared by the inspect + graph details navigation UI. */
+/** Derived back/forward state for the Inspect navigation UI. */
 export interface NavigationState {
 	count: number;
 	position: number;
@@ -9,8 +9,7 @@ export interface NavigationState {
 }
 
 /**
- * Browser-style back/forward history over visited commits, shared by both the Inspect panel and
- * the Graph details panel so there is a single navigation implementation. Wraps {@link MRU} using
+ * Browser-style back/forward history over visited commits in the Inspect panel. Wraps {@link MRU} using
  * `add` semantics (revisits dedupe, a new visit truncates forward history) and centralizes the
  * button-enablement derivation that used to be duplicated across the inspect backend + frontend.
  */
@@ -58,9 +57,7 @@ export class NavigationStack<T extends { sha: string }> {
 		this.emit();
 	}
 
-	/** Emits only when the derived state actually changed. The graph fires several selection echoes
-	 *  per row switch (focus-row churn / RAF retries); without this, each would push an identical new
-	 *  state object and re-render the nav buttons, causing visible jitter. */
+	/** Emits only when the derived state actually changed, avoiding redundant button renders. */
 	private emit(): void {
 		const next = this.state;
 		const prev = this._lastEmitted;

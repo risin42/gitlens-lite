@@ -7,7 +7,7 @@ import type {
 
 /**
  * Pure recommendation engine for the Git Health feature — no vscode imports, trivially unit-testable.
- * Thresholds are initial, tunable, telemetry-informed values (see `.work/dev/git-health/spec.md`).
+ * Thresholds are initial, tunable values (see `.work/dev/git-health/spec.md`).
  */
 
 /** Working-tree size (via the index-bytes proxy) at/above which untracked-cache/fsmonitor/manyFiles help. */
@@ -25,8 +25,12 @@ export const approxBytesPerIndexEntry = 80;
 /** Duration (ms) above which a git command is "slow" — mirrors the exec-layer slow-call threshold. */
 export const slowCommandThresholdMs = 2000;
 
-/** Git operation families whose runtime maps to a distinct repository optimization surface. */
-export type GitHealthSlownessCategory = 'worktree' | 'history' | 'refs' | 'objects';
+/**
+ * Git operation families whose runtime maps to a distinct repository optimization surface.
+ * `commitFiles` identifies paged logs carrying per-commit file details, which are slow for a
+ * different reason from a plain history walk.
+ */
+export type GitHealthSlownessCategory = 'worktree' | 'history' | 'refs' | 'objects' | 'commitFiles';
 
 /** Persisted passive-slowness sample for one operation family. */
 export interface GitHealthSlownessSample {
@@ -43,10 +47,10 @@ export type GitHealthSlowness = Partial<Record<GitHealthSlownessCategory, GitHea
 
 export type GitOptimizationTier = 'auto' | 'ask';
 
-/** Coarse duration buckets for maintenance telemetry. */
+/** Coarse duration buckets for maintenance reporting. */
 export type GitHealthDurationBucket = '<1s' | '1-5s' | '5-15s' | '15-60s' | '>60s';
 
-/** Which measured signal tripped a finding (drives view copy + telemetry buckets). */
+/** Which measured signal tripped a finding (drives view copy and result grouping). */
 export type GitHealthFindingReason =
 	| 'looseObjects'
 	| 'looseRefs'

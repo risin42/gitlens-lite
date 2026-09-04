@@ -152,7 +152,7 @@ export function getBranchAutolinks(
 
 	let num;
 	let match;
-	// Sort refsets so that priority integrations (e.g. issue trackers) are checked first for matches
+	// Sort refsets so that priority providers (e.g. issue trackers) are checked first for matches
 	const sortedRefSets = refsets.toSorted((a, b) => {
 		if (priorityProviderIds != null) {
 			if (a[0]?.id && priorityProviderIds.includes(a[0].id)) {

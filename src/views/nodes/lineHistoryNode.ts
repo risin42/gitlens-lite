@@ -6,6 +6,7 @@ import { GitFileIndexStatus } from '@gitlens/git/models/fileStatus.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
 import { isUncommitted } from '@gitlens/git/utils/revision.utils.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { memoize } from '@gitlens/utils/decorators/memoize.js';
 import { weakEvent } from '@gitlens/utils/event.js';
@@ -18,7 +19,6 @@ import type { RepositoryChangeEvent, RepositoryWorkingTreeChangeEvent } from '..
 import { getBranchAheadRange } from '../../git/utils/-webview/branch.utils.js';
 import { getStatusFilePseudoCommits } from '../../git/utils/-webview/statusFile.utils.js';
 import { selectionToDiffRange } from '../../system/-webview/vscode/range.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { FileHistoryView } from '../fileHistoryView.js';
 import type { LineHistoryView } from '../lineHistoryView.js';
 import { SubscribeableViewNode } from './abstract/subscribeableViewNode.js';

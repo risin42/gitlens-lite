@@ -4,7 +4,7 @@ import type { RebaseTodoAction } from './rebaseTodo.js';
 import { applyRebaseActionToTodo, moveFixupInTodo } from './rebaseTodo.js';
 
 /**
- * Standalone Node script used as git's `sequence.editor` for the Commit Graph's headless rebases.
+ * Standalone Node script used as git's `sequence.editor` for headless rebases.
  * Bundled to `dist/rebaseTodoEditor.js` and launched as Node by the platform wrapper scripts
  * (`rebaseTodoEditor.sh`/`.cmd`), it rewrites the `git-rebase-todo` git hands it (argv[2]) in place,
  * choosing one of three modes based on the environment:

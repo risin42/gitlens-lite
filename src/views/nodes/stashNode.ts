@@ -5,15 +5,10 @@ import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitStashReference } from '@gitlens/git/models/reference.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { joinPaths, normalizePath } from '@gitlens/utils/path.js';
-import { getSettledValue, pauseOnCancelOrTimeoutMapTuplePromise } from '@gitlens/utils/promise.js';
+import { getSettledValue } from '@gitlens/utils/promise.js';
 import { sortCompare } from '@gitlens/utils/string.js';
 import { CommitFormatter } from '../../git/formatters/commitFormatter.js';
-import {
-	getCommitEnrichedAutolinks,
-	getCommitGitUri,
-	getCommitsForFiles,
-} from '../../git/utils/-webview/commit.utils.js';
-import { remoteSupportsIntegration } from '../../git/utils/-webview/remote.utils.js';
+import { getCommitGitUri, getCommitsForFiles } from '../../git/utils/-webview/commit.utils.js';
 import { toAbortSignal } from '../../system/-webview/cancellation.js';
 import { configuration } from '../../system/-webview/configuration.js';
 import type { ViewsWithStashes } from '../viewBase.js';
@@ -113,32 +108,12 @@ export class StashNode extends ViewRefNode<'stash', ViewsWithStashes, GitStashRe
 		if (cancellation.isCancellationRequested) return undefined;
 
 		const remotes = getSettledValue(remotesResult, []);
-		const [remote] = remotes;
-
-		let enrichedAutolinks;
-
-		if (remote != null && remoteSupportsIntegration(remote)) {
-			const [enrichedAutolinksResult] = await Promise.allSettled([
-				pauseOnCancelOrTimeoutMapTuplePromise(
-					getCommitEnrichedAutolinks(this.commit.repoPath, this.commit.message, this.commit.summary, remote),
-					toAbortSignal(cancellation),
-				),
-			]);
-
-			if (cancellation.isCancellationRequested) return undefined;
-
-			const enrichedAutolinksMaybeResult = getSettledValue(enrichedAutolinksResult);
-			if (!enrichedAutolinksMaybeResult?.paused) {
-				enrichedAutolinks = enrichedAutolinksMaybeResult?.value;
-			}
-		}
 
 		const tooltip = await CommitFormatter.fromTemplateAsync(
 			configuration.get('views.formats.stashes.tooltip'),
 			this.commit,
 			{ source: 'view:hover' },
 			{
-				enrichedAutolinks: enrichedAutolinks,
 				dateFormat: configuration.get('defaultDateFormat'),
 				messageAutolinks: true,
 				messageIndent: 4,

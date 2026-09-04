@@ -17,19 +17,6 @@ export class VsCodeStorage implements HostStorage {
 	}
 }
 
-export class BrowserStorage implements HostStorage {
-	constructor(private readonly key: string) {}
-
-	get(): Record<string, unknown> | undefined {
-		const raw = localStorage.getItem(this.key);
-		return raw != null ? (JSON.parse(raw) as Record<string, unknown>) : undefined;
-	}
-
-	set(state: Record<string, unknown>): void {
-		localStorage.setItem(this.key, JSON.stringify(state));
-	}
-}
-
 export class InMemoryStorage implements HostStorage {
 	private _state: Record<string, unknown> | undefined;
 

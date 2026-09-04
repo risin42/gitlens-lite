@@ -84,7 +84,7 @@ export class GlMenuPopover extends GlElement {
 	disabled: boolean = false;
 
 	/**
-	 * When set, the menu stays open after a selection (e.g. the timeline period menu, where the
+	 * When set, the menu stays open after a selection (for example, a multi-select menu where the
 	 * user sweeps through ranges) — outside-click and Escape still dismiss via `gl-popover`. The
 	 * default (unset) is dismiss-on-select, which is what most menus want.
 	 */

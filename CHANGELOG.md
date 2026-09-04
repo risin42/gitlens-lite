@@ -6,9 +6,12 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 
-### Added
+## [19.1.1] - 2026-09-04
 
-- Adds saving your _Commit Graph_ layout as the default for new workspaces ([#4292](https://github.com/gitkraken/vscode-gitlens/issues/4292)) &mdash; arrange columns, sizing, grouping, and panels how you like, then use the new _Save as Default Layout_ action in the column header or settings gear menus; the new _Apply Saved Layout_ action re-applies it anytime, and _Reset Layout_ restores the shipped arrangement (replacing the previous _Reset Columns to Default/Compact Layout_ actions)
+### Changed
+
+- Rebrands the extension as GitLens Lite with the `gitlens-lite` package name and configuration namespace.
+- Removes AI, cloud, Pro, account, and other online-only features.
 
 ## [19.1.0] - 2026-09-01
 
@@ -7346,7 +7349,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 - Initial release but still heavily a work in progress.
 
-[unreleased]: https://github.com/gitkraken/vscode-gitlens/compare/v19.1.0...HEAD
+[unreleased]: https://github.com/gitkraken/vscode-gitlens/compare/v19.1.1...HEAD
+[19.1.1]: https://github.com/gitkraken/vscode-gitlens/compare/v19.1.0...gitkraken:v19.1.1
 [19.1.0]: https://github.com/gitkraken/vscode-gitlens/compare/v19.0.1...gitkraken:v19.1.0
 [19.0.1]: https://github.com/gitkraken/vscode-gitlens/compare/v19.0.0...gitkraken:v19.0.1
 [19.0.0]: https://github.com/gitkraken/vscode-gitlens/compare/v18.3.0...gitkraken:v19.0.0

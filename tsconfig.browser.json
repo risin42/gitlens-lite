@@ -9,14 +9,10 @@
 			"#env/*": ["./packages/utils/src/env/browser/*"],
 			"@gitlens/utils/*": ["./packages/utils/src/*"],
 			"@gitlens/ipc/*": ["./packages/ipc/src/*"],
-			"@gitlens/git/*": ["./packages/git/src/*"],
-			"@gitlens/git-github/*": ["./packages/plus/git-github/src/*"],
-			"@gitlens/integrations/*": ["./packages/plus/integrations/src/*"],
-			"@gitlens/ai/*": ["./packages/plus/ai/src/*"],
-			"@gitlens/agents/*": ["./packages/plus/agents/src/*"]
+			"@gitlens/git/*": ["./packages/git/src/*"]
 		},
 		"tsBuildInfoFile": "tsconfig.browser.tsbuildinfo"
 	},
-	"include": ["src/**/*", "packages/plus/integrations/src/**/*"],
+	"include": ["src/**/*"],
 	"exclude": ["src/webviews/apps/**/*", "src/env/node/**/*"]
 }

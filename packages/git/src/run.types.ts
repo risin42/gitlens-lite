@@ -1,5 +1,6 @@
 import type { CacheController } from '@gitlens/utils/promiseCache.js';
 import type { GitWarningKey } from './errors.js';
+import type { GitHealthSlownessCategory } from './gitHealth.js';
 
 export type GitErrorHandling = 'throw' | 'ignore';
 
@@ -88,7 +89,7 @@ export interface GitRunOptions {
 	errors?: GitErrorHandling;
 	/** Priority level for queue ordering. If not specified, will be inferred from the command type. */
 	priority?: GitCommandPriority;
-	/** Specifies that this command should always be executed locally if possible (for live share sessions) */
+	/** Specifies that this command should always be executed by the local Git process when possible. */
 	runLocally?: boolean;
 	/**
 	 * Marks a command GitLens issues as its OWN maintenance work (the Git Health auto pass, the
@@ -98,6 +99,12 @@ export interface GitRunOptions {
 	 * subcommand can't express this: the same `update-index`/`status` also serve real user work.
 	 */
 	selfMaintenance?: boolean;
+
+	/**
+	 * Caller-declared operation family for slow-command health evidence. This is used when the
+	 * git subcommand alone cannot distinguish a paged log carrying file details from a plain walk.
+	 */
+	slownessCategory?: GitHealthSlownessCategory;
 
 	/**
 	 * If provided, cache the command's result (stdout, stderr, exitCode) in this store via an auto-generated cache key
@@ -144,6 +151,9 @@ export interface UnsafeGit {
 export interface GitSpawnOptions {
 	cancellation?: AbortSignal;
 	configs?: readonly string[];
+
+	/** Caller-declared operation family for slow-command health evidence. */
+	slownessCategory?: GitHealthSlownessCategory;
 
 	// Below options comes from SpawnOptions
 	cwd?: string;

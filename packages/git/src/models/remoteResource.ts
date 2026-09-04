@@ -46,9 +46,7 @@ export interface CreatePullRequestRemoteResource {
 		branch: string;
 		remote: { path: string; url: string; name: string };
 	};
-	details?:
-		| { title: string; description: string; describeWithAI?: never }
-		| { describeWithAI: boolean; title?: never; description?: never };
+	details?: { title: string; description: string };
 }
 
 export interface FileRemoteResource {

@@ -1,6 +1,6 @@
 import { css } from 'lit';
 import {
-	elementBase,
+	boxSizingBase,
 	linkBase,
 	metadataBarVarsBase,
 	scrollableBase,
@@ -9,7 +9,7 @@ import {
 
 export const detailsBaseStyles = [
 	linkBase,
-	elementBase,
+	boxSizingBase,
 	scrollableBase,
 	subPanelEnterStyles,
 	metadataBarVarsBase,
@@ -245,11 +245,11 @@ export const detailsBaseStyles = [
 
 		.reachability-range-chip--local-branch {
 			font-weight: 600;
-			color: var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, #4ec9b0);
+			color: var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, #4ec9b0);
 		}
 
 		.reachability-range-chip--remote-branch {
-			color: var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, #4ec9b0);
+			color: var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, #4ec9b0);
 		}
 
 		.reachability-range-chip--tag {
@@ -381,33 +381,6 @@ export const detailsBaseStyles = [
 		.button-group > *:not(:last-child) gl-button {
 			border-top-right-radius: 0;
 			border-bottom-right-radius: 0;
-		}
-
-		/* AI content */
-		.ai-content {
-			padding: 0.5rem;
-			margin-top: var(--gl-space-10);
-			font-size: var(--gl-font-base);
-			background: var(--vscode-input-background);
-			border: var(--gl-border-width) solid var(--vscode-input-border, transparent);
-			border-radius: var(--gl-radius-xs);
-		}
-
-		.ai-content.has-error {
-			padding-left: var(--gl-space-8);
-			border-left-color: var(--color-alert-errorBorder);
-			border-left-width: 0.3rem;
-		}
-
-		.ai-content:empty {
-			display: none;
-		}
-
-		.ai-content__summary {
-			display: block;
-			max-height: 20rem;
-			margin: 0;
-			overflow: hidden auto;
 		}
 
 		/* Popover content */

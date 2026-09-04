@@ -76,42 +76,42 @@ function getBranchDecoration(uri: Uri, _token: CancellationToken): FileDecoratio
 		case 'ahead':
 			decoration = {
 				badge: '\u00a0\u00a0',
-				color: new ThemeColor('gitlens.decorations.branchAheadForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.branchAheadForegroundColor' satisfies Colors),
 				tooltip: 'Ahead',
 			};
 			break;
 		case 'behind':
 			decoration = {
 				badge: '\u00a0\u00a0',
-				color: new ThemeColor('gitlens.decorations.branchBehindForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.branchBehindForegroundColor' satisfies Colors),
 				tooltip: 'Behind',
 			};
 			break;
 		case 'diverged':
 			decoration = {
 				badge: '\u00a0\u00a0',
-				color: new ThemeColor('gitlens.decorations.branchDivergedForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.branchDivergedForegroundColor' satisfies Colors),
 				tooltip: 'Diverged',
 			};
 			break;
 		case 'missingUpstream':
 			decoration = {
 				badge: GlyphChars.Warning,
-				color: new ThemeColor('gitlens.decorations.branchMissingUpstreamForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.branchMissingUpstreamForegroundColor' satisfies Colors),
 				tooltip: 'Missing Upstream',
 			};
 			break;
 		case 'upToDate':
 			decoration = {
 				badge: '\u00a0\u00a0',
-				color: new ThemeColor('gitlens.decorations.branchUpToDateForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.branchUpToDateForegroundColor' satisfies Colors),
 				tooltip: 'Up to Date',
 			};
 			break;
 		case 'unpublished':
 			decoration = {
 				badge: '\u00a0\u00a0',
-				color: new ThemeColor('gitlens.decorations.branchUnpublishedForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.branchUnpublishedForegroundColor' satisfies Colors),
 				tooltip: 'Unpublished',
 			};
 			break;
@@ -160,31 +160,31 @@ function getCommitFileStatusDecoration(uri: Uri, _token: CancellationToken): Fil
 		case '!':
 			return {
 				badge: 'I',
-				color: new ThemeColor('gitlens.decorations.ignoredForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.ignoredForegroundColor' satisfies Colors),
 				tooltip: 'Ignored',
 			};
 		case '?':
 			return {
 				badge: 'U',
-				color: new ThemeColor('gitlens.decorations.untrackedForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.untrackedForegroundColor' satisfies Colors),
 				tooltip: 'Untracked',
 			};
 		case 'A':
 			return {
 				badge: 'A',
-				color: new ThemeColor('gitlens.decorations.addedForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.addedForegroundColor' satisfies Colors),
 				tooltip: 'Added',
 			};
 		case 'C':
 			return {
 				badge: 'C',
-				color: new ThemeColor('gitlens.decorations.copiedForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.copiedForegroundColor' satisfies Colors),
 				tooltip: 'Copied',
 			};
 		case 'D':
 			return {
 				badge: 'D',
-				color: new ThemeColor('gitlens.decorations.deletedForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.deletedForegroundColor' satisfies Colors),
 				tooltip: 'Deleted',
 			};
 		case 'M':
@@ -192,13 +192,13 @@ function getCommitFileStatusDecoration(uri: Uri, _token: CancellationToken): Fil
 				badge: 'M',
 				// Commented out until we can control the color to only apply to the badge, as the color is applied to the entire decoration and its too much
 				// https://github.com/microsoft/vscode/issues/182098
-				// color: new ThemeColor('gitlens.decorations.modifiedForegroundColor' satisfies Colors),
+				// color: new ThemeColor('gitlens-lite.decorations.modifiedForegroundColor' satisfies Colors),
 				tooltip: 'Modified',
 			};
 		case 'R':
 			return {
 				badge: 'R',
-				color: new ThemeColor('gitlens.decorations.renamedForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.renamedForegroundColor' satisfies Colors),
 				tooltip: 'Renamed',
 			};
 	}
@@ -223,7 +223,7 @@ function getRemoteDecoration(uri: Uri, _token: CancellationToken): FileDecoratio
 		case 'missing':
 			return {
 				badge: '?',
-				color: new ThemeColor('gitlens.decorations.workspaceRepoMissingForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.workspaceRepoMissingForegroundColor' satisfies Colors),
 				tooltip: '',
 			};
 	}
@@ -248,13 +248,15 @@ function getStatusDecoration(uri: Uri, _token: CancellationToken): FileDecoratio
 				return {
 					badge: '!',
 					color: new ThemeColor(
-						'gitlens.decorations.statusMergingOrRebasingConflictForegroundColor' satisfies Colors,
+						'gitlens-lite.decorations.statusMergingOrRebasingConflictForegroundColor' satisfies Colors,
 					),
 				};
 			}
 
 			return {
-				color: new ThemeColor('gitlens.decorations.statusMergingOrRebasingForegroundColor' satisfies Colors),
+				color: new ThemeColor(
+					'gitlens-lite.decorations.statusMergingOrRebasingForegroundColor' satisfies Colors,
+				),
 			};
 	}
 
@@ -271,7 +273,7 @@ function getRepositoriesDecoration(uri: Uri, _token: CancellationToken): FileDec
 	if (state?.currentWorkspace) {
 		return {
 			badge: '●',
-			color: new ThemeColor('gitlens.decorations.workspaceCurrentForegroundColor' satisfies Colors),
+			color: new ThemeColor('gitlens-lite.decorations.workspaceCurrentForegroundColor' satisfies Colors),
 			tooltip: '',
 		};
 	}
@@ -292,13 +294,13 @@ function getRepositoryDecoration(uri: Uri, _token: CancellationToken): FileDecor
 		case 'open':
 			return {
 				badge: '●',
-				color: new ThemeColor('gitlens.decorations.workspaceRepoOpenForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.workspaceRepoOpenForegroundColor' satisfies Colors),
 				tooltip: '',
 			};
 		case 'missing':
 			return {
 				badge: '?',
-				color: new ThemeColor('gitlens.decorations.workspaceRepoMissingForegroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.decorations.workspaceRepoMissingForegroundColor' satisfies Colors),
 				tooltip: '',
 			};
 	}
@@ -316,7 +318,7 @@ function getWorkspaceDecoration(uri: Uri, _token: CancellationToken): FileDecora
 	if (state?.current) {
 		return {
 			badge: '●',
-			color: new ThemeColor('gitlens.decorations.workspaceCurrentForegroundColor' satisfies Colors),
+			color: new ThemeColor('gitlens-lite.decorations.workspaceCurrentForegroundColor' satisfies Colors),
 			tooltip: '',
 		};
 	}
@@ -336,7 +338,7 @@ function getWorktreeDecoration(uri: Uri, _token: CancellationToken): FileDecorat
 	if (state?.missing) {
 		return {
 			badge: GlyphChars.Warning,
-			color: new ThemeColor('gitlens.decorations.worktreeMissingForegroundColor' satisfies Colors),
+			color: new ThemeColor('gitlens-lite.decorations.worktreeMissingForegroundColor' satisfies Colors),
 			tooltip: '',
 		};
 	}
@@ -344,7 +346,9 @@ function getWorktreeDecoration(uri: Uri, _token: CancellationToken): FileDecorat
 	if (state?.hasChanges) {
 		return {
 			badge: '●',
-			color: new ThemeColor('gitlens.decorations.worktreeHasUncommittedChangesForegroundColor' satisfies Colors),
+			color: new ThemeColor(
+				'gitlens-lite.decorations.worktreeHasUncommittedChangesForegroundColor' satisfies Colors,
+			),
 			tooltip: 'Has Uncommitted Changes',
 		};
 	}

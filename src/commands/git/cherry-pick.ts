@@ -1,37 +1,30 @@
-import { ThemeIcon, window } from 'vscode';
+import { window } from 'vscode';
 import { CherryPickError, SigningError } from '@gitlens/git/errors.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
-import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
 import type { GitPausedOperationStatus } from '@gitlens/git/models/pausedOperationStatus.js';
 import type { GitReference } from '@gitlens/git/models/reference.js';
 import { getReferenceLabel, isRevisionReference } from '@gitlens/git/utils/reference.utils.js';
 import { createRevisionRange } from '@gitlens/git/utils/revision.utils.js';
-import { ensureArray } from '@gitlens/utils/array.js';
 import { Logger } from '@gitlens/utils/logger.js';
-import { pluralize } from '@gitlens/utils/string.js';
 import type { Container } from '../../container.js';
 import { showPausedOperationStatus, skipPausedOperation } from '../../git/actions/pausedOperation.js';
 import type { GlRepository } from '../../git/models/repository.js';
 import { showGitErrorMessage } from '../../messages.js';
-import { isSubscriptionTrialOrPaidFromState } from '../../plus/gk/utils/subscription.utils.js';
-import { createQuickPickSeparator } from '../../quickpicks/items/common.js';
-import type { DirectiveQuickPickItem } from '../../quickpicks/items/directive.js';
 import { createDirectiveQuickPickItem, Directive } from '../../quickpicks/items/directive.js';
 import type { FlagsQuickPickItem } from '../../quickpicks/items/flags.js';
 import { createFlagsQuickPickItem } from '../../quickpicks/items/flags.js';
 import type { ViewsWithRepositoryFolders } from '../../views/viewBase.js';
 import type {
-	AsyncStepResultGenerator,
 	PartialStepState,
 	StepGenerator,
 	StepResult,
+	StepResultGenerator,
 	StepsContext,
 	StepSelection,
 	StepState,
 } from '../quick-wizard/models/steps.js';
 import { StepResultBreak } from '../quick-wizard/models/steps.js';
-import type { QuickPickStep } from '../quick-wizard/models/steps.quickpick.js';
 import { QuickCommand } from '../quick-wizard/quickCommand.js';
 import { pickCommitsStep } from '../quick-wizard/steps/commits.js';
 import { pickBranchOrTagStep } from '../quick-wizard/steps/references.js';
@@ -83,8 +76,6 @@ export class CherryPickGitCommand extends QuickCommand<State> {
 	}
 
 	private async execute(state: StepState<State<GlRepository, GitReference[]>>) {
-		this.container.telemetry.sendEvent('gitCommand/run', { command: 'cherry-pick' });
-
 		try {
 			const result = await state.repo.git.ops?.cherryPick?.(
 				state.references.map(c => c.ref),
@@ -319,10 +310,10 @@ export class CherryPickGitCommand extends QuickCommand<State> {
 		return steps.isComplete ? undefined : StepResultBreak;
 	}
 
-	private async *confirmStep(
+	private *confirmStep(
 		state: StepState<State<GlRepository, GitReference[]>>,
 		context: Context,
-	): AsyncStepResultGenerator<Flags[]> {
+	): StepResultGenerator<Flags[]> {
 		const items: FlagsQuickPickItem<Flags>[] = [
 			createFlagsQuickPickItem<Flags>(state.flags, [], {
 				label: this.title,
@@ -350,85 +341,7 @@ export class CherryPickGitCommand extends QuickCommand<State> {
 			}),
 		];
 
-		let potentialConflict: Promise<ConflictDetectionResult | undefined> | undefined;
-		const subscription = await this.container.subscription.getSubscription();
-		if (isSubscriptionTrialOrPaidFromState(subscription?.state)) {
-			// Reverse the commits since they're typically in newest-to-oldest order (from git log),
-			// but conflict detection needs oldest-to-newest order to properly simulate cherry-pick
-			potentialConflict = state.repo.git.branches.getPotentialApplyConflicts?.(
-				context.destination.name,
-				ensureArray(state.references)
-					.map(r => r.ref)
-					.reverse(),
-				{ stopOnFirstConflict: true },
-			);
-		}
-
-		let step: QuickPickStep<DirectiveQuickPickItem | FlagsQuickPickItem<Flags>>;
-
-		const notices: DirectiveQuickPickItem[] = [];
-		if (potentialConflict) {
-			void potentialConflict?.then(result => {
-				if (result == null || result.status === 'clean') {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'No Conflicts Detected',
-							iconPath: new ThemeIcon('check'),
-						}),
-					);
-				} else if (result.status === 'error') {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'Unable to Detect Conflicts',
-							detail: result.message,
-							iconPath: new ThemeIcon('error'),
-						}),
-					);
-				} else {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'Conflicts Detected',
-							detail: `Will result in ${result.stoppedOnFirstConflict ? 'at least ' : ''}${pluralize(
-								'conflicting file',
-								result.conflict.files.length,
-							)} that will need to be resolved`,
-							iconPath: new ThemeIcon('warning'),
-						}),
-					);
-				}
-
-				if (step.quickpick != null) {
-					const active = step.quickpick.activeItems;
-					step.quickpick.items = [
-						...notices,
-						...items,
-						createQuickPickSeparator(),
-						createDirectiveQuickPickItem(Directive.Cancel),
-					];
-					step.quickpick.activeItems = active;
-				}
-			});
-
-			notices.push(
-				createDirectiveQuickPickItem(Directive.Noop, false, {
-					label: `$(loading~spin) \u00a0Detecting Conflicts...`,
-					// Don't use this, because the spin here causes the icon to spin incorrectly
-					//iconPath: new ThemeIcon('loading~spin'),
-				}),
-				createQuickPickSeparator(),
-			);
-		}
-
-		step = this.createConfirmStep(appendReposToTitle(`Confirm ${context.title}`, state, context), [
-			...notices,
-			...items,
-		]);
+		const step = this.createConfirmStep(appendReposToTitle(`Confirm ${context.title}`, state, context), items);
 		const selection: StepSelection<typeof step> = yield step;
 		return canPickStepContinue(step, state, selection) ? selection[0].item : StepResultBreak;
 	}

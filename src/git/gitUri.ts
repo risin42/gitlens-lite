@@ -2,7 +2,7 @@ import { Uri } from 'vscode';
 import type { GitFile } from '@gitlens/git/models/file.js';
 import { uncommittedStaged } from '@gitlens/git/models/revision.js';
 import { isUncommitted, isUncommittedStaged, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
-import { decodeGitLensRevisionUriAuthority, decodeRemoteHubAuthority } from '@gitlens/git/utils/uriAuthority.js';
+import { decodeGitLensRevisionUriAuthority } from '@gitlens/git/utils/uriAuthority.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { memoize } from '@gitlens/utils/decorators/memoize.js';
 import { realpath } from '@gitlens/utils/fs.js';
@@ -12,11 +12,9 @@ import { areUrisEqual } from '@gitlens/utils/uri.js';
 import { getQueryDataFromScmGitUri } from '../@types/vscode.git.uri.js';
 import { Schemes } from '../constants.js';
 import { Container } from '../container.js';
-import type { GitHubAuthorityMetadata } from '../plus/remotehub.js';
 import { configuration } from '../system/-webview/configuration.js';
 import { formatPath } from '../system/-webview/formatPath.js';
 import { getBestPath, relativeDir, splitPath } from '../system/-webview/path.js';
-import { isVirtualUri } from '../system/-webview/vscode/uris.js';
 import type { RevisionUriData } from './gitProvider.js';
 
 const slash = 47; //slash;
@@ -74,14 +72,6 @@ export class GitUri extends (Uri as any as UriEx) {
 			return;
 		}
 
-		if (isVirtualUri(uri)) {
-			const data = GitUri.parseVirtualUri(uri, commitOrRepoPath);
-			super(uri);
-			this.repoPath = data.repoPath;
-			this.sha = data.sha;
-			return;
-		}
-
 		if (commitOrRepoPath === undefined) {
 			super(uri);
 			return;
@@ -126,26 +116,6 @@ export class GitUri extends (Uri as any as UriEx) {
 			repoPath: metadata.repoPath,
 			sha: !isUncommitted(ref) || isUncommittedStaged(ref) ? ref : undefined,
 			submoduleSha: metadata.submoduleSha,
-		};
-	}
-
-	private static parseVirtualUri(
-		uri: Uri,
-		commitOrRepoPath: GitCommitish | string | undefined,
-	): { repoPath: string; sha: string | undefined } {
-		const [, owner, repo] = uri.path.split('/', 3);
-		const repoPath = uri.with({ path: `/${owner}/${repo}` }).toString();
-
-		const data = decodeRemoteHubAuthority<GitHubAuthorityMetadata>(uri.authority);
-
-		let ref = data.metadata?.ref?.id;
-		if (commitOrRepoPath != null && typeof commitOrRepoPath !== 'string') {
-			ref = commitOrRepoPath.sha;
-		}
-
-		return {
-			repoPath: repoPath,
-			sha: ref && (!isUncommitted(ref) || isUncommittedStaged(ref)) ? ref : undefined,
 		};
 	}
 

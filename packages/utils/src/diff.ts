@@ -1,4 +1,4 @@
-// Annotates diff to make is easier for agentic reference to line number.
+// Annotates diff to make it easier to reference line numbers.
 // Brackets sit AFTER the line-type marker so file-level diff parsers
 // (e.g. `filterDiffFiles`) that key off `diff --git` / `+++` / `---` headers still work.
 export function annotateDiffWithNewLineNumbers(diff: string): string {

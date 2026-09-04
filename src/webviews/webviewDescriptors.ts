@@ -1,5 +1,5 @@
 import type { ViewColumn, WebviewOptions, WebviewPanelOptions } from 'vscode';
-import type { TrackedUsageFeatures } from '../constants.telemetry.js';
+import type { TrackedUsageFeatures } from '../constants.context.js';
 import type {
 	CustomEditorIds,
 	CustomEditorTypeFromId,
@@ -17,7 +17,6 @@ export interface CustomEditorDescriptor<ID extends CustomEditorIds = CustomEdito
 	readonly contextKeyPrefix: `gitlens:webview:${CustomEditorTypeFromId<ID>}`;
 	readonly trackingFeature: TrackedUsageFeatures;
 	readonly type: CustomEditorTypeFromId<ID>;
-	readonly plusFeature: boolean;
 	readonly column?: ViewColumn;
 	readonly webviewOptions?: WebviewOptions;
 	readonly webviewHostOptions?: WebviewPanelOptions;
@@ -33,7 +32,6 @@ export interface WebviewPanelDescriptor<ID extends WebviewPanelIds> {
 	readonly contextKeyPrefix: `gitlens:webview:${WebviewPanelTypeFromId<ID>}`;
 	readonly trackingFeature: TrackedUsageFeatures;
 	readonly type: WebviewPanelTypeFromId<ID>;
-	readonly plusFeature: boolean;
 	readonly column?: ViewColumn;
 	readonly webviewOptions?: WebviewOptions;
 	readonly webviewHostOptions?: WebviewPanelOptions;
@@ -48,7 +46,6 @@ export interface WebviewViewDescriptor<ID extends WebviewViewIds = WebviewViewId
 	readonly contextKeyPrefix: `gitlens:webviewView:${WebviewViewTypeFromId<ID>}`;
 	readonly trackingFeature: TrackedUsageFeatures;
 	readonly type: WebviewViewTypeFromId<ID>;
-	readonly plusFeature: boolean;
 	readonly location?: 'panel';
 	readonly webviewOptions?: WebviewOptions;
 	readonly webviewHostOptions?: {

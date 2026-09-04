@@ -1,19 +1,14 @@
-import type { GraphStyle } from '@gitkraken/commit-graph/view.js';
-import type { AIProviderAndModel, SupportedAIModels } from '@gitlens/ai/constants.js';
 import type { DateTimeFormat } from '@gitlens/utils/date.js';
 import type { GroupableTreeViewTypes } from './constants.views.js';
 
 export interface Config {
 	readonly advanced: AdvancedConfig;
-	readonly ai: AIConfig;
 	readonly autolinks: AutolinkConfig[] | null;
 	readonly blame: BlameConfig;
 	readonly changes: ChangesConfig;
-	readonly cloudPatches: CloudPatchesConfig;
 	readonly codeLens: CodeLensConfig;
 	readonly currentLine: CurrentLineConfig;
 	readonly debug: boolean;
-	readonly deepLinks: DeepLinksConfig;
 	readonly defaultCurrentUserNameStyle: CurrentUserNameStyle;
 	readonly defaultDateFormat: DateTimeFormat | (string & object) | null;
 	readonly defaultDateLocale: string | null;
@@ -25,21 +20,15 @@ export interface Config {
 	readonly detectNestedRepositories: boolean;
 	readonly fileAnnotations: FileAnnotationsConfig;
 	readonly gitCommands: GitCommandsConfig;
-	readonly gitkraken: GitKrakenConfig;
 	readonly gitOptimizations: GitOptimizationsConfig;
-	readonly graph: GraphConfig;
 	readonly heatmap: HeatmapConfig;
 	readonly hovers: HoversConfig;
-	readonly integrations: IntegrationsConfig;
 	readonly keymap: KeyMap;
-	readonly launchpad: LaunchpadConfig;
-	readonly liveshare: LiveshareConfig;
 	readonly menus: boolean | MenuConfig;
 	readonly mode: ModeConfig;
 	readonly modes: ModesConfig | null;
+	readonly partners: Record<string, { readonly enabled: boolean }> | null;
 	readonly openInTerminalLocation: 'panel' | 'editor';
-	readonly partners: PartnersConfig | null;
-	readonly plusFeatures: PlusFeaturesConfig;
 	readonly rebaseEditor: RebaseEditorConfig;
 	readonly remotes: RemotesConfig[] | null;
 	readonly showWhatsNewAfterUpgrades: boolean;
@@ -52,12 +41,9 @@ export interface Config {
 	readonly sortWorkingChangesBy: WorkingChangesSorting;
 	readonly statusBar: StatusBarConfig;
 	readonly strings: StringsConfig;
-	readonly telemetry: TelemetryConfig;
 	readonly terminal: TerminalConfig;
 	readonly terminalLinks: TerminalLinksConfig;
 	readonly views: ViewsConfig;
-	readonly virtualRepositories: VirtualRepositoriesConfig;
-	readonly visualHistory: VisualHistoryConfig;
 	readonly worktrees: WorktreesConfig;
 }
 
@@ -112,25 +98,6 @@ export type DateSource = 'authored' | 'committed';
 export type DateStyle = 'absolute' | 'relative';
 export type FileAnnotationType = 'blame' | 'changes' | 'heatmap';
 export type GitCommandSorting = 'name' | 'usage';
-export type GraphBranchesVisibility = 'all' | 'smart' | 'current' | 'favorited' | 'agents';
-export type GraphActivityDecay = '30s' | '1m' | '2m' | '5m' | '10m' | '30m';
-export type GraphMultiSelectionMode = boolean | 'topological';
-export type GraphScrollMarkersAdditionalTypes =
-	| 'localBranches'
-	| 'remoteBranches'
-	| 'stashes'
-	| 'tags'
-	| 'pullRequests'
-	| 'wip';
-export type GraphMinimapDefaultVisibility = 'hidden' | 'onSearch' | 'always';
-export type GraphOverviewBarVisibility = 'always' | 'worktrees' | 'dirtyWorktrees' | 'never';
-export type GraphMinimapMarkersAdditionalTypes =
-	| 'localBranches'
-	| 'remoteBranches'
-	| 'stashes'
-	| 'tags'
-	| 'pullRequests'
-	| 'worktree';
 export type GravatarDefaultStyle = 'wavatar' | 'identicon' | 'monsterid' | 'mp' | 'retro' | 'robohash';
 export type HeatmapLocations = 'gutter' | 'line' | 'overview';
 export type KeyMap = 'alternate' | 'chorded' | 'none';
@@ -154,7 +121,7 @@ export type StatusBarCommands =
 	| 'gitlens.toggleFileChangesOnly'
 	| 'gitlens.toggleFileHeatmap';
 
-// NOTE: Must be kept in sync with `gitlens.advanced.messages` setting in the package.json
+// NOTE: Must be kept in sync with `gitlens-lite.advanced.messages` setting in the package.json
 export type SuppressedMessages =
 	| 'suppressBitbucketPRCommitLinksAppNotInstalledWarning'
 	| 'suppressCommitHasNoPreviousCommitWarning'
@@ -167,12 +134,6 @@ export type SuppressedMessages =
 	| 'suppressGitVersionWarning'
 	| 'suppressLineUncommittedWarning'
 	| 'suppressNoRepositoryWarning'
-	| 'suppressGkDisconnectedTooManyFailedRequestsWarningMessage'
-	| 'suppressGkRequestFailed500Warning'
-	| 'suppressGkRequestTimedOutWarning'
-	| 'suppressIntegrationDisconnectedTooManyFailedRequestsWarning'
-	| 'suppressIntegrationRequestFailed500Warning'
-	| 'suppressIntegrationRequestTimedOutWarning'
 	| 'suppressBlameInvalidIgnoreRevsFileWarning'
 	| 'suppressBlameInvalidIgnoreRevsFileBadRevisionWarning';
 
@@ -196,7 +157,7 @@ export interface AdvancedConfig {
 	};
 	readonly commitOrdering: 'date' | 'author-date' | 'topo' | null;
 	readonly commits: {
-		readonly delayLoadingFileDetails: boolean;
+		readonly delayLoadingFileDetails: boolean | null;
 	};
 	readonly externalDiffTool: string | null;
 	readonly externalDirectoryDiffTool: string | null;
@@ -220,78 +181,6 @@ export interface AdvancedConfig {
 	readonly repositorySearchDepth: number | null;
 	readonly similarityThreshold: number | null;
 	readonly skipOnboarding: boolean;
-}
-
-interface AIConfig {
-	readonly enabled: boolean;
-	readonly openInAgent: 'ask' | 'manual' | 'agent';
-	readonly defaultAgent: string | null;
-	readonly autoRebase: {
-		/** Minimum AI confidence (0–1) required to auto-apply a conflict resolution during an automatic rebase */
-		readonly confidenceThreshold: number;
-	};
-	readonly exclude: {
-		/** Glob patterns for files to exclude from AI prompts (like files.exclude). May be undefined on extension upgrade due to VS Code bug. */
-		readonly files: Record<string, boolean> | undefined;
-	};
-	readonly azure: {
-		readonly url: string | null;
-	};
-	readonly explainChanges: {
-		readonly customInstructions: string;
-	};
-	readonly reviewChanges: {
-		readonly customInstructions: string;
-	};
-	readonly generateChangelog: {
-		readonly customInstructions: string;
-	};
-	readonly generatePullRequestMessage: {
-		readonly customInstructions: string;
-		readonly enabled: boolean;
-	};
-	readonly generateCommitMessage: {
-		readonly customInstructions: string;
-		readonly enabled: boolean;
-	};
-	readonly generateCommits: {
-		readonly customInstructions: string;
-	};
-	readonly generateStashMessage: {
-		readonly customInstructions: string;
-	};
-	readonly generateCreateCloudPatch: {
-		readonly customInstructions: string;
-	};
-	readonly generateCreatePullRequest: {
-		readonly customInstructions: string;
-	};
-	readonly generateSearchQuery: {
-		readonly customInstructions: string;
-	};
-	readonly resolveConflicts: {
-		readonly customInstructions: string;
-	};
-	readonly gitkraken: {
-		readonly model: AIProviderAndModel | null;
-	};
-	readonly largePromptWarningThreshold: number;
-	readonly model: SupportedAIModels | null;
-	readonly modelOptions: {
-		readonly temperature: number;
-	};
-	readonly ollama: {
-		readonly url: string | null;
-	};
-	readonly openai: {
-		readonly url: string | null;
-	};
-	readonly openaicompatible: {
-		readonly url: string | null;
-	};
-	readonly vscode: {
-		readonly model: AIProviderAndModel | null;
-	};
 }
 
 export interface AutolinkConfig {
@@ -333,13 +222,6 @@ interface ChangesConfig {
 	/*readonly*/ toggleMode: AnnotationsToggleMode;
 }
 
-interface CloudPatchesConfig {
-	readonly enabled: boolean;
-	readonly experimental: {
-		readonly layout: 'editor' | 'view';
-	};
-}
-
 export interface CodeLensConfig {
 	readonly authors: {
 		readonly enabled: boolean;
@@ -371,15 +253,8 @@ interface CurrentLineConfig {
 	readonly fontStyle: string;
 	readonly fontWeight: string;
 	readonly format: string;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-	};
 	readonly scrollable: boolean;
 	readonly uncommittedChangesFormat: string | null;
-}
-
-interface DeepLinksConfig {
-	readonly schemeOverride: boolean | string | null;
 }
 
 interface FileAnnotationsConfig {
@@ -402,126 +277,8 @@ interface GitCommandsConfig {
 	readonly sortBy: GitCommandSorting;
 }
 
-interface GitKrakenConfig {
-	readonly activeOrganizationId: string | null;
-	readonly cli: GitKrakenCliConfig;
-	readonly mcp: GitKrakenMcpConfig;
-}
-
-interface GitKrakenCliConfig {
-	readonly localPath: string | null;
-	readonly insiders: {
-		readonly enabled: boolean | null;
-	};
-}
-
-interface GitKrakenMcpConfig {
-	readonly autoEnabled: boolean;
-	readonly experimental: {
-		readonly enabled: boolean;
-	};
-}
-
 export interface GitOptimizationsConfig {
 	readonly enabled: boolean;
-}
-
-export interface GraphConfig {
-	readonly allowMultiple: boolean;
-	readonly autoFetch: {
-		readonly enabled: boolean;
-	};
-	readonly avatars: boolean;
-	readonly branchesVisibility: GraphBranchesVisibility;
-	readonly changesColumn: {
-		readonly enabled: boolean;
-		readonly mode: 'numbers' | 'squares' | 'bar' | 'bipolar';
-	};
-	readonly commitOrdering: 'date' | 'author-date' | 'topo';
-	readonly dateFormat: DateTimeFormat | string | null;
-	readonly dateStyle: DateStyle | null;
-	readonly defaultItemLimit: number;
-	readonly details: {
-		readonly location: 'auto' | 'right' | 'bottom';
-		readonly maximizeOnMode: boolean;
-	};
-	readonly dimMergeCommits: boolean;
-	readonly editorOpeningBehavior: 'auto' | 'active';
-	readonly experimental: {
-		readonly kanban: {
-			readonly enabled: boolean;
-		};
-		readonly visualizations: {
-			readonly enabled: boolean;
-			readonly activityDecay: GraphActivityDecay;
-		};
-	};
-	readonly followTerminal: {
-		readonly enabled: boolean;
-		readonly allowRepositorySwitching: boolean;
-	};
-	readonly initialRowSelection: 'head' | 'wip';
-	readonly issues: {
-		readonly enabled: boolean;
-	};
-	readonly lanes: {
-		readonly folding: {
-			readonly enabled: boolean;
-			readonly default: 'none' | 'all' | 'auto';
-		};
-		readonly density: 'expanded' | 'compact';
-		readonly grouped: {
-			readonly min: number;
-			readonly max: number;
-		};
-	};
-	readonly layout: 'editor' | 'panel';
-	readonly minimap: {
-		/** Whether the minimap is available at all — when `false` it is never shown and has no header toggle */
-		readonly enabled: boolean;
-		/** When to show an available minimap; the stored per-workspace toggle overrides this */
-		readonly defaultVisibility: GraphMinimapDefaultVisibility;
-		readonly dataType: 'commits' | 'lines';
-		readonly additionalTypes: GraphMinimapMarkersAdditionalTypes[];
-		readonly reversed: boolean;
-	};
-	readonly multiselect: GraphMultiSelectionMode;
-	readonly onlyFollowFirstParent: boolean;
-	readonly overviewBar: {
-		readonly visibility: GraphOverviewBarVisibility;
-	};
-	readonly pageItemLimit: number;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-	};
-	readonly refFindAutoHide: boolean;
-	readonly refs: {
-		readonly maxInline: number | 'auto';
-		readonly maxStacked: number | 'auto';
-		readonly layout: 'inline' | 'stacked';
-	};
-	readonly scrollMarkers: {
-		readonly enabled: boolean;
-		readonly additionalTypes: GraphScrollMarkersAdditionalTypes[];
-	};
-	readonly scrollRowPadding: number;
-	readonly searchAutocompleteOnFocus: boolean;
-	readonly searchItemLimit: number;
-	readonly showGhostRefsOnRowHover: boolean;
-	readonly showRemoteNames: boolean;
-	readonly showUpstreamStatus: boolean;
-	readonly showWorkingTreeBadge: boolean;
-	readonly showWorktreeWipStats: boolean;
-	readonly sidebar: {
-		readonly enabled: boolean;
-		readonly pinned: boolean;
-	};
-	readonly statusBar: {
-		readonly enabled: boolean;
-	};
-	readonly stickyTimeline: boolean;
-	readonly style: GraphStyle;
-	readonly timelineSeparators: boolean;
 }
 
 interface HeatmapConfig {
@@ -542,7 +299,6 @@ interface HoversConfig {
 	};
 	readonly autolinks: {
 		readonly enabled: boolean;
-		readonly enhanced: boolean;
 	};
 	readonly currentLine: {
 		readonly changes: boolean;
@@ -555,40 +311,6 @@ interface HoversConfig {
 	readonly changesDiff: 'line' | 'hunk';
 	readonly detailsMarkdownFormat: string;
 	/*readonly*/ enabled: boolean;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-	};
-}
-
-interface IntegrationsConfig {
-	readonly enabled: boolean;
-}
-
-interface LaunchpadConfig {
-	readonly allowMultiple: boolean;
-	readonly includedOrganizations: string[];
-	readonly ignoredOrganizations: string[];
-	readonly ignoredRepositories: string[];
-	readonly staleThreshold: number | null;
-	readonly indicator: {
-		readonly enabled: boolean;
-		readonly icon: 'default' | 'group';
-		readonly label: false | 'item' | 'counts';
-		readonly useColors: boolean;
-		readonly groups: ('mergeable' | 'blocked' | 'needs-review' | 'follow-up')[];
-		readonly polling: {
-			enabled: boolean;
-			interval: number;
-		};
-	};
-	readonly experimental: {
-		readonly queryLimit: number;
-	};
-}
-
-interface LiveshareConfig {
-	readonly enabled: boolean;
-	readonly allowGuestAccess: boolean;
 }
 
 export interface MenuConfig {
@@ -630,32 +352,15 @@ export interface MenuConfig {
 				readonly history: boolean;
 				readonly remote: boolean;
 		  };
-	readonly ghpr:
-		| false
-		| {
-				readonly worktree: boolean;
-		  };
-	readonly scm:
-		| false
-		| {
-				readonly graph: boolean;
-				readonly visualHistory: boolean;
-		  };
 	readonly scmRepositoryInline:
 		| false
 		| {
-				readonly generateCommitMessage: boolean;
-				readonly graph: boolean;
 				readonly stash: boolean;
-				readonly visualHistory: boolean;
 		  };
 	readonly scmRepository:
 		| false
 		| {
 				readonly authors: boolean;
-				readonly generateCommitMessage: boolean;
-				readonly graph: boolean;
-				readonly visualHistory: boolean;
 		  };
 	readonly scmGroupInline:
 		| false
@@ -710,23 +415,12 @@ export interface Mode {
 	readonly statusBar?: boolean;
 }
 
-interface PartnersConfig {
-	readonly [key: string]: {
-		readonly enabled: boolean;
-		readonly [key: string]: any;
-	};
-}
-
-interface PlusFeaturesConfig {
-	readonly enabled: boolean;
-}
-
 interface RebaseEditorConfig {
 	readonly density: 'compact' | 'comfortable';
 	readonly openBehavior: 'auto' | 'beside';
 	readonly openOnPausedRebase: boolean | 'auto' | 'interactive';
 	readonly ordering: 'asc' | 'desc';
-	readonly revealLocation: 'graph' | 'inspect';
+	readonly revealLocation: 'inspect';
 	readonly revealBehavior: 'onDoubleClick' | 'onSelection';
 }
 
@@ -777,9 +471,6 @@ interface StatusBarConfig {
 	/*readonly*/ enabled: boolean;
 	readonly format: string;
 	readonly reduceFlicker: boolean;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-	};
 	readonly tooltipFormat: string;
 }
 
@@ -793,17 +484,13 @@ interface StringsConfig {
 	};
 }
 
-interface TelemetryConfig {
-	readonly enabled: boolean;
-}
-
 interface TerminalConfig {
 	readonly overrideGitEditor: boolean;
 }
 
 interface TerminalLinksConfig {
 	readonly enabled: boolean;
-	readonly showIn: 'graph' | 'inspect' | 'quickpick';
+	readonly showIn: 'inspect' | 'quickpick';
 	/** @deprecated use {@link showIn} */
 	readonly showDetailsView: boolean;
 }
@@ -861,19 +548,13 @@ interface ViewsConfigs {
 	readonly commits: CommitsViewConfig;
 	readonly commitDetails: CommitDetailsViewConfig;
 	readonly contributors: ContributorsViewConfig;
-	readonly drafts: DraftsViewConfig;
 	readonly fileHistory: FileHistoryViewConfig;
-	readonly launchpad: LaunchpadViewConfig;
 	readonly lineHistory: LineHistoryViewConfig;
-	readonly patchDetails: PatchDetailsViewConfig;
-	readonly pullRequest: PullRequestViewConfig;
 	readonly remotes: RemotesViewConfig;
 	readonly repositories: RepositoriesViewConfig;
 	readonly searchAndCompare: SearchAndCompareViewConfig;
 	readonly stashes: StashesViewConfig;
 	readonly tags: TagsViewConfig;
-	readonly worktrees: WorktreesViewConfig;
-	readonly workspaces: WorkspacesViewConfig;
 }
 
 export type ViewsConfigKeys = keyof ViewsConfigs;
@@ -882,18 +563,13 @@ export const viewsConfigKeys: ViewsConfigKeys[] = [
 	'commits',
 	'commitDetails',
 	'contributors',
-	'drafts',
 	'fileHistory',
 	'lineHistory',
-	'patchDetails',
-	'pullRequest',
 	'remotes',
 	'repositories',
 	'searchAndCompare',
 	'stashes',
 	'tags',
-	'worktrees',
-	'workspaces',
 ];
 
 export type ViewsConfig = ViewsCommonConfig & ViewsConfigs;
@@ -905,11 +581,6 @@ export interface BranchesViewConfig {
 		readonly layout: ViewBranchesLayout;
 	};
 	readonly files: ViewsFilesConfig;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForBranches: boolean;
-		readonly showForCommits: boolean;
-	};
 	readonly reveal: boolean;
 	readonly showBranchComparison: false | Extract<ViewShowBranchComparison, 'branch'>;
 	readonly showRemoteBranches: boolean;
@@ -920,11 +591,6 @@ export interface CommitsViewConfig {
 	readonly avatars: boolean;
 	readonly branches: undefined;
 	readonly files: ViewsFilesConfig;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForBranches: boolean;
-		readonly showForCommits: boolean;
-	};
 	readonly reveal: boolean;
 	readonly showBranchComparison: false | ViewShowBranchComparison;
 	readonly showStashes: boolean;
@@ -935,10 +601,6 @@ export interface CommitDetailsViewConfig {
 	readonly files: ViewsFilesConfig;
 	readonly autolinks: {
 		readonly enabled: boolean;
-		readonly enhanced: boolean;
-	};
-	readonly pullRequests: {
-		readonly enabled: boolean;
 	};
 }
 
@@ -946,60 +608,19 @@ export interface ContributorsViewConfig {
 	readonly avatars: boolean;
 	readonly files: ViewsFilesConfig;
 	readonly maxWait: number;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForCommits: boolean;
-	};
 	readonly reveal: boolean;
 	readonly showAllBranches: boolean;
 	readonly showStatistics: boolean;
-}
-
-export interface DraftsViewConfig {
-	readonly avatars: boolean;
-	readonly branches: undefined;
-	readonly files: ViewsFilesConfig;
-	readonly pullRequests: undefined;
-	readonly reveal: undefined;
 }
 
 export interface FileHistoryViewConfig {
 	readonly avatars: boolean;
 	readonly files: ViewsFilesConfig;
 	readonly mode: 'commits' | 'contributors';
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForCommits: boolean;
-	};
-}
-
-export interface LaunchpadViewConfig {
-	readonly enabled: boolean;
-
-	readonly avatars: boolean;
-	readonly files: ViewsFilesConfig;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForCommits: boolean;
-	};
 }
 
 export interface LineHistoryViewConfig {
 	readonly avatars: boolean;
-}
-
-export interface PatchDetailsViewConfig {
-	readonly avatars: boolean;
-	readonly files: ViewsFilesConfig;
-}
-
-export interface PullRequestViewConfig {
-	readonly avatars: boolean;
-	readonly branches: undefined;
-	readonly files: ViewsFilesConfig;
-	readonly pullRequests: undefined;
-	readonly reveal: undefined;
-	readonly showBranchComparison: undefined;
 }
 
 export interface RemotesViewConfig {
@@ -1009,11 +630,6 @@ export interface RemotesViewConfig {
 		readonly layout: ViewBranchesLayout;
 	};
 	readonly files: ViewsFilesConfig;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForBranches: boolean;
-		readonly showForCommits: boolean;
-	};
 	readonly reveal: boolean;
 }
 
@@ -1030,11 +646,6 @@ export interface RepositoriesViewConfig {
 	readonly compact: boolean;
 	readonly files: ViewsFilesConfig;
 	readonly includeWorkingTree: boolean;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForBranches: boolean;
-		readonly showForCommits: boolean;
-	};
 	readonly showBranchComparison: false | ViewShowBranchComparison;
 	readonly showBranches: boolean;
 	readonly showCommits: boolean;
@@ -1053,10 +664,6 @@ export interface RepositoriesViewConfig {
 export interface SearchAndCompareViewConfig {
 	readonly avatars: boolean;
 	readonly files: ViewsFilesConfig;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForCommits: boolean;
-	};
 }
 
 export interface StashesViewConfig {
@@ -1076,72 +683,11 @@ export interface TagsViewConfig {
 
 export type ViewWorktreesViewAs = 'name' | 'path' | 'relativePath';
 
-export interface WorktreesViewConfig {
-	readonly avatars: boolean;
-	readonly branches: {
-		readonly compact: boolean;
-		readonly layout: ViewBranchesLayout;
-	};
-	readonly files: ViewsFilesConfig;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForBranches: boolean;
-		readonly showForCommits: boolean;
-	};
-	readonly reveal: boolean;
-	readonly showBranchComparison: false | Extract<ViewShowBranchComparison, 'branch'>;
-	readonly showStashes: boolean;
-	readonly worktrees: {
-		readonly viewAs: ViewWorktreesViewAs;
-	};
-}
-
-export interface WorkspacesViewConfig {
-	readonly avatars: boolean;
-	readonly branches: {
-		readonly compact: boolean;
-		readonly layout: ViewBranchesLayout;
-		readonly showBranchComparison: false | Extract<ViewShowBranchComparison, 'branch'>;
-		readonly showStashes: boolean;
-	};
-	readonly compact: boolean;
-	readonly files: ViewsFilesConfig;
-	readonly includeWorkingTree: boolean;
-	readonly pullRequests: {
-		readonly enabled: boolean;
-		readonly showForBranches: boolean;
-		readonly showForCommits: boolean;
-	};
-	readonly showBranchComparison: false | ViewShowBranchComparison;
-	readonly showBranches: boolean;
-	readonly showCommits: boolean;
-	readonly showContributors: boolean;
-	readonly showIncomingActivity: boolean;
-	readonly showRemotes: boolean;
-	readonly showStashes: boolean;
-	readonly showTags: boolean;
-	readonly showUpstreamStatus: boolean;
-	readonly showWorktrees: boolean;
-	readonly worktrees: {
-		readonly viewAs: ViewWorktreesViewAs;
-	};
-}
-
 export interface ViewsFilesConfig {
 	readonly compact: boolean;
 	readonly icon: 'status' | 'type';
 	readonly layout: ViewFilesLayout;
 	readonly threshold: number;
-}
-
-interface VirtualRepositoriesConfig {
-	readonly enabled: boolean;
-}
-
-interface VisualHistoryConfig {
-	readonly allowMultiple: boolean;
-	readonly editorOpeningBehavior: 'auto' | 'active';
-	readonly queryLimit: number;
 }
 
 interface WorktreesConfig {

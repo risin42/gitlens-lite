@@ -1,7 +1,7 @@
 import type { Container } from '../../../container.js';
 
 /**
- * Browser stub. Automatic rebase isn't available in VS Code Web (the conflict-tools integration
+ * Browser stub. Automatic rebase isn't available in VS Code Web (the conflict-tools support
  * gates it off), so there's never a run to supply a message editor for — callers fall back to a
  * headless `true` editor when this returns `undefined`.
  */

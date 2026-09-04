@@ -1,16 +1,13 @@
 import { EventEmitter, Uri, window } from 'vscode';
 import { PausedOperationAbortError, PausedOperationContinueError } from '@gitlens/git/errors.js';
 import type { GitPausedOperationStatus } from '@gitlens/git/models/pausedOperationStatus.js';
-import { uncommitted } from '@gitlens/git/models/revision.js';
 import { pausedOperationStatusStringsByType } from '@gitlens/git/utils/pausedOperationStatus.utils.js';
 import { getReferenceLabel } from '@gitlens/git/utils/reference.utils.js';
 import { getRepositoryKey } from '@gitlens/utils/uri.js';
-import type { Source } from '../../constants.telemetry.js';
+import type { Source } from '../../constants.context.js';
 import type { Container } from '../../container.js';
 import { showGitErrorMessage } from '../../messages.js';
-import { arePlusFeaturesEnabled } from '../../plus/gk/utils/-webview/plus.utils.js';
-import { isAccountAccessRequired } from '../../plus/gk/utils/subscription.utils.js';
-import { executeCommand } from '../../system/-webview/command.js';
+import { executeCoreCommand } from '../../system/-webview/command.js';
 import { isDescendant } from '../../system/-webview/path.js';
 import type { GitRepositoryService } from '../gitRepositoryService.js';
 import { openRebaseEditor } from '../utils/-webview/rebase.utils.js';
@@ -223,15 +220,14 @@ async function hasPausedOperationProgressed(
 }
 
 export interface ShowPausedOperationStatusOptions {
-	/** When set, the request comes from inside the rebase editor, so always surface the graph */
+	/** When set, reveal conflicted files in Source Control without reopening the current editor. */
 	fromRebaseEditor?: boolean;
 	source?: Source;
 }
 
 /**
- * Surfaces a paused operation (merge/rebase/cherry-pick/revert) in a single, consistent place:
- * the Graph's WIP details (which renders the paused-op/conflict banner), except for a paused
- * rebase when the graph is gated — then the rebase editor, since it's the only usable surface.
+ * Opens the rebase editor for a paused rebase, or Source Control for other operations.
+ * Requests from the rebase editor reveal conflicted files without reopening the editor.
  */
 export async function showPausedOperationStatus(
 	container: Container,
@@ -245,30 +241,9 @@ export async function showPausedOperationStatus(
 	const status = await svc.pausedOps?.getPausedOperationStatus?.({ force: true });
 	if (status == null) return;
 
-	const toGraph =
-		options?.fromRebaseEditor || status.type !== 'rebase' || (await isGraphAccessible(container, repoPath));
-	if (toGraph) {
-		revealPausedOperationInGraph(repoPath, options?.source);
-		return;
+	if (status.type === 'rebase' && !options?.fromRebaseEditor) {
+		await openRebaseEditor(container, repoPath);
+	} else {
+		await executeCoreCommand('workbench.view.scm');
 	}
-
-	await openRebaseEditor(container, repoPath);
-}
-
-async function isGraphAccessible(container: Container, repoPath: string): Promise<boolean> {
-	if (!arePlusFeaturesEnabled()) return false;
-
-	// Signed out or unverified, the Graph replaces its whole content with the account screen, so it can't
-	// surface a conflict at all — regardless of plan or repo visibility. Keep the rebase editor instead.
-	if (isAccountAccessRequired(await container.subscription.getSubscription())) return false;
-
-	return (await container.git.access('graph', repoPath)).allowed !== false;
-}
-
-function revealPausedOperationInGraph(repoPath: string, source?: Source): void {
-	void executeCommand('gitlens.showGraph', {
-		action: 'show-wip',
-		target: { sha: uncommitted, worktreePath: repoPath },
-		source: source,
-	});
 }

@@ -1,6 +1,6 @@
 {
 	"name": "@gitkraken/core-gitlens",
-	"description": "GitLens core — shared Git / AI / GitHub primitives for internal GitKraken consumption",
+	"description": "GitLens core — shared local Git primitives",
 	"version": "0.5.113",
 	"license": "SEE LICENSE IN LICENSE",
 	"author": {
@@ -28,7 +28,6 @@
 		"dist",
 		"src",
 		"LICENSE",
-		"LICENSE.plus",
 		"README.md",
 		"CHANGELOG.md",
 		"docs"
@@ -135,79 +134,6 @@
 			"types": "./dist/ipc/ipcServer.d.ts",
 			"default": "./dist/ipc/ipcServer.js"
 		},
-		"./plus/agents/agentCapabilities.js": {
-			"types": "./dist/plus/agents/agentCapabilities.d.ts",
-			"default": "./dist/plus/agents/agentCapabilities.js"
-		},
-		"./plus/agents/providers/*.js": {
-			"types": "./dist/plus/agents/providers/*.d.ts",
-			"default": "./dist/plus/agents/providers/*.js"
-		},
-		"./plus/agents/sanitizePrompt.js": {
-			"types": "./dist/plus/agents/sanitizePrompt.d.ts",
-			"default": "./dist/plus/agents/sanitizePrompt.js"
-		},
-		"./plus/agents/stateMachine.js": {
-			"types": "./dist/plus/agents/stateMachine.d.ts",
-			"default": "./dist/plus/agents/stateMachine.js"
-		},
-		"./plus/agents/types.js": {
-			"types": "./dist/plus/agents/types.d.ts",
-			"default": "./dist/plus/agents/types.js"
-		},
-		"./plus/ai/constants.js": {
-			"types": "./dist/plus/ai/constants.d.ts",
-			"default": "./dist/plus/ai/constants.js"
-		},
-		"./plus/ai/errors.js": {
-			"types": "./dist/plus/ai/errors.d.ts",
-			"default": "./dist/plus/ai/errors.js"
-		},
-		"./plus/ai/models/*.js": {
-			"types": "./dist/plus/ai/models/*.d.ts",
-			"default": "./dist/plus/ai/models/*.js"
-		},
-		"./plus/ai/prompts.js": {
-			"types": "./dist/plus/ai/prompts.d.ts",
-			"default": "./dist/plus/ai/prompts.js"
-		},
-		"./plus/ai/providers/*.js": {
-			"types": "./dist/plus/ai/providers/*.d.ts",
-			"default": "./dist/plus/ai/providers/*.js"
-		},
-		"./plus/ai/utils/*.js": {
-			"types": "./dist/plus/ai/utils/*.d.ts",
-			"default": "./dist/plus/ai/utils/*.js"
-		},
-		"./plus/git-github/api/*.js": {
-			"types": "./dist/plus/git-github/api/*.d.ts",
-			"default": "./dist/plus/git-github/api/*.js"
-		},
-		"./plus/git-github/context.js": {
-			"types": "./dist/plus/git-github/context.d.ts",
-			"default": "./dist/plus/git-github/context.js"
-		},
-		"./plus/git-github/models.js": {
-			"types": "./dist/plus/git-github/models.d.ts",
-			"default": "./dist/plus/git-github/models.js"
-		},
-		"./plus/git-github/providers/*.js": {
-			"types": "./dist/plus/git-github/providers/*.d.ts",
-			"default": "./dist/plus/git-github/providers/*.js"
-		},
-		"./plus/git-github/providers/github/*.js": {
-			"types": "./dist/plus/git-github/providers/github/*.d.ts",
-			"default": "./dist/plus/git-github/providers/github/*.js"
-		},
-		"./plus/integrations/index.js": {
-			"types": "./dist/plus/integrations/index.d.ts",
-			"default": "./dist/plus/integrations/index.js"
-		},
-		"./plus/integrations/lite.js": {
-			"types": "./dist/plus/integrations/lite.d.ts",
-			"default": "./dist/plus/integrations/lite.js"
-		},
-		"./utils/__tests__/*.js": null,
 		"./utils/*.js": {
 			"types": "./dist/utils/*.d.ts",
 			"default": "./dist/utils/*.js"
@@ -236,11 +162,6 @@
 		}
 	},
 	"dependencies": {
-		"@gitkraken/provider-apis": "catalog:",
-		"@octokit/graphql": "catalog:",
-		"@octokit/request": "catalog:",
-		"@octokit/request-error": "catalog:",
-		"@octokit/types": "catalog:",
 		"fast-string-truncated-width": "catalog:",
 		"ignore": "catalog:",
 		"vscode-uri": "catalog:"
@@ -248,9 +169,7 @@
 	"scripts": {
 		"build": "node scripts/bundle.mjs",
 		"bundle": "node scripts/bundle.mjs",
-		"clean": "pnpx rimraf --glob dist src LICENSE LICENSE.plus *.tgz",
-		"prepack": "node scripts/bundle.mjs",
-		"verify:esm": "node scripts/verify-esm.mjs",
-		"verify:package": "node scripts/verify-package.mjs"
+		"clean": "pnpx rimraf --glob dist src LICENSE *.tgz",
+		"prepack": "node scripts/bundle.mjs"
 	}
 }

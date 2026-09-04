@@ -19,7 +19,7 @@ export type VirtualParent =
 
 /**
  * Handler interface implemented by each feature that wants to surface virtual content
- * to the VS Code diff editor (graph compose, standalone composer, AI suggestions,
+ * to the VS Code diff editor (local comparisons and generated revisions,
  * merge-conflict vis, ephemeral stash, etc.). Registered with {@link VirtualFileSystemService}
  * under a unique `namespace`.
  */

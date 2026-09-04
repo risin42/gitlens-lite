@@ -122,7 +122,7 @@ const nonTextInputTypes = new Set([
 
 /**
  * Whether an event originated in a text-entry surface — the guard an app-level single-key shortcut
- * (e.g. the Commit Graph's `/`) needs so it never swallows a keystroke meant for typing.
+ * (for example, a webview-level `/` shortcut) needs so it never swallows a keystroke meant for typing.
  *
  * Walks the COMPOSED path rather than reading `event.target`, because a `document`-level listener sees
  * the target retargeted to the outermost shadow host — for the commit search box that's

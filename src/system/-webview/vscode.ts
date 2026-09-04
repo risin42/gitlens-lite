@@ -2,15 +2,12 @@ import type { ColorTheme, ThemeIcon } from 'vscode';
 import { version as codeVersion, ColorThemeKind, env, ExtensionMode, Uri, window, workspace } from 'vscode';
 import { getPlatform } from '@env/platform.js';
 import { joinPaths, normalizePath } from '@gitlens/utils/path.js';
-import { getDistributionGroup } from '@gitlens/utils/string.js';
 import { satisfies } from '@gitlens/utils/version.js';
 import type { IconPath } from '../../@types/vscode.iconpath.d.js';
 import type { Container } from '../../container.js';
 import { executeCoreCommand } from './command.js';
 import { configuration } from './configuration.js';
 import { exists } from './vscode/uris.js';
-
-export const deviceCohortGroup = getDistributionGroup(env.machineId);
 
 export function getExtensionModeLabel(mode: ExtensionMode): string {
 	switch (mode) {
@@ -63,20 +60,6 @@ export async function getHostAppName(): Promise<string | undefined> {
 	}
 
 	return _hostAppName ?? undefined;
-}
-
-/** Maps a host app name to the CLI's MCP-install provider slug (e.g. `code` -> `vscode`). */
-export function toMcpInstallProvider<T extends string | undefined>(appHostName: T): T {
-	switch (appHostName) {
-		case 'code':
-			return 'vscode' as T;
-		case 'code-insiders':
-			return 'vscode-insiders' as T;
-		case 'code-exploration':
-			return 'vscode-exploration' as T;
-		default:
-			return appHostName;
-	}
 }
 
 let _hostExecutablePath: string | undefined;

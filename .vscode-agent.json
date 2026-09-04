@@ -1,9 +1,0 @@
-{
-	"extensionId": "eamodio.gitlens",
-	"buildCommand": "pnpm run build:extension",
-	"activationWait": 8000,
-	"settings": {
-		"gitlens.telemetry.enabled": false,
-		"gitlens.advanced.skipOnboarding": true
-	}
-}

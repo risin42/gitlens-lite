@@ -28,21 +28,6 @@ export class DetailsFolderCommands {
 		void executeCommand('gitlens.openFolderHistory', getFolderUriFromContext(this.container, folder));
 	}
 
-	@command('gitlens.openFolderHistoryInGraph:')
-	@debug()
-	openFolderHistoryInGraph(folder: DetailsFolderContextValue): void {
-		void executeCommand('gitlens.openFolderHistoryInGraph', getFolderUriFromContext(this.container, folder));
-	}
-
-	@command('gitlens.visualizeHistory.folder:')
-	@debug()
-	visualizeFolderHistory(folder: DetailsFolderContextValue): void {
-		void executeCommand(
-			'gitlens.visualizeHistory.folder:explorer',
-			getFolderUriFromContext(this.container, folder),
-		);
-	}
-
 	// Copy / Copy Relative Path are intentionally undecorated — their VS Code command IDs
 	// (`gitlens.views.copy:<scope>`, `gitlens.copyRelativePathToClipboard:<scope>`) are already
 	// registered against `DetailsFileCommands`. The shared file-command handler routes to these

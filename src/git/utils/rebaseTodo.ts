@@ -43,7 +43,7 @@ export function applyRebaseActionToTodo(
 /**
  * Rewrites an interactive-rebase todo to relocate a `fixup!` commit directly under its target: the
  * fixup's todo line is removed and re-inserted immediately after the target's line, with its action
- * changed to `fixup`. Used for the Commit Graph's "Commit Fixup & Squash" headless rebase, which
+ * changed to `fixup`. Used for a "Commit Fixup & Squash" headless rebase, which
  * commits a `fixup!`-prefixed message and immediately folds it into its target rather than waiting
  * for a later `--autosquash` pass.
  *

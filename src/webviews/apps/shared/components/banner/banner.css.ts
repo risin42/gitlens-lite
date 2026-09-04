@@ -91,35 +91,6 @@ export const bannerStyles = css`
 			);
 	}
 
-	/* Gradient purple display mode - matches the auto-composer container styling */
-	.banner--gradient-purple {
-		background: var(--gl-gradient-brand-subtle);
-		border: var(--gl-border-width) solid var(--vscode-panel-border);
-		border-radius: var(--gl-radius-md);
-	}
-
-	.banner--gradient-purple .banner__title {
-		font-size: var(--gl-font-base);
-		font-weight: normal;
-		color: var(--vscode-foreground);
-	}
-
-	.banner--gradient-purple .banner__body {
-		font-size: var(--gl-font-md);
-		line-height: 1.4;
-		color: var(--vscode-descriptionForeground);
-	}
-
-	.banner--gradient-purple .banner__body a {
-		color: var(--vscode-textLink-foreground);
-		text-decoration: none;
-	}
-
-	.banner--gradient-purple .banner__body a:hover {
-		color: var(--vscode-textLink-activeForeground);
-		text-decoration: underline;
-	}
-
 	.banner__content {
 		display: flex;
 		flex-direction: column;
@@ -233,20 +204,13 @@ export const bannerStyles = css`
 		margin-top: var(--gl-space-8);
 	}
 
-	.banner:not(.banner--gradient-purple) .banner__button--primary {
+	.banner__button--primary {
 		grid-column: 2;
 		justify-self: center;
 		white-space: nowrap;
 		--button-background: color-mix(in lab, var(--gl-banner-primary-background) 10%, #fff 20%);
 		--button-foreground: var(--gl-banner-text-color);
 		--button-hover-background: color-mix(in lab, var(--gl-banner-primary-background) 20%, #fff 30%);
-		--button-padding: var(--gl-banner-button-padding);
-	}
-
-	.banner--gradient-purple .banner__button--primary {
-		grid-column: 2;
-		justify-self: center;
-		white-space: nowrap;
 		--button-padding: var(--gl-banner-button-padding);
 	}
 
@@ -304,17 +268,15 @@ export const bannerStyles = css`
 		--gl-banner-text-color: #000;
 	}
 
-	:host-context(.vscode-dark) .banner:not(.banner--gradient-purple) .banner__button--primary,
-	:host-context(.vscode-high-contrast:not(.vscode-high-contrast-light))
-		.banner:not(.banner--gradient-purple)
-		.banner__button--primary {
+	:host-context(.vscode-dark) .banner .banner__button--primary,
+	:host-context(.vscode-high-contrast:not(.vscode-high-contrast-light)) .banner .banner__button--primary {
 		--button-background: color-mix(in lab, var(--gl-banner-primary-background) 10%, #fff 20%);
 		--button-hover-background: color-mix(in lab, var(--gl-banner-primary-background) 20%, #fff 30%);
 		--button-foreground: #fff;
 	}
 
-	:host-context(.vscode-light) .banner:not(.banner--gradient-purple) .banner__button--primary,
-	:host-context(.vscode-high-contrast-light) .banner:not(.banner--gradient-purple) .banner__button--primary {
+	:host-context(.vscode-light) .banner .banner__button--primary,
+	:host-context(.vscode-high-contrast-light) .banner .banner__button--primary {
 		--button-background: color-mix(in lab, var(--gl-banner-primary-background) 8%, #fff 25%);
 		--button-hover-background: color-mix(in lab, var(--gl-banner-primary-background) 15%, #fff 35%);
 		--button-foreground: #000;

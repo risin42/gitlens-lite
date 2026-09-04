@@ -3,9 +3,9 @@ import type { GitFileConflictStatus } from '../models/fileStatus.js';
 export type ConflictResolutionAction = 'take-ours' | 'take-theirs' | 'delete' | 'unsupported';
 
 /**
- * A richer description of a conflict than the raw XY status code — used to label conflicts the
- * AI text resolver can't parse (binary, symlink, submodule, mode-only, add/add) and to surface
- * rename conflicts. Derived by {@link classifyConflictKind} from the XY status plus, when
+ * A richer description of a conflict than the raw XY status code — used to label conflicts a text
+ * merge cannot handle (binary, symlink, submodule, mode-only, add/add) and to surface rename
+ * conflicts. Derived by {@link classifyConflictKind} from the XY status plus, when
  * available, the per-stage file modes/oids and rename/binary hints the caller computes.
  */
 export type ConflictKind =
@@ -95,8 +95,8 @@ export function canStageIncoming(status: GitFileConflictStatus): boolean {
 	return status !== 'AU' && status !== 'DD';
 }
 
-/** A short label + one-line description for a {@link ConflictKind}, used to explain conflicts the AI
- *  resolver can't auto-merge (and rename conflicts) wherever they're surfaced. */
+/** A short label + one-line description for a {@link ConflictKind}, used to explain conflicts that
+ * cannot be merged automatically (and rename conflicts) wherever they're surfaced. */
 export function getConflictKindLabel(kind: ConflictKind, renameOf?: string): { label: string; description: string } {
 	const named = renameOf ? `"${renameOf}"` : 'The file';
 	switch (kind) {

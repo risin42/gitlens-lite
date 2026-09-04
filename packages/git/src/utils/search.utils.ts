@@ -18,7 +18,7 @@ import { isSha, shortenRevision } from './revision.utils.js';
 export function getSearchQueryComparisonKey(search: SearchQuery): string {
 	return `${search.query}|${search.matchAll ? 'A' : ''}${search.matchCase ? 'C' : ''}${
 		search.matchRegex ? 'R' : ''
-	}${search.matchWholeWord ? 'W' : ''}${search.naturalLanguage ? 'NL' : ''}`;
+	}${search.matchWholeWord ? 'W' : ''}`;
 }
 
 export function createSearchQueryForCommit(ref: string): string;
@@ -619,6 +619,6 @@ export function areSearchQueriesEqual(a: SearchQuery | undefined, b: SearchQuery
 		a.matchCase === b.matchCase &&
 		a.matchRegex === b.matchRegex &&
 		a.matchWholeWord === b.matchWholeWord &&
-		Boolean(a.naturalLanguage) === Boolean(b.naturalLanguage)
+		true
 	);
 }

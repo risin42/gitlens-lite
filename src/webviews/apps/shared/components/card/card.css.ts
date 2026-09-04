@@ -49,102 +49,84 @@ export const cardStyles = css`
 	.card.is-reverting {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			var(--vscode-gitlens-decorations\\.statusMergingOrRebasingForegroundColor)
+			var(--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingForegroundColor)
 		);
 	}
 
 	.card.is-conflict {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			var(--vscode-gitlens-decorations\\.statusMergingOrRebasingConflictForegroundColor)
+			var(--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingConflictForegroundColor)
 		);
 	}
 
 	.card.is-issue-open {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			color-mix(in lab, var(--vscode-gitlens-openAutolinkedIssueIconColor) 0%, transparent)
+			color-mix(in lab, var(--vscode-gitlens-lite-openAutolinkedIssueIconColor) 0%, transparent)
 		);
 	}
 
 	.card.is-issue-closed {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			color-mix(in lab, var(--vscode-gitlens-closedAutolinkedIssueIconColor) 0%, transparent)
+			color-mix(in lab, var(--vscode-gitlens-lite-closedAutolinkedIssueIconColor) 0%, transparent)
 		);
 	}
 
 	.card.is-pr-open {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			color-mix(in lab, var(--vscode-gitlens-openPullRequestIconColor) 0%, transparent)
+			color-mix(in lab, var(--vscode-gitlens-lite-openPullRequestIconColor) 0%, transparent)
 		);
 	}
 
 	.card.is-pr-closed {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			color-mix(in lab, var(--vscode-gitlens-closedPullRequestIconColor) 0%, transparent)
+			color-mix(in lab, var(--vscode-gitlens-lite-closedPullRequestIconColor) 0%, transparent)
 		);
 	}
 
 	.card.is-pr-merged {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			color-mix(in lab, var(--vscode-gitlens-mergedPullRequestIconColor) 0%, transparent)
-		);
-	}
-
-	.card.is-mergeable {
-		border-inline-start-color: var(
-			--gl-card-indicator-border,
-			var(var(--vscode-gitlens-launchpadIndicatorMergeableColor))
-		);
-	}
-
-	.card.is-blocked {
-		border-inline-start-color: var(
-			--gl-card-indicator-border,
-			var(--vscode-gitlens-launchpadIndicatorBlockedColor)
-		);
-	}
-
-	.card.is-attention {
-		border-inline-start-color: var(
-			--gl-card-indicator-border,
-			var(--vscode-gitlens-launchpadIndicatorAttentionColor)
+			color-mix(in lab, var(--vscode-gitlens-lite-mergedPullRequestIconColor) 0%, transparent)
 		);
 	}
 
 	.card.is-branch-merged {
-		border-inline-start-color: var(--gl-card-indicator-border, var(--vscode-gitlens-mergedPullRequestIconColor));
+		border-inline-start-color: var(
+			--gl-card-indicator-border,
+			var(--vscode-gitlens-lite-mergedPullRequestIconColor)
+		);
 	}
 
 	.card.is-branch-synced {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			color-mix(in lab, var(--vscode-gitlens-decorations\\.branchUpToDateForegroundColor) 20%, transparent)
+			color-mix(in lab, var(--vscode-gitlens-lite-decorations\\.branchUpToDateForegroundColor) 20%, transparent)
 		);
 	}
 
 	.card.is-branch-diverged {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			color-mix(in lab, var(--vscode-gitlens-decorations\\.branchDivergedForegroundColor) 70%, transparent)
+			color-mix(in lab, var(--vscode-gitlens-lite-decorations\\.branchDivergedForegroundColor) 70%, transparent)
 		);
 	}
 
 	.card.is-branch-behind {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			var(--vscode-gitlens-decorations\\.branchBehindForegroundColor)
+			var(--vscode-gitlens-lite-decorations\\.branchBehindForegroundColor)
 		);
 	}
 
 	.card.is-branch-ahead {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			var(--vscode-gitlens-decorations\\.branchBehindForegroundColor)
+			var(--vscode-gitlens-lite-decorations\\.branchBehindForegroundColor)
 		);
 	}
 
@@ -156,7 +138,7 @@ export const cardStyles = css`
 	.card.is-branch-missingUpstream {
 		border-inline-start-color: var(
 			--gl-card-indicator-border,
-			var(--vscode-gitlens-decorations\\.branchMissingUpstreamForegroundColor)
+			var(--vscode-gitlens-lite-decorations\\.branchMissingUpstreamForegroundColor)
 		);
 	}
 

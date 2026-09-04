@@ -7,8 +7,8 @@ import { isShaWithParentSuffix, isUncommitted, shortenRevision } from '@gitlens/
 import { Logger } from '@gitlens/utils/logger.js';
 import { basename } from '@gitlens/utils/path.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';
+import type { Source } from '../constants.context.js';
 import { GlyphChars } from '../constants.js';
-import type { Source } from '../constants.telemetry.js';
 import type { Container } from '../container.js';
 import { showGenericErrorMessage } from '../messages.js';
 import { command } from '../system/-webview/command.js';

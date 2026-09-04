@@ -6,8 +6,6 @@
 		"amodio.tsl-problem-matcher",
 		"stylelint.vscode-stylelint",
 		"runem.lit-plugin",
-		"pwrs.cem-language-server-vscode",
-		"ms-vscode.extension-test-runner",
-		"ms-playwright.playwright"
+		"pwrs.cem-language-server-vscode"
 	]
 }

@@ -213,7 +213,6 @@ export abstract class BlameAnnotationProviderBase extends AnnotationProviderBase
 			autolinks: cfg.autolinks.enabled,
 			dateFormat: configuration.get('defaultDateFormat'),
 			format: cfg.detailsMarkdownFormat,
-			pullRequests: cfg.pullRequests.enabled,
 			timeout: 250,
 			sourceName: 'editor:hover',
 		});

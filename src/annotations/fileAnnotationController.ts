@@ -911,7 +911,7 @@ export class FileAnnotationController implements Disposable {
 			const { locations } = highlight;
 
 			// TODO@eamodio: Read from the theme color when the API exists
-			const gutterHighlightColor = '#00bcf2'; // new ThemeColor('gitlens.lineHighlightOverviewRulerColor' satisfies Colors)
+			const gutterHighlightColor = '#00bcf2'; // new ThemeColor('gitlens-lite.lineHighlightOverviewRulerColor' satisfies Colors)
 			const gutterHighlightUri = locations.includes('gutter')
 				? Uri.parse(
 						`data:image/svg+xml,${encodeURIComponent(
@@ -926,10 +926,10 @@ export class FileAnnotationController implements Disposable {
 				isWholeLine: true,
 				overviewRulerLane: OverviewRulerLane.Right,
 				backgroundColor: locations.includes('line')
-					? new ThemeColor('gitlens.lineHighlightBackgroundColor' satisfies Colors)
+					? new ThemeColor('gitlens-lite.lineHighlightBackgroundColor' satisfies Colors)
 					: undefined,
 				overviewRulerColor: locations.includes('overview')
-					? new ThemeColor('gitlens.lineHighlightOverviewRulerColor' satisfies Colors)
+					? new ThemeColor('gitlens-lite.lineHighlightOverviewRulerColor' satisfies Colors)
 					: undefined,
 			});
 		}

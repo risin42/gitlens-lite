@@ -3,34 +3,26 @@ import { MarkdownString, ThemeIcon, TreeItem, TreeItemCollapsibleState, window }
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
-import type { PullRequest, PullRequestState } from '@gitlens/git/models/pullRequest.js';
 import { GitStatus } from '@gitlens/git/models/status.js';
 import type { GitWorktree } from '@gitlens/git/models/worktree.js';
 import { getHighlanderProviderName } from '@gitlens/git/utils/remote.utils.js';
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { formatTrackingTooltip } from '@gitlens/git/utils/tooltip.utils.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import { map } from '@gitlens/utils/iterable.js';
 import type { Lazy } from '@gitlens/utils/lazy.js';
 import { lazy } from '@gitlens/utils/lazy.js';
 import { Logger } from '@gitlens/utils/logger.js';
-import type { Deferred } from '@gitlens/utils/promise.js';
-import { defer, getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
+import { getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
 import { pad } from '@gitlens/utils/string.js';
 import type { IconPath } from '../../@types/vscode.iconpath.d.js';
 import { GlyphChars } from '../../constants.js';
 import type { GitUri } from '../../git/gitUri.js';
-import {
-	getBranchAheadRange,
-	getBranchAssociatedPullRequest,
-	getBranchRemote,
-	setBranchDisposition,
-} from '../../git/utils/-webview/branch.utils.js';
+import { getBranchAheadRange, getBranchRemote, setBranchDisposition } from '../../git/utils/-webview/branch.utils.js';
 import { getBranchIconPath } from '../../git/utils/-webview/icons.js';
 import { getWorktreeHasWorkingChanges, getWorktreeStatus } from '../../git/utils/-webview/worktree.utils.js';
-import { getContext } from '../../system/-webview/context.js';
 import { getBestPath } from '../../system/-webview/path.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { ViewsWithWorktrees } from '../viewBase.js';
 import { createViewDecorationUri } from '../viewDecorationProvider.js';
 import { CacheableChildrenViewNode } from './abstract/cacheableChildrenViewNode.js';
@@ -39,17 +31,11 @@ import { ContextValues, getViewNodeId } from './abstract/viewNode.js';
 import { CommitNode } from './commitNode.js';
 import { LoadMoreNode, MessageNode } from './common.js';
 import { CompareBranchNode } from './compareBranchNode.js';
-import { PullRequestNode } from './pullRequestNode.js';
 import { StashNode } from './stashNode.js';
 import { UncommittedFilesNode } from './UncommittedFilesNode.js';
 import { insertDateMarkers } from './utils/-webview/node.utils.js';
 
-type State = {
-	pullRequest: PullRequest | null | undefined;
-	pendingPullRequest: Promise<PullRequest | undefined> | undefined;
-};
-
-export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWithWorktrees, ViewNode, State> {
+export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWithWorktrees> {
 	limit: number | undefined;
 
 	private _branch: GitBranch | undefined;
@@ -103,132 +89,69 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 		if (this.children == null) {
 			const branch = this._branch;
 
-			let onCompleted: Deferred<void> | undefined;
-			let pullRequest;
-			const pullRequestInsertIndex = 0;
+			const svc = this.view.container.git.getRepositoryService(this.uri.repoPath!);
 
-			if (
-				branch != null &&
-				this.view.config.pullRequests.enabled &&
-				this.view.config.pullRequests.showForBranches &&
-				(branch.upstream != null || branch.remote) &&
-				getContext('gitlens:repos:withHostingIntegrationsConnected')?.includes(branch.repoPath)
-			) {
-				pullRequest = this.getState('pullRequest');
-				if (pullRequest === undefined && this.getState('pendingPullRequest') === undefined) {
-					onCompleted = defer<void>();
-					const prPromise = this.getAssociatedPullRequest(branch, {
-						include: ['opened', 'merged'],
-					});
+			const [logResult, getBranchAndTagTipsResult, unpublishedCommitsResult] = await Promise.allSettled([
+				this.getLog(),
+				svc.getBranchesAndTagsTipsLookup(),
+				branch != null && !branch.remote
+					? getBranchAheadRange(svc, branch).then(range =>
+							range ? svc.commits.getLogShas(range, { limit: 0 }) : undefined,
+						)
+					: undefined,
+			]);
+			const log = getSettledValue(logResult);
+			if (log == null) return [new MessageNode(this.view, this, 'No commits could be found.')];
 
-					queueMicrotask(async () => {
-						await onCompleted?.promise;
+			const children = [];
 
-						// If we are waiting too long, refresh this node to show a spinner while the pull request is loading
-						let spinner = false;
-						const timeout = setTimeout(() => {
-							spinner = true;
-							this.view.triggerNodeChange(this);
-						}, 250);
-
-						const pr = await prPromise;
-						clearTimeout(timeout);
-
-						// If we found a pull request, insert it into the children cache (if loaded) and refresh the node
-						if (pr != null && this.children != null) {
-							this.children.splice(
-								pullRequestInsertIndex,
-								0,
-								new PullRequestNode(this.view, this, pr, branch),
-							);
-						}
-
-						// Refresh this node to add the pull request node or remove the spinner
-						if (spinner || pr != null) {
-							this.view.triggerNodeChange(this);
-						}
-					});
-				}
-			}
-
-			try {
-				const svc = this.view.container.git.getRepositoryService(this.uri.repoPath!);
-
-				const [logResult, getBranchAndTagTipsResult, unpublishedCommitsResult] = await Promise.allSettled([
-					this.getLog(),
-					svc.getBranchesAndTagsTipsLookup(),
-					branch != null && !branch.remote
-						? getBranchAheadRange(svc, branch).then(range =>
-								range ? svc.commits.getLogShas(range, { limit: 0 }) : undefined,
-							)
-						: undefined,
-				]);
-				const log = getSettledValue(logResult);
-				if (log == null) return [new MessageNode(this.view, this, 'No commits could be found.')];
-
-				const children = [];
-
-				if (branch != null && pullRequest != null) {
-					children.push(new PullRequestNode(this.view, this, pullRequest, branch));
-				}
-
-				if (branch != null && this.view.config.showBranchComparison !== false) {
-					children.push(
-						new CompareBranchNode(
-							this.uri,
-							this.view,
-							this,
-							branch,
-							this.view.config.showBranchComparison,
-							this.splatted,
-						),
-					);
-				}
-
-				const unpublishedCommits = new Set(getSettledValue(unpublishedCommitsResult));
-				const getBranchAndTagTips = getSettledValue(getBranchAndTagTipsResult);
-
+			if (branch != null && this.view.config.showBranchComparison !== false) {
 				children.push(
-					...insertDateMarkers(
-						map(log.commits.values(), c =>
-							GitCommit.isStash(c)
-								? new StashNode(this.view, this, c, { icon: true })
-								: new CommitNode(
-										this.view,
-										this,
-										c,
-										unpublishedCommits?.has(c.ref),
-										branch,
-										getBranchAndTagTips,
-									),
-						),
+					new CompareBranchNode(
+						this.uri,
+						this.view,
 						this,
+						branch,
+						this.view.config.showBranchComparison,
+						this.splatted,
 					),
 				);
-
-				if (log.hasMore) {
-					children.push(new LoadMoreNode(this.view, this, children.at(-1)!));
-				}
-
-				const { hasChanges } = await this.hasWorkingChanges();
-				if (hasChanges) {
-					this._lazyStatus ??= lazy(() => getWorktreeStatus(this.view.container, this.worktree));
-					children.unshift(
-						new UncommittedFilesNode(
-							this.view,
-							this,
-							this.worktree.uri.fsPath,
-							this._lazyStatus,
-							undefined,
-						),
-					);
-				}
-
-				this.children = children;
-			} finally {
-				// Always fulfill the deferred to prevent orphaned microtasks
-				onCompleted?.fulfill();
 			}
+
+			const unpublishedCommits = new Set(getSettledValue(unpublishedCommitsResult));
+			const getBranchAndTagTips = getSettledValue(getBranchAndTagTipsResult);
+
+			children.push(
+				...insertDateMarkers(
+					map(log.commits.values(), c =>
+						GitCommit.isStash(c)
+							? new StashNode(this.view, this, c, { icon: true })
+							: new CommitNode(
+									this.view,
+									this,
+									c,
+									unpublishedCommits?.has(c.ref),
+									branch,
+									getBranchAndTagTips,
+								),
+					),
+					this,
+				),
+			);
+
+			if (log.hasMore) {
+				children.push(new LoadMoreNode(this.view, this, children.at(-1)!));
+			}
+
+			const { hasChanges } = await this.hasWorkingChanges();
+			if (hasChanges) {
+				this._lazyStatus ??= lazy(() => getWorktreeStatus(this.view.container, this.worktree));
+				children.unshift(
+					new UncommittedFilesNode(this.view, this, this.worktree.uri.fsPath, this._lazyStatus, undefined),
+				);
+			}
+
+			this.children = children;
 		}
 
 		return this.children;
@@ -315,8 +238,6 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 			}
 		}
 
-		const pendingPullRequest = this.getState('pendingPullRequest');
-
 		let label: string;
 		switch (viewAs) {
 			case 'path':
@@ -383,12 +304,7 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 		}
 
 		item.contextValue = contextValue;
-		item.iconPath =
-			pendingPullRequest != null
-				? new ThemeIcon('loading~spin')
-				: this.worktree.opened
-					? new ThemeIcon('check')
-					: icon;
+		item.iconPath = this.worktree.opened ? new ThemeIcon('check') : icon;
 		// Tooltip will be set lazily in resolveTreeItem
 		item.resourceUri = createViewDecorationUri('worktree', {
 			hasChanges: hasChanges,
@@ -492,12 +408,6 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 			}
 		}
 
-		// Add pending pull request indicator
-		const pendingPullRequest = this.getState('pendingPullRequest');
-		if (pendingPullRequest != null) {
-			tooltip.appendMarkdown(`\n\n$(loading~spin) Loading associated pull request${GlyphChars.Ellipsis}`);
-		}
-
 		// Add missing worktree warning
 		const { missing } = await this.hasWorkingChanges();
 		if (missing) {
@@ -536,28 +446,6 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 
 		await setBranchDisposition(this.view.container, this.worktree.branch, undefined);
 		void this.view.refresh(true);
-	}
-
-	private async getAssociatedPullRequest(
-		branch: GitBranch,
-		options?: { include?: PullRequestState[] },
-	): Promise<PullRequest | undefined> {
-		let pullRequest = this.getState('pullRequest');
-		if (pullRequest !== undefined) return Promise.resolve(pullRequest ?? undefined);
-
-		let pendingPullRequest = this.getState('pendingPullRequest');
-		if (pendingPullRequest == null) {
-			pendingPullRequest = getBranchAssociatedPullRequest(this.view.container, branch, options);
-			this.storeState('pendingPullRequest', pendingPullRequest);
-
-			pullRequest = await pendingPullRequest;
-			this.storeState('pullRequest', pullRequest ?? null);
-			this.deleteState('pendingPullRequest');
-
-			return pullRequest;
-		}
-
-		return pendingPullRequest;
 	}
 
 	private _log: GitLog | undefined;

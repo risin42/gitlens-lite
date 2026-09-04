@@ -175,7 +175,7 @@ export const entryStyles = css`
 		&.entry--conflict {
 			--fg-intensity: 100%;
 			--conflict-color: var(
-				--vscode-gitlens-decorations\\.statusMergingOrRebasingConflictForegroundColor,
+				--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingConflictForegroundColor,
 				#c74e39
 			);
 
@@ -200,7 +200,7 @@ export const entryStyles = css`
 		align-items: center;
 		justify-content: center;
 		padding-inline: var(--gl-space-4);
-		color: var(--vscode-gitlens-decorations\\.statusMergingOrRebasingConflictForegroundColor, #c74e39);
+		color: var(--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingConflictForegroundColor, #c74e39);
 	}
 
 	/* Conflict popover content */
@@ -210,7 +210,7 @@ export const entryStyles = css`
 		gap: var(--gl-space-4);
 		align-items: center;
 		font-weight: 600;
-		color: var(--vscode-gitlens-decorations\\.statusMergingOrRebasingConflictForegroundColor, #c74e39);
+		color: var(--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingConflictForegroundColor, #c74e39);
 
 		hr {
 			width: 100%;
@@ -220,7 +220,7 @@ export const entryStyles = css`
 		}
 	}
 
-	/* Graph node */
+	/* Commit node */
 	.entry-graph {
 		position: relative;
 		z-index: 2;

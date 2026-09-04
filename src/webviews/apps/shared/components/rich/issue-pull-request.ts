@@ -82,15 +82,15 @@ export class IssuePullRequest extends GlElement {
 		}
 
 		.icon--pr-opened {
-			color: var(--vscode-gitlens-openPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-openPullRequestIconColor);
 		}
 
 		.icon--pr-closed {
-			color: var(--vscode-gitlens-closedPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-closedPullRequestIconColor);
 		}
 
 		.icon--pr-merged {
-			color: var(--vscode-gitlens-mergedPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-mergedPullRequestIconColor);
 		}
 
 		.icon--pr-draft {
@@ -98,11 +98,11 @@ export class IssuePullRequest extends GlElement {
 		}
 
 		.icon--issue-opened {
-			color: var(--vscode-gitlens-openAutolinkedIssueIconColor);
+			color: var(--vscode-gitlens-lite-openAutolinkedIssueIconColor);
 		}
 
 		.icon--issue-closed {
-			color: var(--vscode-gitlens-closedAutolinkedIssueIconColor);
+			color: var(--vscode-gitlens-lite-closedAutolinkedIssueIconColor);
 		}
 
 		.title {
@@ -193,11 +193,11 @@ export class IssuePullRequest extends GlElement {
 		}
 
 		.review--approved {
-			color: var(--vscode-gitlens-mergedPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-mergedPullRequestIconColor);
 		}
 
 		.review--changes-requested {
-			color: var(--vscode-gitlens-closedPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-closedPullRequestIconColor);
 		}
 
 		.review--review-required {
@@ -235,7 +235,7 @@ export class IssuePullRequest extends GlElement {
 	itemId?: string;
 
 	/** Provider id (e.g. 'github') — carried on the `gl-issue-pull-request-details` event so the
-	 *  host can resolve the PR by id via the matching integration. */
+	 *  host can resolve the PR by id via the matching provider. */
 	@property({ attribute: 'provider-id' })
 	providerId?: string;
 

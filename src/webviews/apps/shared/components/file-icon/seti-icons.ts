@@ -3,7 +3,7 @@
  * Source: https://github.com/microsoft/vscode/tree/main/extensions/theme-seti
  * License: MIT (Copyright (c) 2014 Jesse Weed, Copyright (c) 2015 Microsoft Corporation)
  *
- * DO NOT EDIT — regenerate with: node scripts/generate-seti-map.mjs
+ * DO NOT EDIT — generated from the VS Code Seti icon theme.
  */
 
 /** Icon definition: [fontCharacter, fontColor] */

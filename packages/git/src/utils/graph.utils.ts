@@ -2,14 +2,13 @@ import type { GitGraphRow } from '../models/graph.js';
 
 /**
  * Cursor-anchored concatenation of an accumulated rows window with a freshly-paged set — the SAME
- * cursor-anchored append the graph webview's reducer performs: keep prior rows up to and including the
+ * cursor-anchored append a consumer's reducer performs: keep prior rows up to and including the
  * cursor sha (trimming anything below it), then append the page; a cursor missing from the prior rows
  * appends after all of them (the reducer's fallthrough).
  *
  * Owns the canonical cursor-trim rule for the provider-side accumulated window (`GitGraphSession.window`)
- * and the host's rows mirror. Its ledger analogue (`appendRowsLedger` in the graph webview's
- * `graphRowsSplice.ts`) MUST stay in lockstep with this so the row mirror and its fingerprint ledger
- * can't drift.
+ * and the host's rows mirror. Any consumer-side ledger that mirrors these rows MUST stay in lockstep
+ * with this so the row mirror and its fingerprint ledger can't drift.
  */
 export function appendRowsAtCursor(
 	prior: readonly GitGraphRow[],

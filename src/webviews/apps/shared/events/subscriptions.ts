@@ -22,7 +22,6 @@ import { isConnectionClosedError } from '../actions/rpc.js';
  * ```typescript
  * const unsubscribe = await subscribeAll([
  *   () => events.onConfigChanged(() => actions.fetchPreferences()),
- *   () => events.onSubscriptionChanged(sub => { state.hasAccount = sub.account != null; }),
  *   () => events.onRepositoryChanged(e => handleRepoChanged(e)),
  * ]);
  * // Later:

@@ -1,7 +1,6 @@
 import type { MessageItem } from 'vscode';
 import { EventEmitter, Uri, window, workspace } from 'vscode';
 import { fetch } from '@env/fetch.js';
-import type { CommitAuthor } from '@gitlens/git/models/author.js';
 import { CustomRemoteProvider } from '@gitlens/git/remotes/custom.js';
 import { getGitHubNoReplyAddressParts } from '@gitlens/git/remotes/github.js';
 import { base64 } from '@gitlens/utils/base64.js';
@@ -13,14 +12,8 @@ import { equalsIgnoreCase } from '@gitlens/utils/string.js';
 import type { GravatarDefaultStyle } from './config.js';
 import type { StoredAvatar } from './constants.storage.js';
 import { Container } from './container.js';
-import {
-	getBestRemoteWithIntegration,
-	getRemoteIntegration,
-	remoteSupportsIntegration,
-} from './git/utils/-webview/remote.utils.js';
 import { configuration } from './system/-webview/configuration.js';
 import { getContext } from './system/-webview/context.js';
-import type { ContactPresenceStatus } from './vsls/vsls.js';
 
 let avatarCache: Map<string, Avatar> | undefined;
 const avatarQueue = new Map<string, Promise<Uri>>();
@@ -58,8 +51,6 @@ interface Avatar {
 }
 
 const missingGravatarHash = '00000000000000000000000000000000';
-
-const presenceCache = new Map<ContactPresenceStatus, string>();
 
 const millisecondsPerMinute = 60 * 1000;
 const millisecondsPerHour = 60 * 60 * 1000;
@@ -241,64 +232,25 @@ async function getAvatarUriFromRemoteProvider(
 	ensureAvatarCache(avatarCache);
 
 	try {
-		let account: CommitAuthor | undefined;
-		let hasAvatarSource = false;
-		// if (typeof repoPathOrCommit === 'string') {
-		// 	const remote = await Container.instance.git.getRichRemoteProvider(repoPathOrCommit);
-		// 	account = await remote?.provider.getAccountForEmail(email, { avatarSize: size });
-		// } else {
 		if (typeof repoPathOrCommit !== 'string') {
-			const remote = await getBestRemoteWithIntegration(repoPathOrCommit.repoPath);
-			if (remote != null && remoteSupportsIntegration(remote)) {
-				hasAvatarSource = true;
-				account = await (
-					await getRemoteIntegration(remote)
-				)?.getAccountForCommit(remote.provider.repoDesc, repoPathOrCommit.ref, {
-					avatarSize: size,
-				});
-			}
+			const remoteWithProvider = await Container.instance.git
+				.getRepositoryService(repoPathOrCommit.repoPath)
+				.remotes.getBestRemoteWithProvider();
 
-			if (!account?.avatarUrl) {
-				const remoteWithProvider = await Container.instance.git
-					.getRepositoryService(repoPathOrCommit.repoPath)
-					.remotes.getBestRemoteWithProvider();
-
-				if (remoteWithProvider?.provider instanceof CustomRemoteProvider) {
-					const avatarUrl = getApprovedCustomRemoteAvatarUrl(remoteWithProvider.provider, email, size);
-					if (avatarUrl != null) {
-						avatar.uri = Uri.parse(avatarUrl);
-						avatar.timestamp = Date.now();
-						avatar.retries = 0;
-						avatarCache.set(`${md5(email.trim().toLowerCase())}:${size}`, { ...avatar });
-						_onDidFetchAvatar.fire({ email: email });
-						return avatar.uri;
-					}
+			if (remoteWithProvider?.provider instanceof CustomRemoteProvider) {
+				const avatarUrl = getApprovedCustomRemoteAvatarUrl(remoteWithProvider.provider, email, size);
+				if (avatarUrl != null) {
+					avatar.uri = Uri.parse(avatarUrl);
+					avatar.timestamp = Date.now();
+					avatar.retries = 0;
+					avatarCache.set(`${md5(email.trim().toLowerCase())}:${size}`, { ...avatar });
+					_onDidFetchAvatar.fire({ email: email });
+					return avatar.uri;
 				}
 			}
 		}
 
-		if (account?.avatarUrl == null) {
-			if (hasAvatarSource) {
-				// A provider was consulted but returned no avatar — permanently cache "no result"
-				avatar.uri = undefined;
-				avatar.timestamp = Infinity;
-				avatar.retries = 0;
-			}
-
-			return undefined;
-		}
-
-		avatar.uri = Uri.parse(account.avatarUrl);
-		avatar.timestamp = Date.now();
-		avatar.retries = 0;
-
-		if (account.email != null && equalsIgnoreCase(email, account.email)) {
-			avatarCache.set(`${md5(account.email.trim().toLowerCase())}:${size}`, { ...avatar });
-		}
-
-		_onDidFetchAvatar.fire({ email: email });
-
-		return avatar.uri;
+		return undefined;
 	} catch {
 		avatar.uri = undefined;
 		avatar.timestamp = Date.now();
@@ -347,28 +299,6 @@ export async function fetchAvatarImageAsDataUri(url: string): Promise<Uri | unde
 	}
 }
 
-const presenceStatusColorMap = new Map<ContactPresenceStatus, string>([
-	['online', '#28ca42'],
-	['away', '#cecece'],
-	['busy', '#ca5628'],
-	['dnd', '#ca5628'],
-	['offline', '#cecece'],
-]);
-
-export function getPresenceDataUri(status: ContactPresenceStatus): string {
-	let dataUri = presenceCache.get(status);
-	if (dataUri == null) {
-		const contents = base64(`<?xml version="1.0" encoding="utf-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="4" height="16" viewBox="0 0 4 16">
-	<circle cx="2" cy="14" r="2" fill="${presenceStatusColorMap.get(status)!}"/>
-</svg>`);
-		dataUri = encodeURI(`data:image/svg+xml;base64,${contents}`);
-		presenceCache.set(status, dataUri);
-	}
-
-	return dataUri;
-}
-
 const promptedAvatarTemplates = new Set<string>();
 
 function getApprovedCustomRemoteAvatarUrl(
@@ -376,7 +306,7 @@ function getApprovedCustomRemoteAvatarUrl(
 	email: string,
 	size: number,
 ): string | undefined {
-	// Avatar templates from `gitlens.remotes` may originate from workspace settings
+	// Avatar templates from `gitlens-lite.remotes` may originate from workspace settings
 	// — only honor them in a trusted workspace
 	if (!workspace.isTrusted) return undefined;
 
@@ -419,7 +349,7 @@ async function promptForAvatarTemplateApproval(template: string): Promise<void> 
 	const notNow: MessageItem = { title: 'Not Now', isCloseAffordance: true };
 
 	const result = await window.showInformationMessage(
-		`The \`gitlens.remotes\` setting in this workspace includes an avatar URL template that will be requested for every commit author.\n\nTemplate: ${template}\n\nDo you trust this workspace to make these requests?`,
+		`The \`gitlens-lite.remotes\` setting in this workspace includes an avatar URL template that will be requested for every commit author.\n\nTemplate: ${template}\n\nDo you trust this workspace to make these requests?`,
 		allow,
 		deny,
 		notNow,

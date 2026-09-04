@@ -85,31 +85,7 @@
 			"type": "shell",
 			"command": "pnpm",
 			"args": ["run", "dev:launch", "-b"],
-			"group": "test",
-			"problemMatcher": []
-		},
-		{
-			"label": "Run (local web)",
-			"type": "npm",
-			"script": "web",
-			"group": "test",
-			"isBackground": true,
-			"presentation": {
-				"group": "web",
-				"reveal": "never"
-			},
-			"problemMatcher": []
-		},
-		{
-			"label": "Run (vscode.dev)",
-			"type": "npm",
-			"script": "web:serve",
-			"group": "test",
-			"isBackground": true,
-			"presentation": {
-				"group": "web",
-				"reveal": "never"
-			},
+			"group": "build",
 			"problemMatcher": []
 		}
 	]

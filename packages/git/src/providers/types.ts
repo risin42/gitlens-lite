@@ -16,7 +16,7 @@ export interface RevisionUri {
 	repoPath: string;
 }
 
-export type GitProviderId = 'git' | 'github' | 'vsls';
+export type GitProviderId = 'git' | 'github';
 
 export interface GitProviderDescriptor {
 	readonly id: GitProviderId;

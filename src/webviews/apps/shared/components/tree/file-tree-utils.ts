@@ -208,7 +208,7 @@ function workingStageRank(file: GitFileChangeShape, mixedPaths: ReadonlySet<stri
  * Unresolved conflicts always lead regardless of the key — preserving the conflicts-first behavior
  * `sortTreeChildren` provides via `priority` for the ungrouped (checkbox) list.
  *
- * When `stage` is provided (the `gitlens.sortWorkingChangesBy: stage` mode), non-conflict files are
+ * When `stage` is provided (the `gitlens-lite.sortWorkingChangesBy: stage` mode), non-conflict files are
  * floated staged → mixed → unstaged ahead of the sort key.
  */
 export function compareWorkingFiles(
@@ -388,7 +388,7 @@ export function buildFileTree<T extends GitFileChangeShape>(
 	if (!filteredFiles.length) return [];
 
 	// Working-files order (VS Code's `scm.defaultViewSortKey`), optionally floating staged → mixed →
-	// unstaged first (`gitlens.sortWorkingChangesBy: stage`). Built once so the comparator doesn't
+	// unstaged first (`gitlens-lite.sortWorkingChangesBy: stage`). Built once so the comparator doesn't
 	// allocate a fallback set per comparison. In tree layout this orders the files *within* each folder
 	// (`fileCompare`); in list layout it orders the flat list directly.
 	const stage = sortByStage ? { mixedPaths: mixedPaths ?? emptyPathSet } : undefined;
@@ -461,7 +461,7 @@ export interface GroupedTreeOptions<T extends GitFileChangeShape> {
 	folderToContextData?: (folder: { name: string; relativePath: string; repoPath?: string }) => string | undefined;
 	/** Working-files sort order (VS Code's `scm.defaultViewSortKey`); applied to list layout only. */
 	orderBy?: WorkingFileSorting;
-	/** Float staged → mixed → unstaged ahead of `orderBy` (`gitlens.sortWorkingChangesBy: stage`). List layout only. */
+	/** Float staged → mixed → unstaged ahead of `orderBy` (`gitlens-lite.sortWorkingChangesBy: stage`). List layout only. */
 	sortByStage?: boolean;
 	/** Paths with both staged + unstaged hunks, used by the stage sort to rank a file as "mixed". */
 	mixedPaths?: ReadonlySet<string>;

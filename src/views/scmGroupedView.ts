@@ -15,7 +15,6 @@ import { BranchesView } from './branchesView.js';
 import { CommitsView } from './commitsView.js';
 import { ContributorsView } from './contributorsView.js';
 import { FileHistoryView } from './fileHistoryView.js';
-import { LaunchpadView } from './launchpadView.js';
 import type { ViewNode } from './nodes/abstract/viewNode.js';
 import { RemotesView } from './remotesView.js';
 import { RepositoriesView } from './repositoriesView.js';
@@ -24,7 +23,6 @@ import { StashesView } from './stashesView.js';
 import { TagsView } from './tagsView.js';
 import type { GroupedViewContext, TreeViewByType } from './viewBase.js';
 import type { Views } from './views.js';
-import { WorktreesView } from './worktreesView.js';
 
 const emptyArray: ViewNode[] = [];
 const emptyTreeItem: TreeItem = new TreeItem('', TreeItemCollapsibleState.None);
@@ -337,8 +335,6 @@ export class ScmGroupedView implements Disposable {
 				return new ContributorsView(this.container, grouped);
 			case 'fileHistory':
 				return new FileHistoryView(this.container, grouped);
-			case 'launchpad':
-				return new LaunchpadView(this.container, grouped);
 			case 'remotes':
 				return new RemotesView(this.container, grouped);
 			case 'repositories':
@@ -349,8 +345,6 @@ export class ScmGroupedView implements Disposable {
 				return new StashesView(this.container, grouped);
 			case 'tags':
 				return new TagsView(this.container, grouped);
-			case 'worktrees':
-				return new WorktreesView(this.container, grouped);
 		}
 	}
 }

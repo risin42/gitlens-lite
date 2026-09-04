@@ -22,7 +22,7 @@ export interface CliGitServiceOptions {
 	 */
 	locator?: () => Promise<GitLocation>;
 
-	/** Host-provided context hooks (cache events, workspace, integrations, telemetry, fs) */
+	/** Host-provided context hooks (cache events, workspace, integrations, and filesystem) */
 	context: CliGitProviderOptions['context'];
 
 	/** Git execution options passed through to the underlying Git executor */

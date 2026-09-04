@@ -24,14 +24,7 @@ import { messageHeadlineSplitterToken } from './protocol.js';
 export function isDetailsItemContext(item: unknown): item is DetailsItemContext {
 	if (item == null) return false;
 
-	return (
-		isWebviewItemContext(item) &&
-		(item.webview === 'gitlens.views.commitDetails' ||
-			// The embedded graph details panel lives inside the graph webview,
-			// so VS Code may pass the graph panel/view ID as the webview context
-			item.webview === 'gitlens.graph' ||
-			item.webview === 'gitlens.views.graph')
-	);
+	return isWebviewItemContext(item) && item.webview === 'gitlens.views.commitDetails';
 }
 
 export function isDetailsItemTypedContext(
@@ -83,15 +76,14 @@ export function getFolderUriFromContext(container: Container, context: DetailsFo
 }
 
 /**
- * Builds the core commit details payload — identity, message, files, stats — for both the Inspect view
- * and the Graph's details panel. Deliberately awaits ONLY `ensureFullDetails`: the file list must not
+ * Builds the core commit details payload — identity, message, files, stats — for the Inspect view.
+ * Deliberately awaits ONLY `ensureFullDetails`: the file list must not
  * wait on anything else. Avatars resolve synchronously (never a network fetch) and worktree reachability
  * is omitted entirely; both are upgraded afterwards by the webview's deferred enrichment fan-out
  * (`fetchCommitEnrichment`).
  *
- * `knownAvatars` is the Graph's already-resolved email→URL map. Without it the Graph's core payload would
- * fall back to gravatar for faces its own rows already show — the rows resolve avatars at size 16 and the
- * details at size 32, and the avatar cache is keyed by size, so a warm row does NOT warm this lookup.
+ * `knownAvatars` is an optional already-resolved email→URL map. It avoids a second lookup when a
+ * caller has already rendered the same identities.
  */
 export async function getCoreCommitDetails(
 	commit: GitCommit,
@@ -165,10 +157,9 @@ export async function getCoreCommitDetails(
 	};
 }
 
-/** Best avatar obtainable with zero async work, in descending order of fidelity: an integration-supplied
- *  URL, an already-resolved avatar at OUR size, the Graph's resolved map (the right face, but resolved at
- *  the rows' smaller size — better than a gravatar, and the deferred avatar leg upgrades it), else the
- *  synchronous cached-or-gravatar lookup (the `undefined` repo overload never fetches). */
+/** Best avatar obtainable with zero async work, in descending order of fidelity: a provider-supplied
+ *  URL, an already-resolved avatar, the optional caller map, or the synchronous cached-or-gravatar
+ *  lookup (the `undefined` repo overload never fetches). */
 function resolveCoreAvatar(
 	identity: { email: string | undefined; avatarUrl?: string },
 	knownAvatars: ReadonlyMap<string, string> | undefined,
@@ -263,7 +254,7 @@ export async function getFileCommitFromContext(
 /**
  * Resolve a multi-selection right-click to its commit+file set. Reads `webviewItemsValues` (all the
  * selected files, set on the row by gl-file-tree-pane just-in-time) and falls back to the single
- * right-clicked row when absent. Shared by the commit-details and graph webview registrations.
+ * right-clicked row when absent. Shared by the commit-details and other item registrations.
  */
 export async function resolveMultiFileContext(container: Container, item: unknown): Promise<ResolvedDetailsFile[]> {
 	if (item == null || typeof item !== 'object') return [];

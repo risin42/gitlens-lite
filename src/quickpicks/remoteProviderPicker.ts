@@ -1,4 +1,4 @@
-import type { Disposable, QuickInputButton, QuickPickItem } from 'vscode';
+import type { Disposable, QuickInputButton } from 'vscode';
 import { env, ThemeIcon, Uri, window } from 'vscode';
 import type { GitRemote } from '@gitlens/git/models/remote.js';
 import type { RemoteProvider } from '@gitlens/git/models/remoteProvider.js';
@@ -6,27 +6,20 @@ import type { RemoteResource } from '@gitlens/git/models/remoteResource.js';
 import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import { getBranchNameWithoutRemote, getRemoteNameFromBranchName } from '@gitlens/git/utils/branch.utils.js';
 import { getHighlanderProviders, getNameFromRemoteResource } from '@gitlens/git/utils/remote.utils.js';
-import type { IntegrationIds } from '@gitlens/integrations/constants.js';
-import { providersMetadata } from '@gitlens/integrations/providers/models.js';
-import { convertRemoteProviderIdToIntegrationId } from '@gitlens/integrations/utils/integration.utils.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';
 import type { OpenOnRemoteCommandArgs } from '../commands/openOnRemote.js';
 import { SetRemoteAsDefaultQuickInputButton } from '../commands/quick-wizard/quickButtons.js';
 import type { Keys } from '../constants.js';
 import { GlyphChars } from '../constants.js';
-import type { Sources } from '../constants.telemetry.js';
 import { Container } from '../container.js';
-import { RequiresIntegrationError } from '../errors.js';
 import { getDefaultBranchName } from '../git/utils/-webview/branch.utils.js';
 import {
 	copyRemoteProviderUrl,
-	isRemoteProviderReadyForCrossForkPullRequestUrls,
 	openRemoteProviderUrl,
 	setRemoteAsDefault,
 } from '../git/utils/-webview/remote.utils.js';
 import { getQuickPickIgnoreFocusOut } from '../system/-webview/vscode.js';
-import { CommandQuickPickItem, createQuickPickItemOfT } from './items/common.js';
-import { createDirectiveQuickPickItem, Directive } from './items/directive.js';
+import { CommandQuickPickItem } from './items/common.js';
 
 export class ConfigureCustomRemoteProviderCommandQuickPickItem extends CommandQuickPickItem {
 	constructor() {
@@ -83,18 +76,6 @@ export class CopyOrOpenRemoteCommandQuickPickItem extends CommandQuickPickItem {
 							remote: { path: this.remote.path, url: this.remote.url, name: this.remote.name },
 						},
 					};
-
-					if (
-						resource.base.remote.url !== resource.head.remote.url &&
-						!(await isRemoteProviderReadyForCrossForkPullRequestUrls(this.remote.provider.id))
-					) {
-						const integrationId = convertRemoteProviderIdToIntegrationId(this.remote.provider.id);
-						const connected =
-							integrationId && (await this.showIntegrationConnectionPicker(integrationId, 'view'));
-						if (!connected) {
-							return undefined;
-						}
-					}
 				} else if (
 					resource.type === RemoteResourceType.File &&
 					resource.branchOrTag != null &&
@@ -127,9 +108,6 @@ export class CopyOrOpenRemoteCommandQuickPickItem extends CommandQuickPickItem {
 				if (r.status === 'fulfilled') {
 					return r.value;
 				}
-				if (r.reason instanceof RequiresIntegrationError) {
-					throw r.reason;
-				}
 				return undefined;
 			})
 			.filter((r): r is RemoteResource => r !== undefined);
@@ -137,53 +115,6 @@ export class CopyOrOpenRemoteCommandQuickPickItem extends CommandQuickPickItem {
 		void (await (this.clipboard
 			? copyRemoteProviderUrl(this.remote.provider, resources)
 			: openRemoteProviderUrl(this.remote.provider, resources)));
-	}
-
-	async showIntegrationConnectionPicker(integrationId: IntegrationIds, source: Sources): Promise<boolean> {
-		const disposables: Disposable[] = [];
-		const quickpick = window.createQuickPick<QuickPickItem>();
-		try {
-			const integrationName = providersMetadata[integrationId].name;
-			const connectItem = createQuickPickItemOfT(
-				{
-					label: `Connect to ${integrationName}...`,
-					detail: `Connect an integration with ${integrationName} to create cross-repository pull requests`,
-					picked: true,
-				},
-				true,
-			);
-			const cancelItem = createDirectiveQuickPickItem(Directive.Cancel, false, { label: 'Cancel' });
-			const quickpickPromise = new Promise<undefined | QuickPickItem>(resolve => {
-				disposables.push(
-					quickpick.onDidHide(() => resolve(undefined)),
-					quickpick.onDidAccept(() => {
-						if (quickpick.activeItems.length !== 0) {
-							resolve(quickpick.activeItems[0]);
-						}
-					}),
-				);
-			});
-			quickpick.ignoreFocusOut = getQuickPickIgnoreFocusOut();
-			quickpick.title = `Connect ${integrationName} Integration`;
-			quickpick.placeholder = `Requires an integration with ${integrationName} to create cross-repository pull requests`;
-			quickpick.matchOnDetail = true;
-			quickpick.items = [connectItem, cancelItem];
-			quickpick.show();
-			const pick = await quickpickPromise;
-			if (pick === connectItem) {
-				const connected = await Container.instance.integrations.connectCloudIntegrations(
-					{ integrationIds: [integrationId] },
-					{
-						source: source,
-					},
-				);
-				return connected;
-			}
-		} finally {
-			quickpick.dispose();
-			disposables.forEach(d => void d.dispose());
-		}
-		return false;
 	}
 
 	setAsDefault(): Promise<void> {

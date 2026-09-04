@@ -9,7 +9,6 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import CircularDependencyPlugin from 'circular-dependency-plugin';
 import CopyPlugin from 'copy-webpack-plugin';
-import CspHtmlPlugin from 'csp-html-webpack-plugin';
 import CssMinimizerPlugin from 'css-minimizer-webpack-plugin';
 import esbuild from 'esbuild';
 import { generateFonts } from 'fantasticon';
@@ -61,10 +60,6 @@ function getLibraryAliases() {
 		'@gitlens/ipc': path.resolve(__dirname, 'packages', 'ipc', 'src'),
 		'@gitlens/git': path.resolve(__dirname, 'packages', 'git', 'src'),
 		'@gitlens/git-cli': path.resolve(__dirname, 'packages', 'git-cli', 'src'),
-		'@gitlens/git-github': path.resolve(__dirname, 'packages', 'plus', 'git-github', 'src'),
-		'@gitlens/integrations': path.resolve(__dirname, 'packages', 'plus', 'integrations', 'src'),
-		'@gitlens/ai': path.resolve(__dirname, 'packages', 'plus', 'ai', 'src'),
-		'@gitlens/agents': path.resolve(__dirname, 'packages', 'plus', 'agents', 'src'),
 	};
 }
 
@@ -88,7 +83,7 @@ function getUtilsEnvAliases(target) {
 	};
 }
 /** @typedef {{ analyzeBundle?: boolean; analyzeDeps?: boolean; quick?: boolean; trace?: boolean; webviews?: string }} GlEnv */
-/** @typedef {{ [key: string]: { entry: string; plus?: boolean; alias?: { [key: string]: string } } }} GlWebviews */
+/** @typedef {{ [key: string]: { entry: string; alias?: { [key: string]: string } } }} GlWebviews */
 
 /**
  * @param {GlEnv | undefined } env
@@ -118,10 +113,8 @@ export default function (env, argv) {
 	const configs = [
 		getCommonConfig(mode, env),
 		getExtensionConfig('node', mode, env),
-		getExtensionConfig('webworker', mode, env),
 		getWebviewsCommonConfig(mode, env),
 		...getWebviewsConfigs(mode, env),
-		getUnitTestConfig('node', mode, env),
 	];
 
 	const buildComplete = new BuildCompletePlugin();
@@ -181,10 +174,6 @@ function getCommonConfig(mode, env) {
 	 * @type WebpackConfig['plugins'] | any
 	 */
 	const plugins = [];
-	if (!env.quick) {
-		plugins.push(new DocsPlugin());
-	}
-
 	if (!env.quick || mode === 'production') {
 		plugins.push(
 			new LicensesPlugin(),
@@ -246,23 +235,10 @@ function getExtensionConfig(target, mode, env) {
 	if (target === 'webworker') {
 		plugins.push(new optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
 	} else {
-		const utilsDir = path.posix.join(__dirname.replace(/\\/g, '/'), 'src', 'git', 'utils');
-		const distDir = path.posix.join(__dirname.replace(/\\/g, '/'), 'dist');
 		plugins.push(
 			new GenerateContributionsPlugin(),
 			new ExtractContributionsPlugin(),
 			new GenerateCommandTypesPlugin(),
-			// Ship the rebase-todo editor wrapper scripts (git `sequence.editor`) alongside the bundled
-			// `dist/rebaseTodoEditor.js`.
-			new CopyPlugin({
-				patterns: [
-					{ from: path.posix.join(utilsDir, 'rebaseTodoEditor.sh'), to: distDir },
-					{ from: path.posix.join(utilsDir, 'rebaseTodoEditor.cmd'), to: distDir },
-					// The automatic rebase's `GIT_EDITOR` (pure sh — git runs editors through its
-					// bundled sh on every platform)
-					{ from: path.posix.join(utilsDir, 'rebaseMessageEditor.sh'), to: distDir },
-				],
-			}),
 		);
 	}
 	if (!env.quick && target !== 'webworker') {
@@ -302,12 +278,7 @@ function getExtensionConfig(target, mode, env) {
 
 	return {
 		name: `extension:${target}`,
-		// `rebaseTodoEditor` is a standalone Node script bundled for desktop only — it's git's
-		// `sequence.editor` for the Commit Graph's headless squash/drop/reword (no git in webworker).
-		entry:
-			target === 'webworker'
-				? { extension: './src/extension.ts' }
-				: { extension: './src/extension.ts', rebaseTodoEditor: './src/git/utils/rebaseTodoEditor.ts' },
+		entry: { extension: './src/extension.ts' },
 		mode: mode,
 		target: target,
 		devtool: mode === 'production' && !env.analyzeBundle ? false : 'cheap-module-source-map',
@@ -358,7 +329,7 @@ function getExtensionConfig(target, mode, env) {
 				target === 'webworker'
 					? false
 					: {
-							// Only dedupe ASYNC chunks (the lazy webview-host controllers, `ai`, etc.).
+							// Only dedupe ASYNC chunks (the lazy webview-host controllers).
 							// The eager `extension` entry (gitlens.js) is left fully self-contained — it is
 							// excluded from splitting, so this never changes the eager bundle, only collapses
 							// modules that were being copied into multiple lazy chunks into shared siblings.
@@ -370,7 +341,7 @@ function getExtensionConfig(target, mode, env) {
 								default: false,
 								defaultVendors: false,
 								// The webview RPC service layer + shared webview infra are copied into every
-								// webview controller (commitDetails, timeline, graph, home, …); emit them once.
+								// retained webview controller; emit them once.
 								webviewShared: {
 									test: /[\\/]src[\\/]webviews[\\/](rpc|shared)[\\/]/,
 									name: 'webview-shared',
@@ -409,12 +380,6 @@ function getExtensionConfig(target, mode, env) {
 				'signal-polyfill': path.resolve(__dirname, 'node_modules', 'signal-polyfill'),
 				...getLibraryAliases(),
 				...getUtilsEnvAliases(target),
-				// Stupid dependency that is used by `http[s]-proxy-agent` (via @gitkraken/provider-apis)
-				debug: path.resolve(__dirname, 'patches', 'debug.js'),
-				// This dependency is very large, and isn't needed for our use-case
-				tr46: path.resolve(__dirname, 'patches', 'tr46.js'),
-				// This dependency is unnecessary for our use-case
-				'whatwg-url': path.resolve(__dirname, 'patches', 'whatwg-url.js'),
 			},
 			extensionAlias: { '.js': ['.ts', '.js'] },
 			fallback: {
@@ -436,41 +401,13 @@ function getExtensionConfig(target, mode, env) {
 		ignoreWarnings: [
 			// Ignore dynamic require warning for platform-agnostic async_hooks detection
 			{ module: /packages[\\/]utils[\\/]src[\\/]logScope\.ts/, message: /Critical dependency/ },
-			// Ignore dynamic require warning from protobufjs's optional-peer resolver (used by @opentelemetry/otlp-transformer)
+			// Ignore dynamic require warning from protobufjs's optional-peer resolver
 			{ module: /[\\/]@protobufjs[\\/]inquire[\\/]/, message: /Critical dependency/ },
 		],
 		plugins: plugins,
 		infrastructureLogging: mode === 'production' ? undefined : { level: 'log' }, // enables logging required for problem matchers
 		stats: stats,
 		cache: getCacheConfig('extension', target, mode),
-	};
-}
-
-/**
- * Unit test config - delegates to esbuild via EsbuildTestsPlugin for faster builds.
- * @param { GlTarget } _target
- * @param { GlMode } mode
- * @param {GlEnv} env
- * @returns { WebpackConfig }
- */
-function getUnitTestConfig(_target, mode, env) {
-	/** @type {import('webpack').WebpackPluginInstance[]} */
-	const plugins = [new EsbuildTestsPlugin()];
-
-	if (!env.quick) {
-		plugins.push(new OxLintWebpackPlugin());
-	}
-
-	return {
-		name: 'unit-tests',
-		context: __dirname,
-		// Empty entry - esbuild handles the actual bundling
-		entry: {},
-		mode: mode,
-		plugins: plugins,
-		infrastructureLogging: mode === 'production' ? undefined : { level: 'log' },
-		// Surface oxlint errors/warnings from the lint plugin (esbuild handles asset output separately)
-		stats: { preset: 'errors-warnings', colors: true, errorsCount: true, warningsCount: true },
 	};
 }
 
@@ -482,15 +419,9 @@ function getUnitTestConfig(_target, mode, env) {
 function getWebviewsConfigs(mode, env) {
 	/** @type GlWebviews */
 	let webviews = {
-		allowedSigners: { entry: './allowedSigners/allowedSigners.ts' },
 		commitDetails: { entry: './commitDetails/commitDetails.ts' },
-		graph: { entry: './plus/graph/graph.ts', plus: true },
-		home: { entry: './home/home.ts' },
 		rebase: { entry: './rebase/rebase.ts' },
-		settings: { entry: './settings/settings.ts' },
-		timeline: { entry: './plus/timeline/timeline.ts', plus: true },
-		patchDetails: { entry: './plus/patchDetails/patchDetails.ts', plus: true },
-		welcome: { entry: './welcome/welcome.ts' },
+		allowedSigners: { entry: './allowedSigners/allowedSigners.ts' },
 	};
 
 	if (env.webviews) {
@@ -514,8 +445,8 @@ function getWebviewsCommonConfig(mode, env) {
 		new CopyPlugin({
 			patterns: [
 				{
-					from: path.posix.join(basePath.replace(/\\/g, '/'), 'media', '*.*'),
-					to: path.posix.join(__dirname.replace(/\\/g, '/'), 'dist', 'webviews'),
+					from: path.posix.join(basePath.replace(/\\/g, '/'), 'media', 'seti.woff'),
+					to: path.posix.join(__dirname.replace(/\\/g, '/'), 'dist', 'webviews', 'media'),
 				},
 				{
 					from: path.posix.join(
@@ -587,8 +518,8 @@ function getWebviewConfig(webviews, overrides, mode, env) {
 		}),
 		new WebviewPublicPathPlugin({ variableName: 'webpackResourceBasePath' }),
 		new MiniCssExtractPlugin({ filename: '[name].css' }),
-		...Object.entries(webviews).map(([name, config]) => getHtmlPlugin(name, Boolean(config.plus), mode, env)),
-		getCspHtmlPlugin(mode, env),
+		...Object.keys(webviews).map(name => getHtmlPlugin(name, mode)),
+		new WebviewCspPlugin(mode),
 	];
 
 	// Keep `custom-elements.json` fresh during dev/watch builds (skipped in production and quick modes)
@@ -596,15 +527,8 @@ function getWebviewConfig(webviews, overrides, mode, env) {
 		plugins.push(new CustomElementsManifestPlugin());
 	}
 
-	let name = '';
-	let filePrefix = '';
-	if (Object.keys(webviews).length > 1) {
-		name = 'webviews';
-		filePrefix = 'webviews';
-	} else {
-		name = `webviews:${Object.keys(webviews)[0]}`;
-		filePrefix = `webviews-${Object.keys(webviews)[0]}`;
-	}
+	const name = 'webviews';
+	const filePrefix = 'webviews';
 
 	// Type checking is handled by the Go-native tsgo compiler via oxlint (the OxLintWebpackPlugin
 	// below during watch, or the standalone oxlint pass in build.mjs for one-shot builds), so no
@@ -787,36 +711,76 @@ function getWebviewConfig(webviews, overrides, mode, env) {
 	};
 }
 
-/**
- * @param { GlMode } mode
- * @param {GlEnv} env
- * @returns { CspHtmlPlugin }
- */
-function getCspHtmlPlugin(mode, env) {
-	const cspPlugin = new CspHtmlPlugin(
-		{
-			'default-src': "'none'",
-			'img-src': ['#{cspSource}', 'https:', 'data:'],
-			'script-src':
-				mode !== 'production'
-					? ['#{cspSource}', "'nonce-#{cspNonce}'", "'unsafe-eval'"]
-					: ['#{cspSource}', "'nonce-#{cspNonce}'"],
-			'style-src': ['#{cspSource}', "'nonce-#{cspNonce}'", "'unsafe-hashes'"],
-			'font-src': ['#{cspSource}'],
-			'connect-src': mode !== 'production' ? ['#{cspSource}'] : "'none'",
-		},
-		{
-			enabled: true,
-			hashingMethod: 'sha256',
-			hashEnabled: { 'script-src': true, 'style-src': mode === 'production' },
-			nonceEnabled: { 'script-src': true, 'style-src': true },
-		},
-	);
-	// Override the nonce creation so we can dynamically generate them at runtime
-	// @ts-ignore
-	cspPlugin.createNonce = () => '#{cspNonce}';
+class WebviewCspPlugin {
+	/**
+	 * @param {GlMode} mode
+	 */
+	constructor(mode) {
+		this.mode = mode;
+	}
 
-	return cspPlugin;
+	/**
+	 * @param {import('webpack').Compiler} compiler
+	 */
+	apply(compiler) {
+		compiler.hooks.compilation.tap('WebviewCspPlugin', compilation => {
+			HtmlPlugin.getHooks(compilation).alterAssetTagGroups.tap('WebviewCspPlugin', data => {
+				for (const tag of [...data.headTags, ...data.bodyTags]) {
+					if (tag.tagName === 'script' || (tag.tagName === 'link' && tag.attributes?.rel === 'stylesheet')) {
+						tag.attributes = { ...tag.attributes, nonce: '#{cspNonce}' };
+					}
+				}
+
+				const scriptHashes = [];
+				if (typeof data.plugin?.options?.template === 'string') {
+					try {
+						const rawTemplate = data.plugin.options.template.split('!').pop().split('?')[0];
+						const templatePath = path.resolve(compiler.context, rawTemplate);
+						const templateContent = fs.readFileSync(templatePath, 'utf8');
+						const scriptRegex = /<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
+						let match;
+						while ((match = scriptRegex.exec(templateContent)) !== null) {
+							const content = match[1];
+							if (content.trim()) {
+								const hash = createHash('sha256').update(content, 'utf8').digest('base64');
+								scriptHashes.push(`'sha256-${hash}'`);
+							}
+						}
+					} catch {}
+				}
+
+				const scriptSrc = [
+					'#{cspSource}',
+					"'nonce-#{cspNonce}'",
+					...(this.mode !== 'production' ? ["'unsafe-eval'"] : []),
+					...scriptHashes,
+				];
+
+				const policy = [
+					`base-uri 'self'`,
+					`object-src 'none'`,
+					`script-src ${scriptSrc.join(' ')}`,
+					`style-src #{cspSource} 'nonce-#{cspNonce}' 'unsafe-hashes'`,
+					`default-src 'none'`,
+					`img-src #{cspSource} https: data:`,
+					`font-src #{cspSource}`,
+					`connect-src ${this.mode !== 'production' ? '#{cspSource}' : "'none'"}`,
+				].join('; ');
+
+				data.headTags.unshift({
+					tagName: 'meta',
+					voidTag: true,
+					attributes: {
+						'http-equiv': 'Content-Security-Policy',
+						content: policy,
+					},
+					meta: { plugin: 'html-webpack-plugin' },
+				});
+
+				return data;
+			});
+		});
+	}
 }
 
 /**
@@ -836,14 +800,12 @@ function getImageMinimizerConfig(mode, env) {
 
 /**
  * @param { string } name
- * @param { boolean } plus
  * @param { GlMode } mode
- * @param {GlEnv} env
  * @returns { HtmlPlugin }
  */
-function getHtmlPlugin(name, plus, mode, env) {
+function getHtmlPlugin(name, mode) {
 	return new HtmlPlugin({
-		template: plus ? path.join('plus', name, `${name}.html`) : path.join(name, `${name}.html`),
+		template: path.join(name, `${name}.html`),
 		chunks: [name],
 		filename: path.join(__dirname, 'dist', 'webviews', `${name}.html`),
 		inject: true,
@@ -1152,30 +1114,6 @@ class ExtractContributionsPlugin extends FileGeneratorPlugin {
 	}
 }
 
-class DocsPlugin extends FileGeneratorPlugin {
-	constructor() {
-		super({
-			pluginName: 'docs',
-			pathsToWatch: [
-				path.join(__dirname, 'src', 'constants.telemetry.ts'),
-				path.join(__dirname, 'src', 'telemetry', 'telemetry.ts'),
-				path.join(__dirname, 'tsconfig.node.json'),
-				path.join(__dirname, 'scripts', 'generateTelemetryDocs.mjs'),
-				path.join(__dirname, 'pnpm-lock.yaml'),
-			],
-			outputs: [path.join(__dirname, 'docs', 'telemetry-events.md')],
-			// The TypeScript program follows transitive type imports, so an exhaustive static input list
-			// would be brittle. Always regenerate on a one-shot build; the paths above drive watch rebuilds.
-			cache: false,
-			command: {
-				name: 'docs',
-				command: pkgMgr,
-				args: ['run', 'generate:docs:telemetry'],
-			},
-		});
-	}
-}
-
 class LicensesPlugin extends FileGeneratorPlugin {
 	constructor() {
 		super({
@@ -1365,70 +1303,6 @@ class BuildCompletePlugin {
 						process.stdout.write(message);
 					}
 				}, 100);
-			}
-		});
-	}
-}
-
-/**
- * Webpack plugin to run esbuild for unit tests.
- * Uses esbuild for faster test builds while integrating with webpack's build lifecycle.
- */
-class EsbuildTestsPlugin {
-	/** @type {import('child_process').ChildProcess | undefined} */
-	watchProcess;
-
-	/**
-	 * @param {import('webpack').Compiler} compiler
-	 */
-	apply(compiler) {
-		const pluginName = 'EsbuildTestsPlugin';
-		const scriptPath = path.join(__dirname, 'scripts', 'esbuild.tests.mjs');
-
-		compiler.hooks.beforeRun.tapPromise(pluginName, async () => {
-			const logger = compiler.getInfrastructureLogger(pluginName);
-			logger.log('Building unit tests with esbuild...');
-
-			const start = Date.now();
-			const result = spawnSync(process.execPath, [scriptPath], {
-				cwd: __dirname,
-				stdio: 'inherit',
-			});
-
-			if (result.status !== 0) {
-				throw new WebpackError(`esbuild tests failed with exit code ${result.status}`);
-			}
-
-			logger.log(`Built unit tests in \x1b[32m${Date.now() - start}ms\x1b[0m`);
-		});
-
-		compiler.hooks.watchRun.tapPromise(pluginName, async () => {
-			// Only start the watch process once (check exitCode to detect if process died)
-			if (this.watchProcess && this.watchProcess.exitCode == null) return;
-
-			const logger = compiler.getInfrastructureLogger(pluginName);
-			logger.log('Starting esbuild watch for unit tests...');
-
-			this.watchProcess = spawn(process.execPath, [scriptPath, '--watch'], {
-				cwd: __dirname,
-				stdio: 'inherit',
-			});
-
-			this.watchProcess.on('error', err => {
-				logger.error(`esbuild watch error: ${err.message}`);
-			});
-
-			this.watchProcess.on('exit', code => {
-				if (code != null && code !== 0) {
-					logger.error(`esbuild watch exited with code ${code}`);
-				}
-			});
-		});
-
-		compiler.hooks.shutdown.tapPromise(pluginName, async () => {
-			if (this.watchProcess && this.watchProcess.exitCode == null) {
-				this.watchProcess.kill();
-				this.watchProcess = undefined;
 			}
 		});
 	}

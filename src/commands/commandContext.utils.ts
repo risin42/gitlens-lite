@@ -1,4 +1,4 @@
-import type { GitTimelineItem, SourceControl, TextEditor } from 'vscode';
+import type { SourceControl, TextEditor } from 'vscode';
 import { Uri, window } from 'vscode';
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitStashCommit } from '@gitlens/git/models/commit.js';
@@ -13,25 +13,13 @@ import { isUri } from '@gitlens/utils/uri.js';
 import type { GlCommands, GlCommandsDeprecated } from '../constants.commands.js';
 import type { StoredNamedRef } from '../constants.storage.js';
 import { GlRepository } from '../git/models/repository.js';
-import { CloudWorkspace } from '../plus/workspaces/models/cloudWorkspace.js';
-import { LocalWorkspace } from '../plus/workspaces/models/localWorkspace.js';
 import { isScm, isScmResourceGroup, isScmResourceState } from '../system/-webview/scm.js';
-import { isGitTimelineItem } from '../system/-webview/timeline.js';
 import { ViewNode } from '../views/nodes/abstract/viewNode.js';
 import { ViewRefFileNode, ViewRefNode } from '../views/nodes/abstract/viewRefNode.js';
-import type {
-	CommandContext,
-	CommandEditorLineContext,
-	CommandGitTimelineItemContext,
-	CommandViewNodeContext,
-} from './commandContext.js';
+import type { CommandContext, CommandEditorLineContext, CommandViewNodeContext } from './commandContext.js';
 
 export function isCommandContextEditorLine(context: CommandContext): context is CommandEditorLineContext {
 	return context.type === 'editorLine';
-}
-
-export function isCommandContextGitTimelineItem(context: CommandContext): context is CommandGitTimelineItemContext {
-	return context.type === 'timeline-item:git';
 }
 
 export function isCommandContextViewNodeHasBranch(
@@ -157,15 +145,6 @@ export function isCommandContextViewNodeHasTag(
 	return GitTag.is((context.node as ViewNode & { tag: GitTag }).tag);
 }
 
-export function isCommandContextViewNodeHasWorkspace(
-	context: CommandContext,
-): context is CommandViewNodeContext & { node: ViewNode & { workspace: CloudWorkspace | LocalWorkspace } } {
-	if (context.type !== 'viewItem') return false;
-
-	const workspace = (context.node as ViewNode & { workspace?: CloudWorkspace | LocalWorkspace }).workspace;
-	return workspace instanceof CloudWorkspace || workspace instanceof LocalWorkspace;
-}
-
 export interface CommandContextParsingOptions {
 	expectsEditor: boolean;
 }
@@ -279,11 +258,6 @@ export function parseCommandContext(
 			{ command: command, type: 'scm-groups', args: originalArgs, scmResourceGroups: groups },
 			args.slice(count),
 		];
-	}
-
-	if (isGitTimelineItem(firstArg)) {
-		const [item, uri, ...rest] = args as [GitTimelineItem, Uri, any];
-		return [{ command: command, type: 'timeline-item:git', args: originalArgs, item: item, uri: uri }, rest];
 	}
 
 	if (isScm(firstArg)) {

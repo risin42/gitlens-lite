@@ -3,18 +3,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { kill, ppid } from 'process';
 
-/**
- * Directory scanned by `gk` binaries (and `@gitkraken/core-gitlens` consumers) for the
- * extension's CLI-capable IPC server discovery file. Anything written here is assumed
- * by older `gk` versions to be a CLI server — do NOT write agent-only files here.
- */
+/** Directory scanned by `gk` binaries and standalone consumers for the extension's IPC server. */
 export const cliDiscoveryDir = join(tmpdir(), 'gitkraken', 'gitlens');
-
-/**
- * Directory scanned by peer GitLens windows for agent-session-capable IPC servers.
- * Stable across GitLens versions; older windows still scan it, so don't move it.
- */
-export const agentDiscoveryDir = join(tmpdir(), 'gitkraken', 'gitlens', 'agents');
 
 export interface IpcDiscoveryData {
 	token: string;
@@ -165,9 +155,7 @@ function isProcessAlive(pid: number): boolean {
 	// `kill(0, ...)` / `kill(<negative>, ...)` have process-group semantics and don't probe a
 	// specific pid, so a malformed pid (from a foreign or corrupt file) can't prove death — treat
 	// it as inconclusive so the sweep falls through to the reachability probe rather than deleting
-	// on a bad pid. (Note: the agents session-card tracker's `isProcessAlive` biases the opposite
-	// way — toward dead — because expiring a live card there is harmless; deleting a live file is
-	// not, so this copy intentionally keeps on uncertainty.)
+	// on a bad pid. Treat uncertainty as alive so we never delete a file on a bad pid.
 	if (!Number.isInteger(pid) || pid <= 0) return true;
 
 	try {

@@ -5,13 +5,13 @@ import type { GitBranchReference, GitRevisionReference } from '@gitlens/git/mode
 import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { getRemoteNameFromBranchName } from '@gitlens/git/utils/branch.utils.js';
 import { getReferenceLabel } from '@gitlens/git/utils/reference.utils.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import type { RemotesViewConfig, ViewBranchesLayout, ViewFilesLayout } from '../config.js';
 import type { Container } from '../container.js';
 import { GitUri } from '../git/gitUri.js';
 import type { RepositoryChangeEvent } from '../git/models/repository.js';
 import { executeCommand } from '../system/-webview/command.js';
 import { configuration } from '../system/-webview/configuration.js';
-import { gate } from '../system/decorators/gate.js';
 import { RepositoriesSubscribeableNode } from './nodes/abstract/repositoriesSubscribeableNode.js';
 import { RepositoryFolderNode } from './nodes/abstract/repositoryFolderNode.js';
 import type { ViewNode } from './nodes/abstract/viewNode.js';
@@ -146,16 +146,6 @@ export class RemotesView extends ViewBase<'remotes', RemotesViewNode, RemotesVie
 			),
 			registerViewCommand(this.getQualifiedCommand('setShowAvatarsOn'), () => this.setShowAvatars(true), this),
 			registerViewCommand(this.getQualifiedCommand('setShowAvatarsOff'), () => this.setShowAvatars(false), this),
-			registerViewCommand(
-				this.getQualifiedCommand('setShowBranchPullRequestOn'),
-				() => this.setShowBranchPullRequest(true),
-				this,
-			),
-			registerViewCommand(
-				this.getQualifiedCommand('setShowBranchPullRequestOff'),
-				() => this.setShowBranchPullRequest(false),
-				this,
-			),
 		];
 	}
 
@@ -171,7 +161,6 @@ export class RemotesView extends ViewBase<'remotes', RemotesViewNode, RemotesVie
 			!configuration.changed(e, 'defaultDateStyle') &&
 			!configuration.changed(e, 'defaultGravatarsStyle') &&
 			!configuration.changed(e, 'defaultTimeFormat') &&
-			!configuration.changed(e, 'integrations.enabled') &&
 			!configuration.changed(e, 'sortBranchesBy') &&
 			!configuration.changed(e, 'sortRepositoriesBy')
 		) {
@@ -374,10 +363,5 @@ export class RemotesView extends ViewBase<'remotes', RemotesViewNode, RemotesVie
 
 	private setShowAvatars(enabled: boolean) {
 		return configuration.updateEffective(`views.${this.configKey}.avatars` as const, enabled);
-	}
-
-	private async setShowBranchPullRequest(enabled: boolean) {
-		await configuration.updateEffective(`views.${this.configKey}.pullRequests.showForBranches` as const, enabled);
-		await configuration.updateEffective(`views.${this.configKey}.pullRequests.enabled` as const, enabled);
 	}
 }

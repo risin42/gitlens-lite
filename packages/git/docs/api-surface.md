@@ -131,7 +131,6 @@ interface CliGitProviderOptions {
 | `RemoteProviderContext` | `context.js` |
 | `RemotesProvider`       | `context.js` |
 | `WorkspaceProvider`     | `context.js` |
-| `SearchQueryProvider`   | `context.js` |
 | `FileSystemProvider`    | `context.js` |
 | `FileStat`              | `context.js` |
 | `FileType`              | `context.js` |
@@ -143,7 +142,6 @@ interface CliGitProviderOptions {
 - `config?: GitServiceConfig` — default values for sub-provider options
 - `hooks?: GitServiceHooks` — outbound hooks (`cache.onReset`, `repository.onChanged`, `commits.onSigned`, etc.)
 - `remotes?: RemotesProvider` — host-side remote capabilities (`getCustomProviders?`, `getRepositoryInfo?`, `sort?`)
-- `searchQuery?: SearchQueryProvider` — `preprocessQuery?` for NLP → structured search
 - `workspace?: WorkspaceProvider` — `getFolder`, `isTrusted`, `onDidChangeTrust`, `getWorktreeDefaultUri?`
 
 ### Provider Types
@@ -194,7 +192,7 @@ Optional:  blame  ops  patch  pausedOps
 
 Also on `GitProvider`:
 
-- `descriptor: GitProviderDescriptor` (`id: 'git' | 'github' | 'vsls'`, `name`, `virtual`)
+- `descriptor: GitProviderDescriptor` (`id: 'git' | 'github'`, `name`, `virtual`)
 - URI helpers: `getAbsoluteUri()`, `getRelativePath()`
 - Optional repo methods: `excludeIgnoredUris?`, `getIgnoreFilter?`, `getIgnoredUrisFilter?`, `getLastFetchedTimestamp?`
 
@@ -248,7 +246,6 @@ Each sub-provider interface is defined in its own file under `providers/`:
 | `getStoredUserMergeTargetBranchName?(repoPath, ref)`                                 | `string \| undefined`                      |
 | `onCurrentBranchAccessed?(repoPath)`                                                 | `void`                                     |
 | `onCurrentBranchModified?(repoPath)`                                                 | `void`                                     |
-| `onCurrentBranchAgentActivity?(repoPath)`                                            | `void`                                     |
 | `renameBranch?(repoPath, oldName, newName)`                                          | `void`                                     |
 | `setUpstreamBranch?(repoPath, name, upstream)`                                       | `void`                                     |
 | `setBranchDisposition?(repoPath, branchName, disposition)`                           | `void`                                     |

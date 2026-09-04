@@ -3,6 +3,7 @@ import { SignalWatcher } from '@lit-labs/signals';
 import { provide } from '@lit/context';
 import { html, LitElement } from 'lit';
 import { property } from 'lit/decorators.js';
+import type { Disposable } from 'vscode';
 import { fromBase64ToString } from '@gitlens/utils/base64.js';
 import type { GlWebviewCommands } from '../../../constants.commands.js';
 import type { WebviewIds, WebviewTypes } from '../../../constants.views.js';
@@ -10,14 +11,10 @@ import { createWebviewCommandLink } from '../../../system/webview.js';
 import type { WebviewState } from '../../protocol.js';
 import { GlElement } from './components/element.js';
 import { loggerContext, LoggerContext } from './contexts/logger.js';
-import { PromosContext, promosContext } from './contexts/promos.js';
 import type { WebviewContext } from './contexts/webview.js';
 import { webviewContext } from './contexts/webview.js';
-import { DOM } from './dom.js';
-import type { Disposable } from './events.js';
 import { createFocusTracker } from './focus.js';
 import type { WebviewRpc } from './rpc/rpcController.js';
-import { telemetryEventName } from './telemetry.js';
 import type { ThemeChangeEvent } from './theme.js';
 import { computeThemeColors, onDidChangeTheme, watchThemeColors } from './theme.js';
 
@@ -25,9 +22,8 @@ import { computeThemeColors, onDidChangeTheme, watchThemeColors } from './theme.
  * Base class for webview applications.
  *
  * Provides all shared infrastructure that webview apps need:
- * - 3 Lit context providers (logger, promos, webview)
+ * - Lit context providers for logging and webview command links
  * - Focus tracking (debounced notifications to host, via the app's `_rpc` controller)
- * - Telemetry bridging (`emitTelemetrySentEvent` DOM events → RPC)
  * - Theme color computation and change handling
  * - Preload class removal
  *
@@ -53,14 +49,11 @@ export abstract class GlWebviewApp extends GlElement {
 	@provide({ context: loggerContext })
 	protected _logger!: LoggerContext;
 
-	@provide({ context: promosContext })
-	protected _promos!: PromosContext;
-
 	@provide({ context: webviewContext })
 	protected _webview!: WebviewContext;
 
-	/** The app's RPC controller — subclasses override with their own instance so the shared bridges
-	 *  (telemetry DOM events, focus tracking) route through RPC. */
+	/** The app's RPC controller — subclasses override with their own instance so shared focus and
+	 *  visibility events route through RPC. */
 	protected _rpc?: WebviewRpc | undefined;
 
 	protected onThemeUpdated?(e: ThemeChangeEvent): void;
@@ -102,15 +95,6 @@ export abstract class GlWebviewApp extends GlElement {
 			this.onThemeUpdated(computeThemeColors());
 			this.disposables.push(onDidChangeTheme(this.onThemeUpdated, this));
 		}
-
-		this.disposables.push(
-			(this._promos = new PromosContext()),
-			// Forward `emitTelemetrySentEvent` DOM events to the host over RPC. Without this bridge
-			// every `gl-telemetry-fired` event from a `GlWebviewApp`-based webview is silently dropped.
-			DOM.on(window, telemetryEventName, e => {
-				this._rpc?.sendTelemetry(e.detail);
-			}),
-		);
 
 		// Focus tracking (sends debounced focus state to host for context keys)
 		this._focusTracker = createFocusTracker(params => this._rpc?.sendFocusChanged(params));
@@ -165,7 +149,9 @@ export abstract class GlWebviewApp extends GlElement {
 			this._focusTracker = undefined;
 		}
 
-		this.disposables.forEach(d => d.dispose());
+		this.disposables.forEach(d => {
+			d.dispose();
+		});
 		// Clear so a startup-churn remount doesn't retain (and later double-dispose) dead entries.
 		this.disposables.length = 0;
 	}

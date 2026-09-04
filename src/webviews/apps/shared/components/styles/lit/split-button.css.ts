@@ -27,6 +27,12 @@ export const splitButtonStyles = css`
 		align-items: stretch;
 	}
 
+	/* Popover anchors are inline blocks, so baseline alignment leaves a descender gap under the menu half. */
+	.split-btn__main,
+	.split-btn__menu {
+		vertical-align: top;
+	}
+
 	.split-btn__main {
 		border-start-end-radius: 0;
 		border-end-end-radius: 0;

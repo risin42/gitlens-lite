@@ -17,7 +17,7 @@ const { values } = parseArgs({
 	},
 });
 
-/** @type {{ mode: 'production' | 'development' | 'none' | undefined; build: ('extension' | 'webviews' | 'unit-tests')[] | undefined; debug: boolean; target: ('node' | 'webworker')[] | undefined; quick: boolean; trace: boolean; webview: string[] | undefined; watch: boolean }} */
+/** @type {{ mode: 'production' | 'development' | 'none' | undefined; build: ('extension' | 'webviews')[] | undefined; debug: boolean; target: ('node' | 'webworker')[] | undefined; quick: boolean; trace: boolean; webview: string[] | undefined; watch: boolean }} */
 const { mode, build, debug, target, quick, trace, webview: webviews, watch } = values;
 
 const env = {
@@ -43,7 +43,7 @@ if (build?.length || webviews?.length) {
 				cmd += ` --config-name extension:${t}`;
 			});
 		} else {
-			cmd += ` --config-name extension:node --config-name extension:webworker`;
+			cmd += ` --config-name extension:node`;
 		}
 	}
 
@@ -59,10 +59,6 @@ if (build?.length || webviews?.length) {
 		if (webviews?.length) {
 			cmd += ` --env webviews=${webviews.join(',')}`;
 		}
-	}
-
-	if (build?.includes('unit-tests')) {
-		cmd += ` --config-name unit-tests`;
 	}
 } else if (target?.length) {
 	target.forEach(t => {
@@ -88,25 +84,6 @@ if (quick) {
 
 if (trace) {
 	cmd += ` --env trace`;
-}
-
-if (build?.includes('unit-tests')) {
-	const buildPkgsCmd = `pnpm run build:packages`;
-	console.log(`Running: ${buildPkgsCmd}`);
-
-	const pkgsCode = await new Promise(resolve => {
-		const pkgs = spawn(buildPkgsCmd, {
-			shell: true,
-			stdio: 'inherit',
-			env: env,
-		});
-
-		pkgs.on('exit', (code, signal) => resolve(exitCode(code, signal)));
-	});
-
-	if (pkgsCode !== 0) {
-		process.exit(pkgsCode);
-	}
 }
 
 // A "full" build targets no specific config (the default `pnpm run build`) — these are the ones
@@ -153,7 +130,7 @@ function run(command) {
 	});
 }
 
-// For one-shot full builds, split the 6-config webpack MultiCompiler (which shares a single Node
+// For one-shot full builds, split the webpack MultiCompiler (which shares a single Node
 // event loop, leaving most cores idle) into parallel webpack processes — one per bucket — so the
 // CPU-bound work (module-graph build, codegen, source maps) spreads across cores. Buckets keep
 // configs that share in-process state together (webviews:common + webviews). Watch and targeted
@@ -170,13 +147,12 @@ if (isFullBuild && !watch) {
 
 	bundleCmds = [
 		`${baseCmd} --config-name extension:node`,
-		`${baseCmd} --config-name extension:webworker`,
 		// `common` is pure codegen (empty entry; Docs/Licenses/Fantasticon/contributions all run as
 		// blocking spawnSync) — isolate it so that blocking work gets its own core instead of stalling
 		// a bundling process's event loop.
 		`${baseCmd} --config-name common`,
 		// Keep webviews:common + webviews in one process (CompileComposerTemplatesPlugin shares state).
-		`${baseCmd} --config-name webviews:common --config-name webviews --config-name unit-tests`,
+		`${baseCmd} --config-name webviews:common --config-name webviews`,
 	];
 } else {
 	bundleCmds = [cmd];

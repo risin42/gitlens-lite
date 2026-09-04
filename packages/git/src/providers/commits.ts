@@ -58,7 +58,7 @@ export interface GitLogShasOptions extends GitLogOptionsBase {
 
 export interface GitSearchCommitsOptions extends GitLogOptionsBase {
 	skip?: number;
-	/** Telemetry source metadata — passed by callers, ignored by library implementations. */
+	/** Source metadata — passed by callers, ignored by library implementations. */
 	source?: { source: string; detail?: string };
 }
 

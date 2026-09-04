@@ -15,7 +15,7 @@ const servicesDisposables = Symbol('rpcServicesDisposables');
  * Wraps object-valued properties with Supertalk's `proxy()` marker (functions/primitives pass through).
  * Services implementing `dispose()` are collected behind a non-enumerable symbol so the controller can
  * release them at teardown via {@link disposeServices} — the path for resources that must outlive
- * `SubscriptionTracker.reset()` (e.g. `SubscriptionService`'s eager listeners). Only top-level properties
+ * `SubscriptionTracker.reset()` (for example, eager host listeners). Only top-level properties
  * are scanned; hoist nested disposables to the top level.
  */
 export function proxyServices<T extends Record<string, unknown>>(services: T): T {

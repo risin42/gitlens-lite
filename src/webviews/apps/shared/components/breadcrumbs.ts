@@ -115,7 +115,7 @@ export class GlBreadcrumbs extends LitElement {
 
 	/**
 	 * Visual density of the breadcrumb chain. `compact` shrinks icons, font-size, and
-	 * slotted button heights for narrow contexts (e.g. Timeline editor header). The
+	 * slotted button heights for narrow contexts (for example, a compact editor header). The
 	 * attribute is propagated to each gl-breadcrumb-item child via `slotchange`.
 	 *
 	 * Note: a few styles (the inner gl-button's --button-padding/--button-line-height)

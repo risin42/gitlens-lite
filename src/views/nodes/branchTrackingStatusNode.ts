@@ -8,6 +8,7 @@ import { getHighlanderProviders } from '@gitlens/git/utils/remote.utils.js';
 import { createRevisionRange } from '@gitlens/git/utils/revision.utils.js';
 import { getUpstreamStatus } from '@gitlens/git/utils/status.utils.js';
 import { fromNow } from '@gitlens/utils/date.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { first, last, map } from '@gitlens/utils/iterable.js';
 import { pluralize } from '@gitlens/utils/string.js';
@@ -15,7 +16,6 @@ import type { Colors } from '../../constants.colors.js';
 import type { FilesComparison } from '../../git/actions/commit.js';
 import { GitUri } from '../../git/gitUri.js';
 import { getBranchRemote } from '../../git/utils/-webview/branch.utils.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { ViewsWithCommits } from '../viewBase.js';
 import type { PageableViewNode } from './abstract/viewNode.js';
 import { ContextValues, getViewNodeId, ViewNode } from './abstract/viewNode.js';
@@ -229,7 +229,7 @@ export class BranchTrackingStatusNode
 					: ContextValues.BranchStatusAheadOfUpstream;
 				icon = new ThemeIcon(
 					'cloud-upload',
-					new ThemeColor('gitlens.unpublishedChangesIconColor' satisfies Colors),
+					new ThemeColor('gitlens-lite.unpublishedChangesIconColor' satisfies Colors),
 				);
 
 				break;
@@ -254,7 +254,7 @@ export class BranchTrackingStatusNode
 					: ContextValues.BranchStatusBehindUpstream;
 				icon = new ThemeIcon(
 					'cloud-download',
-					new ThemeColor('gitlens.unpulledChangesIconColor' satisfies Colors),
+					new ThemeColor('gitlens-lite.unpulledChangesIconColor' satisfies Colors),
 				);
 
 				break;
@@ -289,7 +289,7 @@ export class BranchTrackingStatusNode
 					: ContextValues.BranchStatusSameAsUpstream;
 				icon = new ThemeIcon(
 					'warning',
-					new ThemeColor('gitlens.decorations.branchMissingUpstreamForegroundColor' satisfies Colors),
+					new ThemeColor('gitlens-lite.decorations.branchMissingUpstreamForegroundColor' satisfies Colors),
 				);
 
 				break;
@@ -308,7 +308,9 @@ export class BranchTrackingStatusNode
 				contextValue = this.root ? ContextValues.StatusNoUpstream : ContextValues.BranchStatusNoUpstream;
 				icon = new ThemeIcon(
 					'cloud-upload',
-					remotes.length ? new ThemeColor('gitlens.unpublishedChangesIconColor' satisfies Colors) : undefined,
+					remotes.length
+						? new ThemeColor('gitlens-lite.unpublishedChangesIconColor' satisfies Colors)
+						: undefined,
 				);
 
 				break;

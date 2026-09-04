@@ -2,13 +2,11 @@ import type { ConfigurationChangeEvent, Disposable, Event } from 'vscode';
 import { EventEmitter } from 'vscode';
 import type {
 	GitHealthBannerState,
-	GitHealthDurationBucket,
 	GitHealthLever,
 	GitHealthReport,
 	GitHealthSlowness,
 	GitHealthSlownessCategory,
 	GitHealthSlownessSample,
-	GitOptimizationTier,
 } from '@gitlens/git/gitHealth.js';
 import {
 	computeHealthReport,
@@ -55,18 +53,15 @@ const localHealthSignalOperations = new Map<string, GitHealthSlownessCategory>([
 	['for-each-ref', 'refs'],
 	['cat-file', 'objects'],
 ]);
-const healthSlownessCategories: readonly GitHealthSlownessCategory[] = ['worktree', 'history', 'refs', 'objects'];
+const healthSlownessCategories: readonly GitHealthSlownessCategory[] = [
+	'worktree',
+	'history',
+	'refs',
+	'objects',
+	'commitFiles',
+];
 /** Slowness categories idle longer than this are dropped at hydrate time so removed repos don't accrue forever. */
 const slownessMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
-
-/** Coarsens a maintenance duration into a telemetry-friendly bucket. */
-function bucketDuration(ms: number): GitHealthDurationBucket {
-	if (ms < 1000) return '<1s';
-	if (ms < 5000) return '1-5s';
-	if (ms < 15000) return '5-15s';
-	if (ms < 60000) return '15-60s';
-	return '>60s';
-}
 
 function isSlownessSample(value: unknown): value is GitHealthSlownessSample {
 	if (value == null || typeof value !== 'object') return false;
@@ -103,7 +98,7 @@ function isBannerSuppression(value: unknown): value is StoredGitHealthBannerSupp
  *
  * In-memory state is keyed by repo path; the auto-pass timestamp lives in the shared `.git/gk/config`
  * (`gk.maintenanceLastRun`), so worktrees of the same repo naturally throttle each other's daily pass.
- * Everything is gated on `gitlens.gitOptimizations.enabled` and on the per-repo maintenance capability
+ * Everything is gated on `gitlens-lite.gitOptimizations.enabled` and on the per-repo maintenance capability
  * (`repo.git.maintenance != null`), which is absent on web builds and virtual repos.
  */
 export class GitHealthService implements Disposable {
@@ -138,7 +133,6 @@ export class GitHealthService implements Disposable {
 	// In-flight probes per repo path so concurrent callers share one probe.
 	private readonly _inflightProbes = new Map<string, Promise<GitHealthReport | undefined>>();
 	// Last-sent `gitHealth/probe` payload per repo path (dedupes the frequent re-probe events).
-	private readonly _lastProbeTelemetry = new Map<string, string>();
 	private readonly _probeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private _disposed = false;
 	// Aborts an IN-FLIGHT auto-tier pass on dispose. `queueAutoPass` already re-checks `_disposed` at
@@ -198,22 +192,28 @@ export class GitHealthService implements Disposable {
 			'slowness.entries.count': this._slowness?.size ?? 0,
 			'bannerSuppressions.entries.count': this._bannerSuppression?.size ?? 0,
 			'probes.inflight.count': this._inflightProbes.size,
-			'telemetrySnapshots.entries.count': this._lastProbeTelemetry.size,
 		};
 	}
 
 	/**
 	 * Records a slow git command against its repo. Called from the exec-layer `onSlowCommand` hook, so it
 	 * MUST stay synchronous and resolve the repo via the in-memory registry only — never invoke git (that
-	 * would recurse through the exec layer that just fired this hook).
+	 * would recurse through the exec layer that just fired this hook). An explicit category wins over the
+	 * subcommand allowlist when a caller can distinguish a specialized operation family.
 	 */
-	recordSlowCommand(cwd: string | undefined, duration: number, operation: string | undefined): void {
+	recordSlowCommand(
+		cwd: string | undefined,
+		duration: number,
+		operation: string | undefined,
+		slownessCategory?: GitHealthSlownessCategory,
+	): void {
 		if (cwd == null || cwd.length === 0) return;
 		if (!configuration.get('gitOptimizations.enabled')) return;
 
 		// An allowlist keeps fetch/push/clone, credential prompts, hooks, and editors from leaking through as
 		// repository slowness. The category then constrains which optimization can use the evidence.
-		const category = operation == null ? undefined : localHealthSignalOperations.get(operation);
+		const category =
+			slownessCategory ?? (operation == null ? undefined : localHealthSignalOperations.get(operation));
 		if (category == null) return;
 
 		const repo = this.container.git.getRepository(cwd);
@@ -240,6 +240,19 @@ export class GitHealthService implements Disposable {
 		if (prevCategory == null) {
 			this.scheduleProbe(repo);
 		}
+	}
+
+	/**
+	 * Returns whether commit and stash queries should defer per-commit file details for this repository.
+	 * A non-null setting is a hard override; null defers only after a recent eager paged log proved slow.
+	 */
+	shouldDelayFileDetails(repoPath: string): boolean {
+		const setting = configuration.get('advanced.commits.delayLoadingFileDetails');
+		if (setting != null) return setting;
+		if (!configuration.get('gitOptimizations.enabled')) return false;
+
+		const resolvedPath = this.container.git.getRepository(repoPath)?.path ?? repoPath;
+		return (this.getSlowness().get(resolvedPath)?.commitFiles?.count ?? 0) > 0;
 	}
 
 	/** Returns the current report for a repo, probing on first request. */
@@ -373,7 +386,7 @@ export class GitHealthService implements Disposable {
 		if (resolved == null) return false;
 
 		try {
-			return await this.applyOptimizationWithTelemetry(repoPath, id, 'ask', cancellation);
+			return await this.applyOptimization(repoPath, id, cancellation);
 		} finally {
 			await this.reprobe(resolved.repo);
 		}
@@ -402,7 +415,6 @@ export class GitHealthService implements Disposable {
 
 		try {
 			await resolved.maintenance.setCommitGraphDisabled(!enabled, cancellation);
-			this.container.telemetry.sendEvent('gitOptimizations/commitGraph/toggled', { enabled: enabled });
 		} finally {
 			await this.reprobe(resolved.repo);
 		}
@@ -425,7 +437,7 @@ export class GitHealthService implements Disposable {
 		// Join the SAME single-flight the auto pass uses. This is now reachable from a button, and opening
 		// the Health view is itself what queues a pass — so without this a click lands straight on top of
 		// it, and concurrent `git maintenance run` invocations collide on git's per-repo lock (the losers
-		// no-op at exit 0 while telemetry counts them as runs). Report `ran: false` rather than pretending.
+		// no-op at exit 0 while the command is already running). Report `ran: false` rather than pretending.
 		const commonPath = await this.resolveCommonPath(resolved.repo);
 		if (this._runningPasses.has(commonPath)) {
 			return tasks.map(task => ({ task: task, ran: false }));
@@ -439,7 +451,7 @@ export class GitHealthService implements Disposable {
 			for (const task of tasks) {
 				results.push({
 					task: task,
-					ran: await this.runTaskWithTelemetry(repoPath, task, false, cancellation),
+					ran: await this.runMaintenanceTask(repoPath, task, false, cancellation),
 				});
 			}
 		} finally {
@@ -471,7 +483,7 @@ export class GitHealthService implements Disposable {
 	}
 
 	/**
-	 * Reacts to `gitlens.gitOptimizations.enabled` changing mid-session. Point-in-time gates elsewhere (the
+	 * Reacts to `gitlens-lite.gitOptimizations.enabled` changing mid-session. Point-in-time gates elsewhere (the
 	 * probe, the auto pass, the slow-command hook) only re-check the setting on their own next trigger, so
 	 * without this: turning it ON does nothing until an unrelated repo event; turning it OFF leaves the last
 	 * report/levers served as if nothing changed.
@@ -596,7 +608,6 @@ export class GitHealthService implements Disposable {
 
 			const capabilities = getSettledValue(capabilitiesResult) ?? [];
 			const slowness = this.getSlowness().get(repo.path);
-			const slownessCount = Object.values(slowness ?? {}).reduce((sum, sample) => sum + sample.count, 0);
 			const report = computeHealthReport(snapshot, slowness, capabilities);
 			const levers = computeLevers(snapshot, capabilities, report);
 			const state = JSON.stringify([report, levers]);
@@ -606,44 +617,6 @@ export class GitHealthService implements Disposable {
 			this._reports.set(repo.path, report);
 			this._levers.set(repo.path, levers);
 			this._reportStates.set(repo.path, state);
-			const event = {
-				'repository.shallow': snapshot.repository.shallow,
-				'repository.partial': snapshot.repository.partial,
-				'repository.sparseCheckout': snapshot.repository.sparseCheckout,
-				'repository.sparseIndex': snapshot.repository.sparseIndex,
-				'repository.splitIndex': snapshot.repository.splitIndex,
-				'repository.refFormat': snapshot.repository.refFormat,
-				'packs.count': snapshot.packCount,
-				'packs.outsideMultiPackIndex': snapshot.packsOutsideMultiPackIndex,
-				'packs.bytes': snapshot.packBytes,
-				'refs.loose': snapshot.looseRefs.count,
-				'refs.looseExact': snapshot.looseRefs.exact,
-				'estimate.looseObjects': report.estimatedLooseObjects,
-				'estimate.trackedFiles': report.estimatedTrackedFiles,
-				'estimate.trackedFilesExact': report.trackedFilesExact,
-				'commitGraph.present': snapshot.commitGraph.present,
-				multiPackIndex: snapshot.multiPackIndex,
-				'multiPackIndex.enabled': snapshot.multiPackIndexEnabled,
-				// Telemetry stays boolean — an unreadable registration coarsens to `false` here, but the report
-				// itself (and the lever's `unavailable` status) still tracks the tri-state distinction.
-				maintenanceRegistered: snapshot.maintenanceRegistered ?? false,
-				clearlyLarge: report.clearlyLarge,
-				'findings.total': report.findings.length,
-				'findings.auto': report.findings.filter(f => f.tier === 'auto').length,
-				'findings.ask': report.findings.filter(f => f.tier === 'ask').length,
-				'slowness.count': slownessCount,
-				'slowness.worktree': slowness?.worktree?.count ?? 0,
-				'slowness.history': slowness?.history?.count ?? 0,
-				'slowness.refs': slowness?.refs?.count ?? 0,
-				'slowness.objects': slowness?.objects?.count ?? 0,
-			};
-			// Re-probes are frequent (debounced index changes, post-fix refreshes) — only report changes.
-			const serialized = JSON.stringify(event);
-			if (this._lastProbeTelemetry.get(repo.path) !== serialized) {
-				this._lastProbeTelemetry.set(repo.path, serialized);
-				this.container.telemetry.sendEvent('gitHealth/probe', event);
-			}
-
 			// Repo-open (and each re-probe) hints the commit-graph write so the cache stays warm across the
 			// whole extension. A completed write schedules one post-write probe; the provider's demand throttle
 			// makes that probe's next request a no-op, so completion cannot form a refresh loop.
@@ -696,7 +669,7 @@ export class GitHealthService implements Disposable {
 
 			// Claim the day as ONE atomic operation in the provider. Reading the stamp here and writing it
 			// separately would let two VS Code windows both observe an expired value and both run a pass —
-			// the "once a day" guarantee (and its telemetry) has to hold across processes, not just within
+			// the "once a day" guarantee has to hold across processes, not just within
 			// one. The claim also stamps BEFORE the work, so a window probing during a minutes-long pass
 			// sees it taken. The write echoes back as a coarse `gkConfig` repository change, which
 			// `onRepositoryChanged` deliberately ignores so the pass can never re-trigger itself.
@@ -718,7 +691,7 @@ export class GitHealthService implements Disposable {
 				if (!configuration.get('gitOptimizations.enabled')) return;
 
 				try {
-					await this.runTaskWithTelemetry(repo.path, task, true, this._disposeAbort.signal);
+					await this.runMaintenanceTask(repo.path, task, true, this._disposeAbort.signal);
 				} catch (ex) {
 					Logger.error(ex, `GitHealthService.runAutoPassIfDue.task(${task})`);
 				}
@@ -734,7 +707,7 @@ export class GitHealthService implements Disposable {
 
 			for (const id of getAutoOptimizations(current)) {
 				try {
-					await this.applyOptimizationWithTelemetry(repo.path, id, 'auto', this._disposeAbort.signal);
+					await this.applyOptimization(repo.path, id, this._disposeAbort.signal);
 				} catch (ex) {
 					Logger.error(ex, `GitHealthService.runAutoPassIfDue.optimization(${id})`);
 				}
@@ -750,29 +723,20 @@ export class GitHealthService implements Disposable {
 
 	/**
 	 * Applies a lever and reports it. The auto tier mutates a user's repo config with no prompt, so the
-	 * thresholds driving it need the same telemetry the maintenance tasks already emit.
+	 * thresholds driving it need to be evaluated against the same repository state as maintenance tasks.
 	 */
-	private async applyOptimizationWithTelemetry(
+	private async applyOptimization(
 		repoPath: string,
 		id: GitOptimizationId,
-		tier: GitOptimizationTier,
 		cancellation?: AbortSignal,
 	): Promise<boolean> {
 		const maintenance = this.getMaintenance(repoPath);
 		if (maintenance == null) return false;
 
-		const start = Date.now();
 		const applied = await maintenance.applyOptimization(id, cancellation);
 		// No event for a lever that turned out not to apply — the event means "we changed the repo".
 		if (!applied) return false;
 
-		const duration = Date.now() - start;
-		this.container.telemetry.sendEvent('gitOptimizations/optimization/applied', {
-			optimization: id,
-			tier: tier,
-			duration: duration,
-			'duration.bucket': bucketDuration(duration),
-		});
 		return true;
 	}
 
@@ -780,7 +744,7 @@ export class GitHealthService implements Disposable {
 	 * Invokes one maintenance task and reports supported invocations. In auto mode Git can intentionally no-op
 	 * after evaluating its native condition. A genuine failure PROPAGATES (ask-tier surfaces it; auto catches).
 	 */
-	private async runTaskWithTelemetry(
+	private async runMaintenanceTask(
 		repoPath: string,
 		task: GitMaintenanceTask,
 		auto: boolean,
@@ -793,18 +757,10 @@ export class GitHealthService implements Disposable {
 		// support floor, `maintenance run --auto --task=pack-refs` skips it entirely. Keep using Git Health's
 		// bounded loose-ref threshold there. The object tasks have had native auto conditions since inception.
 		const nativeAuto = auto && task !== 'pack-refs' && task !== 'commit-graph';
-		const start = Date.now();
 		const ran = await maintenance.runMaintenanceTask(task, { auto: nativeAuto, cancellation: cancellation });
 		// No event for unsupported attempts. An auto invocation may still be a native no-op by design.
 		if (!ran) return false;
 
-		const duration = Date.now() - start;
-		this.container.telemetry.sendEvent('gitOptimizations/maintenance/run', {
-			task: task,
-			auto: nativeAuto,
-			duration: duration,
-			'duration.bucket': bucketDuration(duration),
-		});
 		return true;
 	}
 
@@ -824,7 +780,6 @@ export class GitHealthService implements Disposable {
 		this._reportStates.delete(repo.path);
 		this._detailsChanged.delete(repo.path);
 		this._detailsEpochs.delete(repo.path);
-		this._lastProbeTelemetry.delete(repo.path);
 		this._inflightProbes.delete(repo.path);
 		const timer = this._probeTimers.get(repo.path);
 		if (timer != null) {

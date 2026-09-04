@@ -29,7 +29,7 @@ export class GitTag implements GitTagReference {
 		/** Whether this is an annotated tag (a tag object with its own metadata) vs a lightweight
 		 *  tag (a plain ref to a commit). Note `message` is the commit subject for lightweight tags,
 		 *  so it can't be used to infer this. Required so any new tag source must decide explicitly
-		 *  rather than silently defaulting (which would skew tag-annotation telemetry). */
+		 *  rather than silently defaulting (which would lose tag annotation information). */
 		public readonly annotated: boolean,
 	) {
 		({ name: this._name } = parseRefName(refName));

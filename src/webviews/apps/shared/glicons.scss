@@ -6,7 +6,7 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 	@font-face {
 		font-family: 'glicons';
 		font-display: block;
-		src: url("#{root}/dist/glicons.woff2?a1ae374da018b0b3806653d327a4a2d9") format("woff2");
+		src: url("#{root}/dist/glicons.woff2?7f935789ab72a356fdada004c63e28c6") format("woff2");
 	}
 </style>
 */
@@ -61,9 +61,6 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 
 .glicon-commit-horizontal:before {
 	content: '\f101';
-}
-.glicon-graph:before {
-	content: '\f102';
 }
 .glicon-next-commit:before {
 	content: '\f103';
@@ -170,20 +167,11 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 .glicon-gitlens-inspect:before {
 	content: '\f124';
 }
-.glicon-workspaces-view:before {
-	content: '\f125';
-}
 .glicon-confirm-checked:before {
 	content: '\f126';
 }
 .glicon-confirm-unchecked:before {
 	content: '\f127';
-}
-.glicon-cloud-patch:before {
-	content: '\f128';
-}
-.glicon-cloud-patch-share:before {
-	content: '\f129';
 }
 .glicon-inspect:before {
 	content: '\f12a';
@@ -194,17 +182,8 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 .glicon-gitlens-filled:before {
 	content: '\f12c';
 }
-.glicon-code-suggestion:before {
-	content: '\f12d';
-}
-.glicon-provider-jira:before {
-	content: '\f133';
-}
 .glicon-play-button:before {
 	content: '\f134';
-}
-.glicon-rocket-filled:before {
-	content: '\f135';
 }
 .glicon-branches-view-filled:before {
 	content: '\f136';
@@ -233,12 +212,6 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 .glicon-worktrees-view-filled:before {
 	content: '\f13e';
 }
-.glicon-launchpad-view:before {
-	content: '\f13f';
-}
-.glicon-launchpad-view-filled:before {
-	content: '\f140';
-}
 .glicon-merge-target:before {
 	content: '\f141';
 }
@@ -256,9 +229,6 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 }
 .glicon-repository-cloud:before {
 	content: '\f146';
-}
-.glicon-provider-linear:before {
-	content: '\f147';
 }
 .glicon-diff-right:before {
 	content: '\f11b';
@@ -290,9 +260,6 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 .glicon-pause:before {
 	content: '\f14b';
 }
-.glicon-kanban-view:before {
-	content: '\f14c';
-}
 .glicon-filter-mixed:before {
 	content: '\f14d';
 }
@@ -308,9 +275,6 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 .glicon-remote-filled:before {
 	content: '\f151';
 }
-.glicon-continue-sparkle:before {
-	content: '\f152';
-}
 .glicon-checkbox-unchecked:before {
 	content: '\f153';
 }
@@ -325,10 +289,4 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 }
 .glicon-radio-unchecked:before {
 	content: '\f157';
-}
-.glicon-provider-trello:before {
-	content: '\f158';
-}
-.glicon-provider-opencode:before {
-	content: '\f159';
 }

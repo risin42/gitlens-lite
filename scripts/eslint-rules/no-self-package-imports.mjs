@@ -92,7 +92,7 @@ export default {
 function loadWorkspacePackages() {
 	/** @type {Array<{ name: string; root: string }>} */
 	const out = [];
-	const searchRoots = [path.join(repoRoot, 'packages'), path.join(repoRoot, 'packages', 'plus')];
+	const searchRoots = [path.join(repoRoot, 'packages')];
 
 	for (const searchRoot of searchRoots) {
 		if (!existsSync(searchRoot)) continue;

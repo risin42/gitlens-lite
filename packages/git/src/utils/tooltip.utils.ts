@@ -11,7 +11,7 @@ export function formatIndicators(indicators: string[]): string {
 
 /**
  * Formats the "Branch is ..." tracking status line for markdown tooltips.
- * Shared by tree-view nodes (branchNode, worktreeNode) and graph sidebar tooltips.
+ * Shared by tree-view nodes (branchNode, worktreeNode) and item tooltips.
  */
 export function formatTrackingTooltip(
 	upstreamName: string,

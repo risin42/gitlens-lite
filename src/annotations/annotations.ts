@@ -227,8 +227,8 @@ export function getBlameDecorationBaseOptions(
 	separator: boolean,
 ): ThemableDecorationAttachmentRenderOptions {
 	return {
-		backgroundColor: new ThemeColor('gitlens.gutterBackgroundColor' satisfies Colors),
-		color: new ThemeColor('gitlens.gutterForegroundColor' satisfies Colors),
+		backgroundColor: new ThemeColor('gitlens-lite.gutterBackgroundColor' satisfies Colors),
+		color: new ThemeColor('gitlens-lite.gutterForegroundColor' satisfies Colors),
 		fontWeight: options.fontWeight ?? 'normal',
 		fontStyle: options.fontStyle ?? 'normal',
 		height: '100%',
@@ -267,7 +267,7 @@ export function getGutterDecoration(
 
 	if (commit.isUncommitted) {
 		decoration.renderOptions!.before!.color = new ThemeColor(
-			'gitlens.gutterUncommittedForegroundColor' satisfies Colors,
+			'gitlens-lite.gutterUncommittedForegroundColor' satisfies Colors,
 		);
 	}
 
@@ -304,8 +304,8 @@ export function getInlineDecoration(
 	return {
 		renderOptions: {
 			after: {
-				backgroundColor: new ThemeColor('gitlens.trailingLineBackgroundColor' satisfies Colors),
-				color: new ThemeColor('gitlens.trailingLineForegroundColor' satisfies Colors),
+				backgroundColor: new ThemeColor('gitlens-lite.trailingLineBackgroundColor' satisfies Colors),
+				color: new ThemeColor('gitlens-lite.trailingLineForegroundColor' satisfies Colors),
 				contentText: pad(message, 1, 1),
 				fontWeight: fontOptions?.weight ?? 'normal',
 				fontStyle: fontOptions?.style ?? 'normal',

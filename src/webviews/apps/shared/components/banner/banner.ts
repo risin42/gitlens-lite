@@ -6,7 +6,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { bannerStyles } from './banner.css.js';
 import '../button.js';
 
-export type BannerDisplay = 'solid' | 'outline' | 'gradient' | 'gradient-transparent' | 'gradient-purple';
+export type BannerDisplay = 'solid' | 'outline' | 'gradient' | 'gradient-transparent';
 
 declare global {
 	interface HTMLElementTagNameMap {
@@ -114,8 +114,6 @@ export class GlBanner extends LitElement {
 		return html`
 			<gl-button
 				class="banner__button banner__button--primary"
-				appearance=${this.display === 'gradient-purple' ? 'secondary' : undefined}
-				?full=${this.display === 'gradient-purple'}
 				href=${ifDefined(this.primaryButtonHref)}
 				truncate
 				@click=${this.onPrimaryButtonClick}

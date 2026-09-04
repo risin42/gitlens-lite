@@ -1,9 +1,6 @@
 import { window } from 'vscode';
 import type { Container } from '../container.js';
-import { command, executeCommand, executeCoreCommand } from '../system/-webview/command.js';
-import type { HomeWebviewShowingArgs } from '../webviews/home/registration.js';
-import type { GraphWebviewShowingArgs } from '../webviews/plus/graph/registration.js';
-import type { WelcomeWebviewShowingArgs } from '../webviews/welcome/registration.js';
+import { command, executeCoreCommand } from '../system/-webview/command.js';
 import { GlCommandBase } from './commandBase.js';
 import type { CommandContext } from './commandContext.js';
 
@@ -11,26 +8,17 @@ import type { CommandContext } from './commandContext.js';
 export class ShowViewCommand extends GlCommandBase {
 	constructor(private readonly container: Container) {
 		super([
-			'gitlens.showAccountView',
 			'gitlens.showBranchesView',
 			'gitlens.showCommitDetailsView',
 			'gitlens.showCommitsView',
 			'gitlens.showContributorsView',
-			'gitlens.showDraftsView',
 			'gitlens.showFileHistoryView',
-			'gitlens.showGraphView',
-			'gitlens.showHomeView',
-			'gitlens.showLaunchpadView',
 			'gitlens.showLineHistoryView',
 			'gitlens.showRemotesView',
 			'gitlens.showRepositoriesView',
 			'gitlens.showSearchAndCompareView',
 			'gitlens.showStashesView',
 			'gitlens.showTagsView',
-			'gitlens.showTimelineView',
-			'gitlens.showWelcomeView',
-			'gitlens.showWorktreesView',
-			'gitlens.showWorkspacesView',
 		]);
 	}
 
@@ -62,12 +50,9 @@ export class ShowViewCommand extends GlCommandBase {
 		}
 	}
 
-	async execute(context: CommandContext, ...args: unknown[]): Promise<void> {
+	async execute(context: CommandContext, ..._args: unknown[]): Promise<void> {
 		const command = context.command;
 		switch (command) {
-			case 'gitlens.showAccountView':
-				// The account surface lives in the Settings webview's Account category now.
-				return executeCommand('gitlens.showSettingsPage!account');
 			case 'gitlens.showBranchesView':
 				await this.waitForRepo();
 				return this.container.views.showView('branches');
@@ -80,21 +65,9 @@ export class ShowViewCommand extends GlCommandBase {
 			case 'gitlens.showContributorsView':
 				await this.waitForRepo();
 				return this.container.views.showView('contributors');
-			case 'gitlens.showDraftsView':
-				return this.container.views.showView('drafts');
 			case 'gitlens.showFileHistoryView':
 				await this.waitForRepo();
 				return this.container.views.showView('fileHistory');
-			case 'gitlens.showGraphView':
-				// The Commit Graph shows its own in-view empty state (Open a Folder / Clone / Start a New
-				// Project) when there's no repo, so skip the redundant "No repository detected" notification —
-				// just wait for discovery so we don't flash the empty state before repos are known.
-				await this.waitForRepo();
-				return this.container.views.graph.show(undefined, ...(args as GraphWebviewShowingArgs));
-			case 'gitlens.showHomeView':
-				return this.container.views.home.show(undefined, ...(args as HomeWebviewShowingArgs));
-			case 'gitlens.showLaunchpadView':
-				return this.container.views.showView('launchpad');
 			case 'gitlens.showLineHistoryView':
 				await this.waitForRepo();
 				return this.container.views.showView('lineHistory');
@@ -112,16 +85,6 @@ export class ShowViewCommand extends GlCommandBase {
 			case 'gitlens.showTagsView':
 				await this.waitForRepo();
 				return this.container.views.showView('tags');
-			case 'gitlens.showTimelineView':
-				await this.waitForRepo();
-				return this.container.views.timeline.show();
-			case 'gitlens.showWelcomeView':
-				return this.container.views.welcome.show(undefined, ...(args as WelcomeWebviewShowingArgs));
-			case 'gitlens.showWorktreesView':
-				await this.waitForRepo();
-				return this.container.views.showView('worktrees');
-			case 'gitlens.showWorkspacesView':
-				return this.container.views.showView('workspaces');
 		}
 
 		return Promise.resolve(undefined);

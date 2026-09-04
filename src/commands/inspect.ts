@@ -2,7 +2,7 @@ import type { TextEditor, Uri } from 'vscode';
 import type { GitRevisionReference } from '@gitlens/git/models/reference.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
 import { Logger } from '@gitlens/utils/logger.js';
-import type { Source } from '../constants.telemetry.js';
+import type { Source } from '../constants.context.js';
 import type { Container } from '../container.js';
 import { showCommitInDetailsView } from '../git/actions/commit.js';
 import { GitUri } from '../git/gitUri.js';

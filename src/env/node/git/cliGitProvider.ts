@@ -30,6 +30,7 @@ import {
 import type { RevisionUriData, RevisionUriOptions } from '@gitlens/git/utils/uriAuthority.js';
 import { encodeGitLensRevisionUriAuthority } from '@gitlens/git/utils/uriAuthority.js';
 import { debounce } from '@gitlens/utils/debounce.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import type { UnifiedDisposable } from '@gitlens/utils/disposable.js';
 import type { Event } from '@gitlens/utils/event.js';
@@ -52,8 +53,8 @@ import { any, asSettled } from '@gitlens/utils/promise.js';
 import { equalsIgnoreCase, interpolate } from '@gitlens/utils/string.js';
 import { compare, fromString } from '@gitlens/utils/version.js';
 import type { APIState, GitExtension, API as ScmGitApi } from '../../../@types/vscode.git.d.js';
+import type { Source } from '../../../constants.context.js';
 import { Schemes } from '../../../constants.js';
-import type { Source } from '../../../constants.telemetry.js';
 import type { Container } from '../../../container.js';
 import type { Features } from '../../../features.js';
 import { gitMinimumVersion } from '../../../features.js';
@@ -81,7 +82,6 @@ import { configuration } from '../../../system/-webview/configuration.js';
 import { setContext } from '../../../system/-webview/context.js';
 import { getBestPath, isDescendant, isFolderUri, relative, splitPath } from '../../../system/-webview/path.js';
 import { UriSet } from '../../../system/-webview/uriMap.js';
-import { gate } from '../../../system/decorators/gate.js';
 
 const RepoSearchWarnings = {
 	doesNotExist: /no such file or directory/i,
@@ -91,13 +91,7 @@ const driveLetterRegex = /(?<=^\/?)([a-zA-Z])(?=:\/)/;
 
 export class GlCliGitProvider implements GlGitProvider {
 	readonly descriptor: GitProviderDescriptor = { id: 'git', name: 'Git', virtual: false };
-	readonly supportedSchemes = new Set<string>([
-		Schemes.File,
-		Schemes.Git,
-		Schemes.GitLens,
-		Schemes.PRs,
-		// DocumentSchemes.Vsls,
-	]);
+	readonly supportedSchemes = new Set<string>([Schemes.File, Schemes.Git, Schemes.GitLens, Schemes.PRs]);
 
 	private _onDidChange = new Emitter<void>();
 	get onDidChange(): Event<void> {
@@ -254,24 +248,14 @@ export class GlCliGitProvider implements GlGitProvider {
 				queue: { maxConcurrent: configuration.get('advanced.git.maxConcurrentProcesses') ?? 20 },
 				logger: gitOutputChannel,
 				hooks: {
-					onAborted: info => container.telemetry.sendEvent('op/git/aborted', info),
 					onSlowQueue: info => {
 						// Surface slow-queue events in the GitLens output channel so the wait time
-						// is observable during local debug — not just in telemetry. Helps catch
+						// is observable during local debug. Helps catch
 						// priority misclassifications where a user-initiated read got queued behind
 						// background work (e.g., commit details click stuck behind graph load).
 						Logger.warn(
 							`Git queue wait: ${info.waitTime}ms [priority=${info.priority}, active=${info.active}/${info.maxConcurrent}, queued=${info.queued.interactive}/${info.queued.normal}/${info.queued.background}]`,
 						);
-						container.telemetry.sendEvent('op/git/queueWait', {
-							priority: info.priority,
-							waitTime: info.waitTime,
-							active: info.active,
-							'queued.interactive': info.queued.interactive,
-							'queued.normal': info.queued.normal,
-							'queued.background': info.queued.background,
-							maxConcurrent: info.maxConcurrent,
-						});
 					},
 					onSlowCommand: info => {
 						// An event-loop stall inflates the measured duration (the exit event sat undelivered),
@@ -283,7 +267,12 @@ export class GlCliGitProvider implements GlGitProvider {
 						// Feed the Git Health passive-slowness counters. Resolution stays in-memory only
 						// (`getRepository`) — never invoke git here, or we'd recurse through the exec layer
 						// that just fired this hook.
-						container.gitHealth.recordSlowCommand(info.cwd ?? '', info.duration, info.operation);
+						container.gitHealth.recordSlowCommand(
+							info.cwd ?? '',
+							info.duration,
+							info.operation,
+							info.slownessCategory,
+						);
 					},
 				},
 			},
@@ -606,7 +595,6 @@ export class GlCliGitProvider implements GlGitProvider {
 
 		switch (feature) {
 			case 'stashes':
-			case 'timeline':
 				supported = true;
 				break;
 			default:
@@ -864,7 +852,7 @@ export class GlCliGitProvider implements GlGitProvider {
 
 	/**
 	 * Discovers repositories from vscode.git's known set (instead of scanning the filesystem) when
-	 * `gitlens.advanced.repositorySearch.enabled` is off. Waits for vscode.git's initial scan to complete so
+	 * `gitlens-lite.advanced.repositorySearch.enabled` is off. Waits for vscode.git's initial scan to complete so
 	 * discovery readiness is honest. Repos unrelated to the folder (siblings, or repos outside any workspace
 	 * folder) are surfaced by the SCM open/close event path instead.
 	 */

@@ -98,7 +98,7 @@ export interface GitOperationsSubProvider {
 			interactive?: boolean;
 			/**
 			 * Set when the `editor` is a script that rewrites the todo by command word + SHA (e.g. the
-			 * Commit Graph's headless squash/drop/reword) rather than a human. Forces git to emit a plain,
+			 * headless squash/drop/reword operation) rather than a human. Forces git to emit a plain,
 			 * natural-order todo by disabling `rebase.autosquash` (which would reorder commits and rewrite
 			 * `pick`→`fixup` for `fixup!`/`squash!` commits) and `rebase.abbreviateCommands` (which would
 			 * emit `p` instead of `pick`). Both honor the user's git config otherwise.

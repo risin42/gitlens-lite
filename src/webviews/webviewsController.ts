@@ -6,11 +6,10 @@ import { find, first, map } from '@gitlens/utils/iterable.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import { maybeStartScopedLogger } from '@gitlens/utils/logger.scoped.js';
 import type { GlCommands } from '../constants.commands.js';
-import type { Source } from '../constants.telemetry.js';
+import type { Source } from '../constants.context.js';
 import type { WebviewPanelIds, WebviewViewIds } from '../constants.views.js';
 import type { Container } from '../container.js';
 import { executeCoreCommand, registerCommand } from '../system/-webview/command.js';
-import { addToContextDelimitedString, getContext } from '../system/-webview/context.js';
 import { getViewFocusCommand } from '../system/-webview/vscode/views.js';
 import type { WebviewCommandRegistrar } from './webviewCommandRegistrar.js';
 import { WebviewController } from './webviewController.js';
@@ -226,10 +225,6 @@ export class WebviewsController implements Disposable {
 					await onBeforeShow?.(...args);
 				}
 
-				if (descriptor.plusFeature && getContext('gitlens:plus:disabled') === true) {
-					await addToContextDelimitedString('gitlens:plus:disabled:view:overrides', [descriptor.id]);
-				}
-
 				return void executeCoreCommand(getViewFocusCommand(descriptor.id), options);
 			},
 		} satisfies WebviewViewProxy<ID, ShowingArgs, SerializedState>;
@@ -358,7 +353,8 @@ export class WebviewsController implements Disposable {
 		async function deserializeWebviewPanel(panel: WebviewPanel, state: SerializedState) {
 			// TODO@eamodio: We are currently storing nothing or way too much in serialized state. We should start storing maybe both "client" and "server" state
 			// Where as right now our webviews are only saving "client" state, e.g. the entire state sent to the webview, rather than key pieces of state
-			// We probably need to separate state into actual "state" and all the data that is sent to the webview, e.g. for the Graph state might be the selected repo, selected sha, etc vs the entire data set to render the Graph
+			// Keep navigation state separate from the larger data set sent to a webview so a reload can
+			// restore the selection without persisting repository resources.
 			serializedPanel = panel;
 			scope?.trace(`Deserializing panel state=${state != null ? '<state>' : 'undefined'}`);
 			await show(

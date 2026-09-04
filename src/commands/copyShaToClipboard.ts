@@ -3,7 +3,7 @@ import { env } from 'vscode';
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { first } from '@gitlens/utils/iterable.js';
 import { Logger } from '@gitlens/utils/logger.js';
-import type { Source } from '../constants.telemetry.js';
+import type { Source } from '../constants.context.js';
 import type { Container } from '../container.js';
 import { GitUri } from '../git/gitUri.js';
 import { getCommitRepository } from '../git/utils/-webview/commit.utils.js';

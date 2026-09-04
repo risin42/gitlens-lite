@@ -1,9 +1,9 @@
 import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
-import type { GlPlusCommands, GlWebviewCommands } from '../constants.commands.js';
+import type { GlWebviewCommands } from '../constants.commands.js';
 import type { WebviewIds } from '../constants.views.js';
 
 export function createWebviewCommandLink<T>(
-	command: GlWebviewCommands | GlPlusCommands,
+	command: GlWebviewCommands,
 	webviewId: WebviewIds,
 	webviewInstanceId: string | undefined,
 	args?: T,
@@ -28,9 +28,9 @@ export interface WebviewItemContext<TValue = unknown> extends Partial<WebviewCon
 	webviewItem: string;
 	webviewItemValue: TValue;
 	/** Surface within the webview that produced this item context, for when the same `webviewItem`
-	 *  type appears on multiple surfaces (e.g. `gitlens:branch` on graph rows, the WIP header kebab,
-	 *  AND the graph sidebar). Invisible to menu `when` matching (which reads `webviewItem`); lets
-	 *  host handlers/telemetry attribute an invocation to the originating surface. */
+	 *  type appears on multiple surfaces (e.g. `gitlens:branch` on a row and the WIP header kebab).
+	 *  Invisible to menu `when` matching (which reads `webviewItem`); lets
+	 *  host handlers attribute an invocation to the originating surface. */
 	webviewItemOrigin?: string;
 	/** Merged (least-common-denominator) `webviewItem` across a multi-selection — drives `.multi` menu `when` gating. */
 	webviewItems?: string;

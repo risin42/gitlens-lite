@@ -1,8 +1,7 @@
-import { ThemeIcon, window } from 'vscode';
+import { window } from 'vscode';
 import { RebaseError, SigningError } from '@gitlens/git/errors.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
-import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
 import type { GitReference } from '@gitlens/git/models/reference.js';
 import { parseGitBoolean } from '@gitlens/git/utils/config.utils.js';
 import { getReferenceLabel, isRevisionReference } from '@gitlens/git/utils/reference.utils.js';
@@ -16,8 +15,6 @@ import { showPausedOperationStatus } from '../../git/actions/pausedOperation.js'
 import type { GlRepository } from '../../git/models/repository.js';
 import { isRebaseTodoEditorEnabled, reopenRebaseTodoEditor } from '../../git/utils/-webview/rebase.utils.js';
 import { showGitErrorMessage } from '../../messages.js';
-import { startAutoRebaseRun } from '../../plus/coretools/conflict/autoRebaseProgress.js';
-import { isSubscriptionTrialOrPaidFromState } from '../../plus/gk/utils/subscription.utils.js';
 import { createQuickPickSeparator } from '../../quickpicks/items/common.js';
 import type { ConfirmToggleQuickPickItem, DirectiveQuickPickItem } from '../../quickpicks/items/directive.js';
 import {
@@ -72,9 +69,7 @@ interface Context extends StepsContext<StepNames> {
 	title: string;
 }
 
-/** `ai-resolve` is an internal pseudo-flag (never passed to git) — it routes execution through the
- *  automatic rebase service, which resolves any conflicts with AI end-to-end. */
-type Flags = '--autosquash' | '--interactive' | '--update-refs' | 'ai-resolve';
+type Flags = '--autosquash' | '--interactive' | '--update-refs';
 interface State<Repo = string | GlRepository> {
 	repo: Repo;
 	destination: GitReference;
@@ -113,21 +108,6 @@ export class RebaseGitCommand extends QuickCommand<State> {
 			autosquash = state.flags.includes('--autosquash');
 		}
 
-		if (state.flags.includes('ai-resolve')) {
-			this.container.telemetry.sendEvent('gitCommand/run', { command: 'rebase' });
-			const svc = this.container.git.getRepositoryService(state.repo.path);
-			// The wizard always rebases the current branch — pass it explicitly so the session record
-			// (and the Resolve panel's run header) carries the branch name.
-			const branch = (await svc.branches.getBranch())?.name;
-			return startAutoRebaseRun(this.container, svc, {
-				upstream: state.destination.ref,
-				branch: branch,
-				updateRefs: updateRefs,
-				autosquash: autosquash,
-				source: { source: 'quick-wizard' },
-			});
-		}
-
 		// If the editor is not enabled, listen for the rebase todo file to be opened and then reopen it with our editor
 		const disposable =
 			interactive && !isRebaseTodoEditorEnabled()
@@ -140,8 +120,6 @@ export class RebaseGitCommand extends QuickCommand<State> {
 				: undefined;
 
 		using _ = createDisposable(() => void disposable?.dispose());
-
-		this.container.telemetry.sendEvent('gitCommand/run', { command: 'rebase' });
 
 		try {
 			const result = await state.repo.git.ops?.rebase(state.destination.ref, {
@@ -372,26 +350,6 @@ export class RebaseGitCommand extends QuickCommand<State> {
 			return StepResultBreak;
 		}
 
-		const subscription = await this.container.subscription.getSubscription();
-		const isTrialOrPaid = isSubscriptionTrialOrPaidFromState(subscription?.state);
-		// Automatic rebase is offered only to trial/paid users with AI enabled (settings + org policy),
-		// and only when there's something to rebase onto — the same `behind > 0` gate the plain rebase
-		// uses, since an ahead-only rebase replays commits with nothing to conflict against.
-		const aiOffered = isTrialOrPaid && this.container.ai.enabled && this.container.ai.orgEnabled && behind > 0;
-
-		// If the wizard was seeded with the AI pseudo-flag (`gitlens.ai.autoRebase`) but automatic rebase
-		// isn't offered here, strip it — otherwise `aiSeeded` below would suppress the normal
-		// `picked` defaults (nothing preselected, so default-Enter silently runs a non-AI rebase) and
-		// `execute()` would route an ineligible user straight to the auto-rebase service.
-		if (!aiOffered && state.flags.includes('ai-resolve')) {
-			state.flags = state.flags.filter(f => f !== 'ai-resolve');
-		}
-
-		// When the wizard was seeded with the AI pseudo-flag, let the automatic rebase item take the
-		// preselection — otherwise the plain/interactive defaults would steal it and default-Enter
-		// would silently run a non-AI rebase.
-		const aiSeeded = state.flags.includes('ai-resolve');
-
 		const branchLabel = getReferenceLabel(context.branch, { label: false });
 		const destinationLabel = getReferenceLabel(state.destination, { label: false });
 		const applying = `by applying ${pluralize('commit', ahead)} on top of ${destinationLabel}`;
@@ -411,20 +369,7 @@ export class RebaseGitCommand extends QuickCommand<State> {
 				flags: [],
 				label: this.title,
 				detail: `Will update ${branchLabel} ${applying}`,
-				picked: !aiSeeded,
-			});
-		}
-
-		// Automatic rebase — AI resolves conflicts at every paused step, stopping for review only when
-		// confidence is low. Sits between the plain and interactive rebases: it's the hands-off end of
-		// the same axis, while Interactive is the hands-on end.
-		if (aiOffered) {
-			modes.push({
-				flags: ['ai-resolve'],
-				label: `Auto-${this.title}`,
-				description: 'AI resolves conflicts · Preview',
-				detail: `Will update ${branchLabel} ${applying}, resolving any conflicts with AI and pausing for review only when confidence is low`,
-				picked: aiSeeded,
+				picked: true,
 			});
 		}
 
@@ -433,7 +378,7 @@ export class RebaseGitCommand extends QuickCommand<State> {
 			label: `Interactive ${this.title}`,
 			description: '--interactive',
 			detail: `Will interactively update ${branchLabel} ${applying}`,
-			picked: behind === 0 && !aiSeeded,
+			picked: behind === 0,
 		});
 
 		// A seeded wizard flag wins; otherwise the user's `rebase.updateRefs`/`rebase.autosquash` config
@@ -481,8 +426,6 @@ export class RebaseGitCommand extends QuickCommand<State> {
 
 		let step: QuickPickStep<DirectiveQuickPickItem | FlagsQuickPickItem<Flags>>;
 
-		const notices: DirectiveQuickPickItem[] = [];
-
 		interface Toggles {
 			updateRefs?: ConfirmToggleQuickPickItem;
 			autosquash?: ConfirmToggleQuickPickItem;
@@ -496,7 +439,6 @@ export class RebaseGitCommand extends QuickCommand<State> {
 		 *  The separator is labelled so the toggles read as modifiers on the modes above them rather than
 		 *  extra modes — the divider alone doesn't carry that. */
 		const buildRows = (): (DirectiveQuickPickItem | FlagsQuickPickItem<Flags>)[] => [
-			...notices,
 			...items,
 			createQuickPickSeparator(confirmOptionsSeparatorLabel),
 			toggles.updateRefs!,
@@ -526,66 +468,6 @@ export class RebaseGitCommand extends QuickCommand<State> {
 				refreshConfirmStepItems(step, buildRows());
 			},
 		});
-
-		let potentialConflict: Promise<ConflictDetectionResult | undefined> | undefined;
-		if (isTrialOrPaid) {
-			potentialConflict = state.repo.git.commits
-				.getLogShas(`${state.destination.ref}..${context.branch.name}`, { merges: false, reverse: true })
-				.then(shas =>
-					state.repo.git.branches.getPotentialApplyConflicts?.(state.destination.ref, [...shas], {
-						stopOnFirstConflict: true,
-					}),
-				);
-		}
-
-		if (potentialConflict) {
-			void potentialConflict?.then(result => {
-				if (result == null || result.status === 'clean') {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'No Conflicts Detected',
-							iconPath: new ThemeIcon('check'),
-						}),
-					);
-				} else if (result.status === 'error') {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'Unable to Detect Conflicts',
-							detail: result.message,
-							iconPath: new ThemeIcon('error'),
-						}),
-					);
-				} else {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'Conflicts Detected',
-							detail: `Will result in ${result.stoppedOnFirstConflict ? 'at least ' : ''}${pluralize(
-								'conflicting file',
-								result.conflict.files.length,
-							)} that will need to be resolved`,
-							iconPath: new ThemeIcon('warning'),
-						}),
-					);
-				}
-
-				refreshConfirmStepItems(step, buildRows());
-			});
-
-			notices.push(
-				createDirectiveQuickPickItem(Directive.Noop, false, {
-					label: `$(loading~spin) \u00a0Detecting Conflicts...`,
-					// Don't use this, because the spin here causes the icon to spin incorrectly
-					//iconPath: new ThemeIcon('loading~spin'),
-				}),
-				createQuickPickSeparator(),
-			);
-		}
 
 		step = this.createConfirmStep(appendReposToTitle(`Confirm ${title}`, state, context), buildRows());
 		const selection: StepSelection<typeof step> = yield step;

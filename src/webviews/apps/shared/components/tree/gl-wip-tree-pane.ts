@@ -1,7 +1,6 @@
 import type { PropertyValues } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { AgentSessionPhase } from '@gitlens/agents/types.js';
 import type { GitCommitStats } from '@gitlens/git/models/commit.js';
 import type { GitCommitSearchContext } from '@gitlens/git/models/search.js';
 import { getFileDiffPathspecs, isConflictStatus } from '@gitlens/git/utils/fileStatus.utils.js';
@@ -118,23 +117,16 @@ export class GlWipTreePane extends LitElement {
 	multiDiff?: { repoPath: string; lhs: string; rhs: string; wip?: boolean; title?: string };
 
 	/** Opt-in for the bulk "Stage Current/Incoming for All Conflicts" toolbar buttons.
-	 * Off by default — only the graph WIP panel wires the resolve-all events and only enables
+	 * Off by default — only a paused-operation host wires the resolve-all events and enables
 	 * this when the paused operation is a rebase (the host bulk resolver bails otherwise),
 	 * so leaving it false keeps the buttons hidden in the inspect view and during merge/
 	 * cherry-pick/revert pauses where clicks would silently no-op. */
 	@property({ type: Boolean, attribute: 'bulk-conflict-actions' })
 	bulkConflictActions = false;
 
-	/** Opt-in for the toolbar "Resolve Conflicts" button (fires `resolve-conflicts`). Set true only
-	 *  by hosts that route it into AI resolve mode (the graph WIP details when `aiEnabled`); off
-	 *  everywhere else so it never renders as a dead button. */
+	/** Opt-in for the toolbar "Resolve Conflicts" button (fires `resolve-conflicts`). */
 	@property({ type: Boolean, attribute: 'resolve-enabled' })
 	resolveEnabled = false;
-
-	/** Repo-relative normalized paths the connected agent(s) are actively editing, mapped to the
-	 *  agent's phase. Pass-through to `gl-file-tree-pane`. */
-	@property({ attribute: false })
-	agentTouchedFiles?: ReadonlyMap<string, AgentSessionPhase>;
 
 	/**
 	 * Controlled-when-bound: parent-supplied visibility of the file-tree search box. Forwarded
@@ -228,8 +220,8 @@ export class GlWipTreePane extends LitElement {
 					isConflictStatus(file.status) ? 'conflicts' : file.staged ? 'staged' : 'unstaged',
 				groups: [
 					{ key: 'conflicts', label: 'Conflicts', actions: [] },
-					{ key: 'staged', label: 'Staged Changes', actions: this.getStagedActions() },
-					{ key: 'unstaged', label: 'Unstaged Changes', actions: this.getUnstagedActions() },
+					{ key: 'staged', label: 'Staged Changes', actions: [] },
+					{ key: 'unstaged', label: 'Unstaged Changes', actions: [] },
 				],
 			};
 		}
@@ -297,7 +289,6 @@ export class GlWipTreePane extends LitElement {
 			?multi-selectable=${this.multiSelectable}
 			.checkableStates=${this._effectiveStates}
 			.checkableStateDefault=${this.checkableStateDefault}
-			.agentTouchedFiles=${this.agentTouchedFiles}
 			.showSearchBox=${this.showSearchBox}
 			.searchBoxFilter=${this.searchBoxFilter}
 			empty-text=${this.emptyText}
@@ -720,7 +711,7 @@ export class GlWipTreePane extends LitElement {
 				mixedPaths.add(f.path);
 				// Keep the unstaged version as canonical so single-row mixed files expose
 				// `staged: false` — matching the `unstaged > staged > committed` precedence
-				// applied by the AI-compose path (see `anchorRank` in graphWebview.ts).
+				// applied by the worktree comparison path.
 				// Inline tree actions still see `options.mixed === true` (wrapped above) and
 				// offer both Stage and Unstage; this only fixes the right-click menu, which
 				// keys off `webviewItem` derived from `file.staged`.
@@ -734,26 +725,6 @@ export class GlWipTreePane extends LitElement {
 		}
 
 		return { deduped: deduped, mixedPaths: mixedPaths };
-	}
-
-	private getStagedActions(): TreeItemAction[] {
-		return [
-			{
-				icon: 'gl-cloud-patch-share',
-				label: 'Share Staged Changes',
-				action: 'staged-create-patch',
-			},
-		];
-	}
-
-	private getUnstagedActions(): TreeItemAction[] {
-		return [
-			{
-				icon: 'gl-cloud-patch-share',
-				label: 'Share Unstaged Changes',
-				action: 'unstaged-create-patch',
-			},
-		];
 	}
 
 	private onCheckAll(e: CustomEvent<{ checked: boolean }>): void {

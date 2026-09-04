@@ -106,8 +106,8 @@ export class PausedOperationStatusNode extends ViewNode<'paused-operation-status
 		item.description = hasConflicts ? pluralize('conflict', status.conflicts.length) : undefined;
 
 		const iconColor: Colors = hasConflicts
-			? 'gitlens.decorations.statusMergingOrRebasingConflictForegroundColor'
-			: 'gitlens.decorations.statusMergingOrRebasingForegroundColor';
+			? 'gitlens-lite.decorations.statusMergingOrRebasingConflictForegroundColor'
+			: 'gitlens-lite.decorations.statusMergingOrRebasingForegroundColor';
 		item.iconPath = new ThemeIcon('warning', new ThemeColor(iconColor));
 
 		item.tooltip = this.tooltip;

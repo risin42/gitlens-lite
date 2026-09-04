@@ -10,6 +10,7 @@ import type { UnsafeGit } from '@gitlens/git/run.types.js';
 import { isBranchReference } from '@gitlens/git/utils/reference.utils.js';
 import { getRemoteThemeIconString } from '@gitlens/git/utils/remote.utils.js';
 import type { WatcherRepoChangeEvent, WorkingTreeChangeEvent } from '@gitlens/git/watching/changeEvent.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import type { UnifiedDisposable } from '@gitlens/utils/disposable.js';
 import { mixinDisposable } from '@gitlens/utils/disposable.js';
@@ -17,14 +18,13 @@ import type { Event } from '@gitlens/utils/event.js';
 import { groupByFilterMap } from '@gitlens/utils/iterable.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';
+import type { Source } from '../constants.context.js';
 import { GlyphChars, Schemes } from '../constants.js';
-import type { Source } from '../constants.telemetry.js';
 import type { EventBus } from '../eventBus.js';
-import type { FeatureAccess, Features, PlusFeatures } from '../features.js';
+import type { Features } from '../features.js';
 import { showGitErrorMessage } from '../messages.js';
 import { configuration } from '../system/-webview/configuration.js';
 import { exists } from '../system/-webview/vscode/uris.js';
-import { gate } from '../system/decorators/gate.js';
 import type { GlGitProvider, RevisionUriOptions, ScmRepository } from './gitProvider.js';
 import type { GitProviderService } from './gitProviderService.js';
 import { GitUri } from './gitUri.js';
@@ -93,8 +93,8 @@ export class GitRepositoryService {
 	 * (`onDidChangeWorkingTree`). Routes through the shared watch service so it works
 	 * regardless of whether a corresponding {@link GlRepository} is open or closed —
 	 * a not-open `GlRepository` holds no repo-change watch lease, so its `onDidChange` is
-	 * dead, so callers that need events for not-currently-open repos (e.g. the Graph's
-	 * secondary-worktree WIP rows) must come through this method instead of
+	 * dead, so callers that need events for not-currently-open repos (for example, a
+	 * secondary-worktree view) must come through this method instead of
 	 * `repo.watchWorkingTree` / `repo.onDidChange`.
 	 *
 	 * Returns `undefined` when the git directory can't be resolved (transient or non-repo
@@ -323,11 +323,6 @@ export class GitRepositoryService {
 
 	get provider(): GitProviderDescriptor {
 		return this._provider.descriptor;
-	}
-
-	@debug()
-	access(feature?: PlusFeatures): Promise<FeatureAccess> {
-		return this._svc.access(feature, this.getRepository()?.uri);
 	}
 
 	containsUri(uri: Uri): boolean {

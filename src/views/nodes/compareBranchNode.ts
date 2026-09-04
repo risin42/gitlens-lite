@@ -16,7 +16,6 @@ import { getAheadBehindFilesQuery, getCommitsQuery, getFilesQuery } from '../../
 import { CommandQuickPickItem } from '../../quickpicks/items/common.js';
 import { showReferencePicker } from '../../quickpicks/referencePicker.js';
 import type { ViewsWithBranches } from '../viewBase.js';
-import type { WorktreesView } from '../worktreesView.js';
 import { SubscribeableViewNode } from './abstract/subscribeableViewNode.js';
 import type { ViewNode } from './abstract/viewNode.js';
 import { ContextValues, getViewNodeId } from './abstract/viewNode.js';
@@ -33,15 +32,10 @@ type State = {
 	filterCommits: GitUser[] | undefined;
 };
 
-export class CompareBranchNode extends SubscribeableViewNode<
-	'compare-branch',
-	ViewsWithBranches | WorktreesView,
-	ViewNode,
-	State
-> {
+export class CompareBranchNode extends SubscribeableViewNode<'compare-branch', ViewsWithBranches, ViewNode, State> {
 	constructor(
 		uri: GitUri,
-		view: ViewsWithBranches | WorktreesView,
+		view: ViewsWithBranches,
 		protected override readonly parent: ViewNode,
 		public readonly branch: GitBranch,
 		private showComparison: ViewShowBranchComparison,

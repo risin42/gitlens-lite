@@ -1,18 +1,5 @@
 import type { WebviewState } from '../protocol.js';
 
-/** Where a candidate signer's key was discovered. */
-export type SignerProvenance = 'commits' | 'provider' | 'both';
-
-/** The connected git-host integration used to verify signers, for provider-icon display in the webview. */
-export interface SignerProvider {
-	/** The remote provider id, e.g. `github`. */
-	id: string;
-	/** The display name, e.g. `GitHub`. */
-	name: string;
-	/** The provider icon key, e.g. `github` — rendered as `gl-provider-${icon}` (glicons font). */
-	icon: string;
-}
-
 export interface CandidateSigner {
 	/** Stable id: `${email}\0${keyType}\0${keyData}`. */
 	id: string;
@@ -24,7 +11,6 @@ export interface CandidateSigner {
 	keyData: string;
 	/** OpenSSH `SHA256:...` fingerprint, for display. */
 	fingerprint: string;
-	provenance: SignerProvenance;
 	/** Number of commits in the repo signed by this key. */
 	commitCount: number;
 	/** Whether this entry is already present in the target allowed_signers file. */
@@ -48,8 +34,6 @@ export interface State extends WebviewState<'gitlens.allowedSigners'> {
 	repoName?: string;
 	/** Whether the host is still discovering signers; the webview shows the loading page until this is `false`. */
 	loading: boolean;
-	/** Whether provider verification is still running in the background after the commit-derived signers are shown. */
-	verifying: boolean;
 	/** A terminal error message if signer discovery failed; the webview shows this instead of an endless spinner. */
 	error?: string;
 	/** The current discovery step, shown on the loading page. */
@@ -63,14 +47,9 @@ export interface State extends WebviewState<'gitlens.allowedSigners'> {
 	setConfigScope: 'global' | 'local';
 	/** Whether the webview is hosted in a Node.js (desktop) environment that can write files. */
 	hasNodeHost: boolean;
-	/** Whether a connected git-host integration was available to enrich/verify signers. */
-	integrationConnected: boolean;
-	/** The connected integration's provider, when one was available — used to render the provider indicator. */
-	provider?: SignerProvider;
 	/**
 	 * The `SHA256:…` fingerprint of a specific signer to pre-check, set when the editor is opened from a commit's
-	 * "Add to allowed signers…" action so that commit's signer is pre-selected. API-verified signers (provenance
-	 * `provider`/`both`) are pre-checked regardless; everything else starts unchecked.
+	 * "Add to allowed signers…" action so that commit's signer is pre-selected. Everything else starts unchecked.
 	 */
 	preselectFingerprint?: string;
 }

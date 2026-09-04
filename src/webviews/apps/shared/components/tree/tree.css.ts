@@ -1,8 +1,8 @@
 import { css } from 'lit';
-import { elementBase } from '../styles/lit/base.css.js';
+import { boxSizingBase } from '../styles/lit/base.css.js';
 
 export const treeStyles = [
-	elementBase,
+	boxSizingBase,
 	css`
 		:host {
 			display: block;
@@ -12,7 +12,7 @@ export const treeStyles = [
 ];
 
 export const treeItemStyles = [
-	elementBase,
+	boxSizingBase,
 	css`
 		:host {
 			--tree-connector-spacing: 0.6rem;
@@ -71,7 +71,7 @@ export const treeItemStyles = [
 			--gl-tree-row-bg: var(--vscode-list-hoverBackground);
 		}
 
-		/* Disabled state — propagated from disable-check so AI-excluded files (or any other
+		/* Disabled state — propagated from disable-check so excluded files (or any other
 	   row that shouldn't be acted on) read as visually inactive AND inert (clicking the
 	   row will not open the file or trigger any action — same UX as a disabled menu item).
 	   The checkbox visual is already dimmed via .checkbox:has(:disabled) and the underlying
@@ -97,9 +97,8 @@ export const treeItemStyles = [
 			background-color: transparent;
 		}
 
-		/* Muted — de-emphasized but still fully interactive (e.g. an ended agent session shown as
-	   done history). Dims the label/icon/description only; actions stay at full strength so the
-	   row's affordances (Open, Archive) remain prominent on hover. */
+		/* Muted — de-emphasized but still fully interactive. Dims the label/icon/description only;
+		   actions stay at full strength so row affordances remain prominent on hover. */
 		:host([muted]) .item,
 		:host([muted]) slot[name='decorations-before'],
 		:host([muted]) slot[name='decorations-after'] {
@@ -445,18 +444,6 @@ export const treeItemStyles = [
 		::slotted([slot^='decorations-'].decoration-text--muted),
 		::slotted([slot^='decorations-'].decoration-icon--muted) {
 			opacity: 0.7;
-		}
-
-		::slotted([slot^='decorations-'].decoration-icon--launchpad-mergeable) {
-			color: var(--vscode-gitlens-launchpadIndicatorMergeableColor);
-		}
-
-		::slotted([slot^='decorations-'].decoration-icon--launchpad-blocked) {
-			color: var(--vscode-gitlens-launchpadIndicatorBlockedColor);
-		}
-
-		::slotted([slot^='decorations-'].decoration-icon--launchpad-attention) {
-			color: var(--vscode-gitlens-launchpadIndicatorAttentionColor);
 		}
 
 		/* High Contrast Mode Support */

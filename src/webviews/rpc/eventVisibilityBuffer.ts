@@ -536,7 +536,7 @@ export function createRpcEvent<T>(key: string, mode: 'save-last' | 'signal', sig
  * The `subscribe` callback runs LAZILY — only when a client registers a handler, and once per
  * registration. It must never be the sole updater of a bridged `Signal.State`: a webview that
  * reads the signal without subscribing gets a permanently frozen value (#5513). Keep signals
- * fresh with an eagerly-registered listener instead — see `SubscriptionService`'s constructor.
+ * fresh with an eagerly-registered listener instead — see the host service constructor.
  *
  * For custom patterns (aggregation, handler maps, replay-on-subscribe), use `bufferEventHandler` directly.
  *

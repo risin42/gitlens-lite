@@ -16,7 +16,6 @@ export function registerCommitDetailsWebviewView(
 			contextKeyPrefix: `gitlens:webviewView:commitDetails`,
 			trackingFeature: 'commitDetailsView',
 			type: 'commitDetails',
-			plusFeature: false,
 			webviewHostOptions: {
 				retainContextWhenHidden: true,
 			},

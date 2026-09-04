@@ -116,11 +116,6 @@ export const ClearQuickInputButton: QuickInputButton = {
 	tooltip: 'Clear',
 };
 
-export const ConnectIntegrationButton: QuickInputButton = {
-	iconPath: new ThemeIcon('plug'),
-	tooltip: 'Connect Additional Integrations',
-};
-
 export const FeedbackQuickInputButton: QuickInputButton = {
 	iconPath: new ThemeIcon('feedback'),
 	tooltip: 'Give Us Feedback',
@@ -129,12 +124,6 @@ export const FeedbackQuickInputButton: QuickInputButton = {
 export const FetchQuickInputButton: QuickInputButton = {
 	iconPath: new ThemeIcon('repo-fetch'),
 	tooltip: 'Fetch',
-	location: getQuickInputButtonLocation(QuickInputButtonLocation.Input),
-};
-
-export const GenerateStashMessageQuickInputButton: QuickInputButton = {
-	iconPath: new ThemeIcon('sparkle'),
-	tooltip: 'Generate Stash Message',
 	location: getQuickInputButtonLocation(QuickInputButtonLocation.Input),
 };
 
@@ -216,11 +205,6 @@ export const PickCommitQuickInputButton: QuickInputButton = {
 	tooltip: 'Choose a Specific Commit',
 };
 
-export const LearnAboutProQuickInputButton: QuickInputButton = {
-	iconPath: new ThemeIcon('info'),
-	tooltip: 'Learn about GitLens Pro',
-};
-
 export const MergeQuickInputButton: QuickInputButton = {
 	iconPath: new ThemeIcon('merge'),
 	tooltip: 'Merge...',
@@ -254,16 +238,6 @@ export const OpenOnAzureDevOpsQuickInputButton: QuickInputButton = {
 export const OpenOnBitbucketQuickInputButton: QuickInputButton = {
 	iconPath: new ThemeIcon('globe'),
 	tooltip: 'Open on Bitbucket',
-};
-
-export const OpenOnWebQuickInputButton: QuickInputButton = {
-	iconPath: new ThemeIcon('globe'),
-	tooltip: 'Open on gitkraken.dev',
-};
-
-export const LaunchpadSettingsQuickInputButton: QuickInputButton = {
-	iconPath: new ThemeIcon('gear'),
-	tooltip: 'Launchpad Settings',
 };
 
 export const PinQuickInputButton: QuickInputButton = {

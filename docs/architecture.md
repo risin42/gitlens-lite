@@ -1,244 +1,90 @@
-# GitLens Architecture Reference
+# GitLens Architecture (local/community build)
 
-Detailed architecture documentation for the GitLens VS Code extension. For the directory structure overview, see `AGENTS.md`.
+This repository builds a local GitLens extension for VS Code. The extension keeps the
+Inspect surface, inline blame, repository views, stash and patch workflows, worktrees,
+rebase, and allowed-signers support. It does not contain account, hosted-service, AI,
+agent, or subscription code.
 
-## Testing Structure
+## Runtime layers
 
-See `docs/testing.md` — test layout (`__tests__/` co-location, `tests/e2e/` structure), running patterns, output interpretation, and debugging.
-
-## Core Architectural Patterns
-
-### 1. Service Locator (Container)
-
-- `src/container.ts` - Main dependency injection container using singleton pattern
-- Manages 30+ services with lazy initialization
-- All services registered in constructor and exposed as getters
-- Handles lifecycle, configuration changes, and service coordination
-- Example services: GitProviderService, SubscriptionService, TelemetryService, AIProviderService
-
-### 2. Provider Pattern for Git Operations
-
-- `GitProviderService` (`src/git/gitProviderService.ts`) manages multiple Git providers
-- Environment-specific implementations:
-  - **CliGitProvider** (`packages/git-cli/src/cliGitProvider.ts`, host wrapper `GlCliGitProvider` in `src/env/node/git/cliGitProvider.ts`): executes Git via `child_process` for Node.js
-  - **GlGitHubGitProvider** (`src/plus/integrations/host/providers/githubGitProvider.ts`): uses the GitHub API for browser/web
-- Per-operation providers live in `packages/git/src/providers/` (`blame`, `branches`, `commits`, `config`, `contributors`, `diff`, `graph`, `operations`, `patch`, `pausedOperations`, `refs`, `remotes`, `revision`, `staging`, `stash`, `status`, `tags`, `worktrees`), with CLI implementations in `packages/git-cli/src/providers/`
-
-### 3. Layered Architecture
-
-```
-VS Code Extension API
-    ↓
-Commands (100+ command handlers in src/commands/)
-    ↓
-Controllers (Webviews, Views, Annotations, CodeLens)
-    ↓
-Services (Git, Telemetry, Storage, Integrations, AI, Subscription)
-    ↓
-Git Providers (CliGitProvider, GlGitHubGitProvider, etc.)
-    ↓
-Git Execution (Node: child_process | Browser: APIs (GitHub))
+```text
+VS Code extension host
+        |
+        +-- src/commands, src/views, src/annotations, src/trackers
+        |
+        +-- src/container.ts (service locator and lifecycle)
+        |
+        +-- src/git/gitProviderService.ts
+                |
+                +-- GlCliGitProvider (src/env/node/git/cliGitProvider.ts)
+                        |
+                        +-- @gitlens/git-cli (Git process and parsers)
+                                |
+                                +-- @gitlens/git (models, providers, cache)
+                                        |
+                                        +-- @gitlens/utils
 ```
 
-### 4. Webview Communication
+`src/env/` keeps host-specific behavior behind small seams. Desktop VS Code executes the
+local Git CLI. The browser build has no local Git process and therefore does not register a
+Git provider unless the host supplies one.
 
-One stack for every surface: **Supertalk RPC** — typed services under `src/webviews/rpc/services/`
-exposed by an `RpcHost` per webview and consumed by the app through its `RpcController`. Frames
-travel through `webview.postMessage` as binary payloads wrapped in a `__supertalk_rpc__`
-namespace; there is no second message protocol.
+The workspace packages have deliberately small responsibilities:
 
-- **Readiness**: part of the session itself — each client mount announces its RPC session, the
-  host swaps to a fresh connection in response, and the client reports its generation via the
-  shared `webview` service group's `connect()`
-- **Focus/visibility pushes**: host-side events over buffered (save-last) RPC events, re-emitted
-  client-side as window CustomEvents
-- **Bootstrap**: a one-shot serialized context attribute stamped into the HTML; Date/URI values
-  ride tagged-value envelopes revived by the app (`system/taggedValues.ts`, `system/ipcSerialize.ts`)
-- **Persistence**: the VS Code webview state API (`acquireVsCodeApi`) behind `HostStorage`
-- Webviews built with **Lit Elements only** for reactive UI components
-- **State Management**: signals (`createSignalGroup()`/`createStateGroup()`), resources, and Lit
-  context providers
-- **Major webviews**:
-  - **Community**: Commit Details, Rebase, Settings
-  - **Pro** (`apps/plus/`): Home (includes Launchpad), Commit Graph, Timeline, Patch Details
-- Webviews bundled separately from extension (separate webpack config)
+- `@gitlens/utils` — shared utilities, events, decorators, URI and promise helpers.
+- `@gitlens/git` — Git models, provider contracts, parsers that are host-independent, and
+  repository services.
+- `@gitlens/git-cli` — Git process execution, CLI providers, and CLI-specific parsers.
+- `@gitlens/ipc` — optional local IPC discovery/server support for CLI consumers; it does
+  not contact a hosted service.
+- `@gitlens/core` — the distributable library bundle composed from the packages above.
 
-For state ownership, the RPC primitives, the surface lifecycle, and per-surface service planes,
-see `docs/webview-architecture.md`.
+## Service and repository flow
 
-### 5. Caching Strategy
+`src/extension.ts` creates the `Container`. `GitProviderService` owns one `GitService` and
+registers the desktop CLI provider. A repository request is routed to a provider, then a
+`GitRepositoryService` binds the repository path to the operation providers (branches,
+commits, blame, diff, stash, status, worktrees, and so on). The provider caches shared Git
+data and invalidates it from repository/watch events.
 
-- Multiple caching layers for performance:
-  - `GitCache`: Repository-level Git data caching
-  - `PromiseCache`: In-flight request deduplication
-  - `@memoize` decorator: Function result memoization
-  - VS Code storage API: Persistent state across sessions
-- Beyond caching: lazy-load heavy services, debounce expensive operations, watch webview refresh performance, and monitor telemetry for performance regressions
+All Git commands eventually pass through `Git.run()` in `packages/git-cli`. The extension
+does not send repository contents to a remote service. Remote URL actions only construct or
+open the URL already configured in a local Git remote; optional avatar or hosting links may
+make their own network requests when enabled.
 
-## Major Services & Components
+## Webviews
 
-**Core Services** (accessed via Container)
+The retained webview apps are:
 
-- **GitProviderService** - Core Git operations and repository management
-- **SubscriptionService** - GitLens Pro subscription and account management
-- **IntegrationService** - GitHub/GitLab/Bitbucket/Azure DevOps integrations
-- **AIProviderService** - AI features (commit messages, explanations, changelogs)
-- **TelemetryService** - Usage analytics and error reporting
-- **WebviewsController** - Manages all webview panels (Graph, Home, Settings, etc.)
-- **AutolinksProvider** - Auto-linking issues/PRs in commit messages
-- **DocumentTracker** - Tracks file changes and editor state
-- **FileAnnotationController** - Blame, heatmap, and change annotations
+- `src/webviews/apps/commitDetails/` — Inspect commit details, changed files, stash actions,
+  and local file operations.
+- `src/webviews/apps/rebase/` — manual interactive rebase editor.
+- `src/webviews/apps/allowedSigners/` — SSH/Git allowed-signers editor.
 
-**VS Code Contributions**
+Each host uses the same Supertalk RPC stack. A provider in `src/webviews/*Webview*.ts`
+creates an `RpcHost` and typed services from `src/webviews/rpc/services/`; the Lit app uses
+`RpcController` over VS Code's `postMessage` pipe. Visibility, focus, lifecycle, and state
+updates use the shared RPC event helpers. Persistent UI state is stored through the VS Code
+webview state API; Git resources are fetched from the host and are not persisted as a cache.
 
-- Commands, Menus, Submenus, Keybindings, and Views defined in `contributions.json`
-- Generate package.json: `pnpm run generate:contributions`
-- Extract from package.json: `pnpm run extract:contributions`
-- All other VS Code contributions are defined in `package.json` (activation events, settings, etc.)
+Shared webview components live under `src/webviews/apps/shared/`. Use the accessibility and
+styling guidance in `docs/accessibility.md` and `docs/webview-styling.md` when changing them.
 
-**Extension Activation** (`src/extension.ts`)
+## Commands and views
 
-- Activates on `onStartupFinished`, file system events, or specific webview opens
-- Creates the `Container` singleton
-- Registers all commands, views, providers, and decorations
+Commands are declared in `contributions.json`; generated command and contribution files are
+updated with `pnpm run generate:commandTypes` and `pnpm run generate:contributions`. The main
+views are repositories, branches, commits, remotes, stashes, tags, worktrees, contributors,
+and search/compare. Inline blame and CodeLens are implemented by the annotation and tracker
+services in `src/annotations/` and `src/trackers/`.
 
-**Commands** (`src/commands/`)
+## Build and verification
 
-- 100+ commands registered in `package.json` (generated from `contributions.json`)
-- Command IDs auto-generated in `src/constants.commands.generated.ts`
-- Commands grouped by functionality (git operations, views, webviews, etc.)
-
-**Views** (`src/views/`)
-
-- Tree views: Commits, Branches, Remotes, Stashes, Tags, Worktrees, Contributors, Repositories
-- Each view has a tree data provider implementing VS Code's `TreeDataProvider`
-- Nodes are hierarchical (repository → branch → commit → file)
-
-## Environment Abstraction
-
-The extension supports both Node.js (desktop) and browser (web) environments:
-
-**Node.js Environment** (`src/env/node/`)
-
-- Uses `child_process` to execute Git commands via `Git.run()` (`packages/git-cli/src/exec/git.ts`)
-- Direct file system access
-- Full Git command support
-- Output parsed by specialized parsers in `packages/git-cli/src/parsers/` and `packages/git/src/parsers/`
-
-**Browser Environment** (`src/env/browser/`)
-
-- Uses GitHub API for Git operations
-- Virtual file system via VS Code's File System API
-- Limited to supported Git hosting providers
-- WebWorker support for browser extension compatibility
-
-**Build Configuration**
-
-- Separate entry points: `main` (Node.js) and `browser` (webworker)
-- Webpack configs in `webpack.config.mjs`:
-  1. `extension:node` - Extension code for Node.js
-  2. `extension:webworker` - Extension code for browser
-  3. `webviews:common` - Shared webview code
-  4. `webviews` - Individual webview apps
-  5. `images` - Icon/image processing
-- Platform detection via `@env/platform` abstractions
-
-**Output Structure**
-
-```
-dist/
-├── gitlens.js              # Main extension bundle (Node.js)
-├── browser/
-│   └── gitlens.js          # Extension bundle for browser
-└── webviews/
-    ├── *.js                # Individual webview apps
-    └── media/              # Webview assets
+```bash
+pnpm install
+pnpm run check
+pnpm run build
 ```
 
-## Pro Features (Plus)
-
-Files in or under directories named "plus" fall under `LICENSE.plus` (non-OSS):
-
-- **Commit Graph** - Visual commit history with advanced actions
-- **Worktrees** - Multi-branch workflow support
-- **Launchpad** - PR/issue management hub
-- **Visual File History** - Timeline visualization
-- **Cloud Patches** - Private code sharing
-- **Code Suggest** - In-IDE code suggestions for PRs
-- **AI Features** - Commit generation, explanations using various providers
-
-Pro features integrate with GitKraken accounts and require authentication via SubscriptionService.
-
-## Webview Development
-
-- **Lit Elements** - Use for reactive UI components
-- **Context providers** - For sharing state across components
-- **Signal patterns** - For reactive state management
-- **CSS custom properties** - For VS Code theming support
-- Webview UI code in `src/webviews/apps/{webviewName}/`
-- Talk to the host over Supertalk RPC services (`RpcController` + `src/webviews/rpc/services/`)
-- Refresh webview without restarting extension during development
-- **Custom Elements Manifest** (`custom-elements.json`) - Powers Lit/Web Component language servers and MCP tools. Auto-regenerated during dev/watch webview builds.
-
-For accessibility requirements when creating or modifying webviews, see `docs/accessibility.md`.
-
-The Commit Graph is the one webview whose host→webview data channel is not a plain state push: rows travel as ledger-diffed splices and the layout engine reconciles against its prior run. See `docs/graph-update-pipeline.md` — in particular the `engine/layout.ts` reproducibility invariants, which silently degrade updates to full recomputes if broken.
-
-For how the Graph's details panel loads and routes data per selection type and mode — including the sheet layer and the mode lock — see `docs/graph-details-panel-dataflow.md`.
-
-### Common Webview Bugs to Avoid
-
-- Double event handlers from Lit's `@event` syntax combined with `addEventListener`
-- Stale state in signal-based components after rapid updates
-- Missing `disconnectedCallback()` cleanup for event listeners and observers
-- Popover/overlay components that don't handle Escape key or click-outside
-
-## Important Patterns and Conventions
-
-### Configuration Management
-
-- All settings defined in `package.json` contributions
-- Configuration typed in `src/config.ts`
-- Access via `Container.instance.config` or `configuration.get()`
-- Settings are strongly typed with intellisense support
-
-### Constants Organization
-
-- **Command IDs**: `src/constants.commands.ts` (manual) + `constants.commands.generated.ts` (auto-generated)
-- **Context keys**: `src/constants.context.ts`
-- **Telemetry events**: `src/constants.telemetry.ts`
-- **View IDs**: `src/constants.views.ts`
-- **AI providers**: `packages/plus/ai/src/constants.ts` (`@gitlens/ai/constants.js`)
-- **Storage keys**: `src/constants.storage.ts`
-
-### Git Command Execution
-
-- All Git commands go through `Git.run()` in `packages/git-cli/src/exec/git.ts`
-- Commands are parsed and formatted consistently
-- Output is parsed by specialized parsers in `packages/git-cli/src/parsers/` and `packages/git/src/parsers/`
-- Results cached in GitCache for performance
-
-### Repository Models
-
-Strongly typed Git entities throughout the codebase (located in `packages/git/src/models/`):
-
-- **Core models**: `GitBranch`, `GitCommit`, `GitTag`, `GitRemote`, `GitWorktree`
-- **Specialized models**: `GitStashCommit` (extends `GitCommit`), `GitStash`, `GitContributor`, `GitFile`, `GitDiff`
-- Models provide rich methods and computed properties
-- Immutable by convention
-
-## Common Development Tasks
-
-### Modifying Git Operations
-
-1. Find the relevant Git provider:
-   - Shared Git provider interface: `src/git/gitProvider.ts` (domain interface in `packages/git/src/`)
-   - Shared per-operation providers: `packages/git/src/providers/`
-   - For CLI (Node.js): `packages/git-cli/src/cliGitProvider.ts` + `packages/git-cli/src/providers/`
-   - For GitHub (browser): `src/plus/integrations/host/providers/githubGitProvider.ts`
-2. Update provider method with new logic
-3. Update Git command execution in `packages/git-cli/src/exec/git.ts` if needed (for CliGitProvider)
-4. Update parsers in `packages/git-cli/src/parsers/` / `packages/git/src/parsers/` if output format changes
-5. Update models in `packages/git/src/models/` if data structure changes
-6. Consider caching implications (update `GitCache` if needed)
-7. Add tests in `__tests__/` directory
+`pnpm run build` regenerates contributions, command types, icon metadata, licenses, and
+webview bundles. Keep generated output in sync with the source files.

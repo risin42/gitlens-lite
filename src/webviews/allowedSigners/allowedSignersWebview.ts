@@ -2,10 +2,8 @@ import { Uri, workspace } from 'vscode';
 import { isWeb } from '@env/platform.js';
 import { base64, fromBase64 } from '@gitlens/utils/base64.js';
 import { getAvatarUri } from '../../avatars.js';
-import type { WebviewTelemetryContext } from '../../constants.telemetry.js';
 import type { Container } from '../../container.js';
-import { getBestRemoteWithIntegration, getRemoteIntegration } from '../../git/utils/-webview/remote.utils.js';
-import { getExistingEntryKeys, parsePublicKey } from '../../git/utils/allowedSignersFile.js';
+import { getExistingEntryKeys } from '../../git/utils/allowedSignersFile.js';
 import type { AllowedSignersResultsChangedEvent, AllowedSignersServices } from '../rpc/allowedSignersService.js';
 import { AllowedSignersService, expandHome } from '../rpc/allowedSignersService.js';
 import type { EventVisibilityBuffer, SubscriptionTracker } from '../rpc/eventVisibilityBuffer.js';
@@ -13,7 +11,7 @@ import { createSharedServices } from '../rpc/services/common.js';
 import { proxyServices } from '../rpc/services/proxy.js';
 import type { WebviewHost, WebviewProvider, WebviewShowingArgs } from '../webviewProvider.js';
 import type { WebviewShowOptions } from '../webviewsController.js';
-import type { CandidateSigner, LoadingProgress, SignerProvider, State } from './protocol.js';
+import type { CandidateSigner, LoadingProgress, State } from './protocol.js';
 import type { AllowedSignersWebviewShowingArgs } from './registration.js';
 
 /**
@@ -23,15 +21,11 @@ import type { AllowedSignersWebviewShowingArgs } from './registration.js';
  */
 const signedCommitScanLimit = 2000;
 
-/** How many signer emails to verify against the provider (the integration batches the lookups). */
-const providerVerifyLimit = 50;
-
 const defaultAllowedSignersPath = '~/.ssh/allowed_signers';
 
 export class AllowedSignersWebviewProvider implements WebviewProvider<State, State, AllowedSignersWebviewShowingArgs> {
 	private _repoPath: string | undefined;
 	private _preselectFingerprint: string | undefined;
-	private _provider: SignerProvider | undefined;
 	private _disposed = false;
 	private _loadStarted = false;
 	// Latest discovery results, cached so re-showing the panel restores them. Hiding the editor tab tears down the
@@ -40,16 +34,12 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 	private _results:
 		| {
 				signers: CandidateSigner[];
-				integrationConnected: boolean;
-				provider?: SignerProvider;
-				verifying: boolean;
 				error?: string;
 		  }
 		| undefined;
 
 	/** Created with (and cached by) `getRpcServices` so the discovery flow can fire its events. */
 	private _service: AllowedSignersService | undefined;
-	private _telemetryContext: Record<`context.${string}`, string | number | boolean | undefined> | undefined;
 
 	constructor(
 		private readonly container: Container,
@@ -60,15 +50,11 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 		this._disposed = true;
 	}
 
-	getTelemetryContext(): WebviewTelemetryContext {
-		return { ...this.host.getTelemetryContext(), ...this._telemetryContext };
-	}
-
 	onShowing(
 		_loading: boolean,
 		_options?: WebviewShowOptions,
 		...args: WebviewShowingArgs<AllowedSignersWebviewShowingArgs, State>
-	): [boolean, Record<`context.${string}`, string | number | boolean | undefined> | undefined] {
+	): boolean {
 		let nextRepoPath: string | undefined;
 		let nextPreselectFingerprint: string | undefined;
 
@@ -88,23 +74,20 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 		// This panel is single-instance, so the provider is reused across shows. Drop cached discovery whenever the
 		// show context changes, so a re-open never surfaces the previous repo's signers or a stale pre-check. The
 		// service's seed cache must drop with it — the webview's subscribe-then-query would otherwise apply the
-		// previous repo's signers (preselecting provider-verified ones) before discovery corrects the UI.
+		// previous repo's signers before discovery corrects the UI.
 		if (nextRepoPath !== this._repoPath || nextPreselectFingerprint !== this._preselectFingerprint) {
 			this._results = undefined;
-			this._provider = undefined;
 			this._loadStarted = false;
 			this._service?.clearResults();
 		}
 		this._repoPath = nextRepoPath;
 		this._preselectFingerprint = nextPreselectFingerprint;
 
-		return [true, undefined];
+		return true;
 	}
 
 	getRpcServices(buffer?: EventVisibilityBuffer, tracker?: SubscriptionTracker): AllowedSignersServices {
-		const shared = createSharedServices(this.container, this.host, buffer, tracker, context => {
-			this._telemetryContext = context;
-		});
+		const shared = createSharedServices(this.container, this.host, buffer, tracker);
 
 		this._service ??= new AllowedSignersService(this.container, () => this._repoPath, buffer, tracker);
 
@@ -178,7 +161,6 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 			repoName: repoName,
 			// With a repo and no results yet, paint the loading page immediately; discovery happens in onReady.
 			loading: loading,
-			verifying: results?.verifying ?? false,
 			progress: loading ? { message: 'Analyzing commit signatures…' } : undefined,
 			signers: results?.signers ?? [],
 			error: results?.error,
@@ -186,8 +168,6 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 			currentAllowedSignersFile: currentAllowedSignersFile,
 			setConfigScope: 'global',
 			hasNodeHost: !isWeb,
-			integrationConnected: results?.integrationConnected ?? false,
-			provider: results?.provider,
 			preselectFingerprint: this._preselectFingerprint,
 		};
 	}
@@ -203,11 +183,10 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 
 		const svc = this.container.git.getRepositoryService(repoPath);
 
-		// Discovered signers and whether an integration is connected — held out here so that, if discovery throws part
+		// Discovered signers — held out here so that, if discovery throws part
 		// way, the catch can still report whatever was found (without wiping already-shown signers) and, crucially,
-		// clear the loading/verifying state so the panel never spins forever.
+		// clear the loading state so the panel never spins forever.
 		const byId = new Map<string, CandidateSigner>();
-		let integrationConnected = false;
 
 		try {
 			const signing = await svc.config.getSigningConfig?.();
@@ -222,21 +201,6 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 				// No existing file — nothing is already present.
 			}
 			const existingKeys = getExistingEntryKeys(existingContent);
-
-			// Resolve the connected integration up front so the empty state shows the right guidance.
-			const remote = await getBestRemoteWithIntegration(repoPath);
-			const integration = remote != null ? await getRemoteIntegration(remote) : undefined;
-			integrationConnected = integration != null && remote != null;
-			// Capture the provider so the webview can render its icon on provider-verified signers.
-			this._provider =
-				remote != null
-					? { id: remote.provider.id, name: remote.provider.name, icon: remote.provider.icon }
-					: undefined;
-			if (this._disposed) return;
-
-			// Source B — extract full public keys embedded in this repo's SSH-signed commits (offline, any host).
-			// Preserve original-cased emails discovered locally, keyed by their lowercased form, for provider lookups.
-			const emails = new Map<string, string>();
 
 			const getSshSigners = svc.commits.getCommitsSshSigners;
 			if (getSshSigners != null) {
@@ -261,7 +225,6 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 						continue;
 					}
 
-					emails.set(email.toLowerCase(), email);
 					byId.set(id, {
 						id: id,
 						name: name || undefined,
@@ -270,7 +233,6 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 						keyType: key.keyType,
 						keyData: key.keyData,
 						fingerprint: await computeSshFingerprint(key.keyData),
-						provenance: 'commits',
 						commitCount: 1,
 						alreadyPresent: existingKeys.has(id),
 					});
@@ -279,59 +241,13 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 
 			if (this._disposed) return;
 
-			// Show the commit-derived signers immediately — the panel is usable now. Provider verification (Source A)
-			// can be slow on large repos (one API call per signer), so it runs in the background and never blocks this.
-			this.notifyResults(byId, integrationConnected, integrationConnected);
-			if (!integrationConnected || integration == null || remote == null) return;
-
-			// Source A — cross-check/enrich via the git host's SSH signing keys API. Bounded to a capped set of emails;
-			// the integration batches the lookups (e.g. GitHub resolves logins in a single GraphQL request).
-			const currentUser = await svc.config.getCurrentUser();
-			const emailsToVerify = prioritizeEmails(byId, emails, currentUser?.email);
-			const originalByLower = new Map(emailsToVerify.map(e => [e.toLowerCase(), e]));
-
-			const keysByEmail = await integration.getSshSigningKeysForEmails(remote.provider.repoDesc, emailsToVerify);
-			if (this._disposed) return;
-
-			for (const [emailLower, keys] of keysByEmail) {
-				const email = originalByLower.get(emailLower) ?? emailLower;
-				for (const raw of keys) {
-					const parsed = parsePublicKey(raw);
-					if (parsed == null) continue;
-
-					const id = makeId(email, parsed.keyType, parsed.keyData);
-					const existing = byId.get(id);
-					if (existing != null) {
-						// A key that both signed commits here AND is registered with the provider is the strongest signal.
-						if (existing.provenance === 'commits') {
-							existing.provenance = 'both';
-						}
-						continue;
-					}
-
-					byId.set(id, {
-						id: id,
-						email: email,
-						avatarUrl: getAvatarUri(email).toString(true),
-						keyType: parsed.keyType,
-						keyData: parsed.keyData,
-						fingerprint: await computeSshFingerprint(parsed.keyData),
-						provenance: 'provider',
-						commitCount: 0,
-						alreadyPresent: existingKeys.has(id),
-					});
-				}
-			}
-
-			if (this._disposed) return;
-
-			this.notifyResults(byId, integrationConnected, false);
+			this.notifyResults(byId);
 		} catch (ex) {
 			if (this._disposed) return;
 
-			// Surface a terminal error so the panel leaves the loading/verifying state instead of spinning forever,
+			// Surface a terminal error so the panel leaves the loading state instead of spinning forever,
 			// keeping any signers already discovered.
-			this.notifyResults(byId, integrationConnected, false, ex instanceof Error ? ex.message : String(ex));
+			this.notifyResults(byId, ex instanceof Error ? ex.message : String(ex));
 		}
 	}
 
@@ -341,18 +257,10 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 		this._service?.fireProgressChanged(progress);
 	}
 
-	private notifyResults(
-		byId: Map<string, CandidateSigner>,
-		integrationConnected: boolean,
-		verifying: boolean,
-		error?: string,
-	): void {
+	private notifyResults(byId: Map<string, CandidateSigner>, error?: string): void {
 		const signers = sortSigners(byId);
 		const event: AllowedSignersResultsChangedEvent = {
 			signers: signers,
-			integrationConnected: integrationConnected,
-			provider: this._provider,
-			verifying: verifying,
 			error: error,
 		};
 
@@ -367,46 +275,7 @@ export class AllowedSignersWebviewProvider implements WebviewProvider<State, Sta
 
 /** Sorts signers strongest-provenance first, then by signed-commit count, then by email. */
 function sortSigners(byId: Map<string, CandidateSigner>): CandidateSigner[] {
-	// Trust ordering: dual-confirmed first, then provider (a verified identity binding from the host), then
-	// commits (self-asserted in the commit object, so the weakest evidence the key belongs to the principal).
-	const provenanceRank = { both: 0, provider: 1, commits: 2 };
-	return [...byId.values()].sort(
-		(a, b) =>
-			provenanceRank[a.provenance] - provenanceRank[b.provenance] ||
-			b.commitCount - a.commitCount ||
-			a.email.localeCompare(b.email),
-	);
-}
-
-/** Picks the emails most worth verifying against the provider: the current user first, then top signers by commit count. */
-function prioritizeEmails(
-	byId: Map<string, CandidateSigner>,
-	emails: Map<string, string>,
-	currentUserEmail: string | undefined,
-): string[] {
-	const commitCountByEmail = new Map<string, number>();
-	for (const signer of byId.values()) {
-		const key = signer.email.toLowerCase();
-		commitCountByEmail.set(key, (commitCountByEmail.get(key) ?? 0) + signer.commitCount);
-	}
-
-	const ordered = [...emails.values()].sort(
-		(a, b) => (commitCountByEmail.get(b.toLowerCase()) ?? 0) - (commitCountByEmail.get(a.toLowerCase()) ?? 0),
-	);
-
-	const result: string[] = [];
-	const seen = new Set<string>();
-	for (const email of [currentUserEmail, ...ordered]) {
-		if (!email) continue;
-
-		const key = email.toLowerCase();
-		if (seen.has(key)) continue;
-
-		seen.add(key);
-		result.push(email);
-	}
-
-	return result.slice(0, providerVerifyLimit);
+	return [...byId.values()].sort((a, b) => b.commitCount - a.commitCount || a.email.localeCompare(b.email));
 }
 
 function makeId(email: string, keyType: string, keyData: string): string {

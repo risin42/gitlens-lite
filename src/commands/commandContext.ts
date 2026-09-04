@@ -1,17 +1,9 @@
-import type {
-	GitTimelineItem,
-	SourceControl,
-	SourceControlResourceGroup,
-	SourceControlResourceState,
-	TextEditor,
-	Uri,
-} from 'vscode';
+import type { SourceControl, SourceControlResourceGroup, SourceControlResourceState, TextEditor, Uri } from 'vscode';
 import type { GlCommands, GlCommandsDeprecated } from '../constants.commands.js';
 import type { ViewNode } from '../views/nodes/abstract/viewNode.js';
 
 export type CommandContext =
 	| CommandEditorLineContext
-	| CommandGitTimelineItemContext
 	| CommandScmContext
 	| CommandScmGroupsContext
 	| CommandScmStatesContext
@@ -33,12 +25,6 @@ export interface CommandContextBase {
 export interface CommandEditorLineContext extends CommandContextBase {
 	readonly type: 'editorLine';
 	readonly line: number;
-	readonly uri: Uri;
-}
-
-export interface CommandGitTimelineItemContext extends CommandContextBase {
-	readonly type: 'timeline-item:git';
-	readonly item: GitTimelineItem;
 	readonly uri: Uri;
 }
 

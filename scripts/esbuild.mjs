@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as esbuild from 'esbuild';
-import { sassPlugin } from 'esbuild-sass-plugin';
 import { minify } from 'terser';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,12 +24,6 @@ async function buildExtension(target, mode) {
 	const alias = {
 		'@env': path.resolve(__dirname, 'src', 'env', target === 'webworker' ? 'browser' : target),
 		'@host': path.resolve(__dirname, 'src'),
-		// Stupid dependency that is used by `http[s]-proxy-agent` (via @gitkraken/provider-apis)
-		debug: path.resolve(__dirname, 'patches', 'debug.js'),
-		// This dependency is very large, and isn't needed for our use-case
-		tr46: path.resolve(__dirname, 'patches', 'tr46.js'),
-		// This dependency is unnecessary for our use-case
-		'whatwg-url': path.resolve(__dirname, 'patches', 'whatwg-url.js'),
 	};
 
 	if (target === 'webworker') {
@@ -99,70 +92,8 @@ async function buildExtension(target, mode) {
 	}
 }
 
-/**
- * @param { 'production' | 'development' | 'none' } mode
- */
-async function buildGraphWebview(mode) {
-	let plugins = [sassPlugin()];
-
-	const out = 'dist/webviews';
-
-	const result = await esbuild.build({
-		bundle: true,
-		entryPoints: ['src/webviews/apps/plus/graph/graph.ts'],
-		entryNames: '[dir]/graph',
-		alias: {
-			'@env': path.resolve(__dirname, 'src', 'env', 'browser'),
-		},
-		drop: ['debugger'],
-		external: ['vscode'],
-		format: 'esm',
-		legalComments: 'none',
-		logLevel: 'info',
-		mainFields: ['browser', 'module', 'main'],
-		metafile: true,
-		minify: mode === 'production' ? true : false,
-		outdir: out,
-		platform: 'browser',
-		sourcemap: true,
-		target: ['es2023', 'chrome124'],
-		treeShaking: true,
-		tsconfig: 'src/webviews/apps/tsconfig.json',
-		// watch: watch,
-		plugins: plugins,
-	});
-
-	fs.writeFileSync(path.join('dist', 'meta', 'graph.json'), JSON.stringify(result.metafile));
-
-	if (mode === 'production') {
-		const file = path.join(out, 'graph.js');
-		console.log(`Minifying ${file}...`);
-
-		const code = fs.readFileSync(file, 'utf8');
-		const result = await minify(code, {
-			compress: {
-				drop_debugger: true,
-				ecma: 2020,
-				module: true,
-			},
-			ecma: 2020,
-			format: {
-				comments: false,
-				ecma: 2020,
-			},
-			module: true,
-		});
-
-		fs.writeFileSync(file, result.code);
-	}
-}
-
 try {
-	await Promise.allSettled([
-		buildExtension('node', mode),
-		buildExtension('webworker', mode),
-		buildGraphWebview(mode),
-	]);
+	await Promise.all([buildExtension('node', mode), buildExtension('webworker', mode)]);
 } catch (ex) {
 	console.error(ex);
 	process.exit(1);

@@ -9,8 +9,8 @@
  * or a dynamic value (something that could change on the host). Always re-fetching is the safe
  * generic default.
  *
- * Our service bags (GraphServices, TimelineServices, HomeServices, CommitDetailsServices) only
- * expose stable handles, so memoization is unambiguously correct here. `Promise.resolve(thenable)`
+ * Our service bags expose stable handles, so memoization is unambiguously correct here.
+ * `Promise.resolve(thenable)`
  * invokes `.then` exactly once and produces a real Promise that caches the resolved value.
  *
  * Method-typed fields pass through unchanged: each method invocation is its own RPC, which is

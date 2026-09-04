@@ -223,7 +223,7 @@ export interface IssueMember {
 	/**
 	 * Absent when the provider exposes no display name for the member. Optional on purpose: a fallback string
 	 * invented here (`'unknown'`, `''`) can't be told apart from a real name downstream, so it can't be undone by a
-	 * consumer that needs to render something else — or nothing at all, as when the member feeds an AI prompt.
+	 * consumer that needs to render something else — or nothing at all.
 	 * Each consumer picks its own presentation.
 	 */
 	name?: string;

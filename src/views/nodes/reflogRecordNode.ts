@@ -1,11 +1,11 @@
 import { TreeItem, TreeItemCollapsibleState, window } from 'vscode';
 import type { GitLog } from '@gitlens/git/models/log.js';
 import { GitReflogRecord } from '@gitlens/git/models/reflog.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { map } from '@gitlens/utils/iterable.js';
 import { GlyphChars } from '../../constants.js';
 import { GitUri } from '../../git/gitUri.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { ViewsWithCommits } from '../viewBase.js';
 import type { PageableViewNode } from './abstract/viewNode.js';
 import { ContextValues, getViewNodeId, ViewNode } from './abstract/viewNode.js';

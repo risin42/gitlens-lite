@@ -10,25 +10,6 @@
 	--editor-font-size: var(--vscode-editor-font-size);
 	--editor-font-weight: var(--vscode-editor-font-weight);
 
-	// Brand accent colors (GitKraken purple → blue) — the stops behind the brand gradient,
-	// plus hero glows and accent sweeps that need the endpoints on their own.
-	--gl-brand-purple: #7900c9;
-	--gl-brand-blue: #196fff;
-
-	// Brand accent gradient (GitKraken purple → blue) — Pro feature gates, promos, etc.
-	--gl-gradient-brand: linear-gradient(to right, var(--gl-brand-purple), var(--gl-brand-blue));
-
-	// Subtle brand wash (magenta → blue @ ~10%) — low-emphasis feature-region backgrounds
-	// (auto-compose container, MCP/hooks buttons, matching promo banner). Static + decorative;
-	// drops out under forced-colors, where these surfaces carry their own border.
-	--gl-gradient-brand-subtle: linear-gradient(135deg, #a100ff1a 0%, #255ed11a 100%);
-
-	// AI accent gradient stops (violet → sky → cyan) — high-emphasis AI affordances
-	// (active-input shimmer borders, AI action buttons). Static + decorative; drop out under forced-colors.
-	--gl-ai-accent-1: #7c3aed;
-	--gl-ai-accent-2: #0ea5e9;
-	--gl-ai-accent-3: #06b6d4;
-
 	--color-background: var(--vscode-editor-background);
 
 	// Computed variants in code
@@ -114,31 +95,16 @@
 	--gl-indicator-color: var(--vscode-activityBarBadge-background);
 	--gl-indicator-pulse-color: var(--vscode-activityBarBadge-background);
 
-	--gl-tracking-ahead: var(--vscode-gitlens-decorations\.branchAheadForegroundColor);
-	--gl-tracking-behind: var(--vscode-gitlens-decorations\.branchBehindForegroundColor);
+	--gl-tracking-ahead: var(--vscode-gitlens-lite-decorations\.branchAheadForegroundColor);
+	--gl-tracking-behind: var(--vscode-gitlens-lite-decorations\.branchBehindForegroundColor);
 	--gl-tracking-working: var(--vscode-activityBarBadge-background);
-	--gl-tracking-missing: var(--vscode-gitlens-decorations\.branchMissingUpstreamForegroundColor);
+	--gl-tracking-missing: var(--vscode-gitlens-lite-decorations\.branchMissingUpstreamForegroundColor);
 	--gl-overlay-color: var(--vscode-widget-shadow);
 
 	/* Unified stat colors — used by commit-stats, gl-commit-row, wip-stats-pill, compare-stats, etc. */
 	--gl-stat-added: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, #2da44e));
 	--gl-stat-modified: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-charts-yellow, #bf8700));
 	--gl-stat-removed: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red, #cf222e));
-
-	/* Agent phase colors — own palette (NOT SCM/gitDecoration tokens, which semantically belong
-	   to file change states). Phase names match the AgentSessionPhase enum so every agent surface
-	   (sidebar leaf, tooltip, pill, details panel card, WIP file decoration) dereferences one set
-	   of variables. `working` is blue — the calm in-progress signal; green would read as
-	   passing/done (CI-green) and purple as merged, and both over-claim an agent that is still
-	   running. Per-theme values (see the light block below); the previous hand-picked hex was
-	   identical in every theme, so it couldn't answer a light or high-contrast background.
-	   Avoids `--vscode-progressBar-background` (often chrome-grey/white per theme) and
-	   `--vscode-button-background` (varies dramatically across themes — some are near-foreground,
-	   defeating the "this stands out" signal). */
-	--gl-agent-working-color: #4dabf7;
-	--gl-agent-waiting-color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow, #bf8700));
-	--gl-agent-idle-color: var(--vscode-descriptionForeground);
-	--gl-agent-ended-color: var(--vscode-descriptionForeground);
 
 	/* Unified scope/filter chip indicator colors — bg/border use the *-color (translucent via
 	   color-mix); text uses *-text-color so light themes can pair a vibrant tint with much
@@ -211,10 +177,6 @@ body[data-placement='panel'] {
 	--gl-chip-filtered-text-color: #0550ae;
 	--gl-chip-scoped-color: #e89500;
 	--gl-chip-scoped-text-color: #4d3300;
-
-	/* Darker working-blue so the agent glyph reads against white surfaces — the dark-theme value
-	   washes out there, the same way the stat colors above do. */
-	--gl-agent-working-color: #1971c2;
 
 	--gl-chip-tint-bg: 22%;
 	--gl-chip-tint-border: 55%;

@@ -35,7 +35,7 @@ const looseObjectSampleDirs: readonly string[] = Array.from({ length: 16 }, (_, 
 	(i * 16).toString(16).padStart(2, '0'),
 );
 
-/** Stops the ref probe at four times the recommendation threshold: bounded, but still useful for telemetry. */
+/** Stops the ref probe at four times the recommendation threshold: bounded while remaining representative. */
 const looseRefProbeLimit = looseRefsThreshold * 4;
 
 /** Worktree-local ownership journal for the sparse-index command lever. */
@@ -283,7 +283,7 @@ export class MaintenanceGitSubProvider implements GitMaintenanceSubProvider {
 	 * health service uses that signal for one post-write freshness probe, while graph consumers ignore it.
 	 */
 	private ensureCommitGraph(repoPath: string): Promise<boolean> {
-		// Governed by the auto-tier master switch (`gitlens.gitOptimizations.enabled`), fed into both
+		// Governed by the auto-tier master switch (`gitlens-lite.gitOptimizations.enabled`), fed into both
 		// mapped config slots below.
 		if (this.context.config?.maintenance?.enabled === false) return Promise.resolve(false);
 		if (this.context.config?.graph?.writeCommitGraph === false) return Promise.resolve(false);

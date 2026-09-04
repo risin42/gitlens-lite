@@ -3,7 +3,7 @@ import { InputBoxValidationSeverity, QuickInputButtons, window } from 'vscode';
 import { debug } from '@gitlens/utils/decorators/log.js';
 import { isPromise } from '@gitlens/utils/promise.js';
 import type { GlCommands } from '../../constants.commands.js';
-import { Container } from '../../container.js';
+import type { Container } from '../../container.js';
 import { Directive, isDirective, isDirectiveQuickPickItem } from '../../quickpicks/items/directive.js';
 import { configuration } from '../../system/-webview/configuration.js';
 import type { KeyMapping } from '../../system/-webview/keyboard.js';
@@ -724,53 +724,6 @@ export abstract class QuickWizardCommandBase extends GlCommandBase {
 
 									case Directive.Noop:
 										return;
-
-									case Directive.SignIn: {
-										const result = await Container.instance.subscription.loginOrSignUp(false, {
-											source: 'quick-wizard',
-											detail: {
-												action: rootStep.command?.key,
-												'step.title': step.title,
-											},
-										});
-										resolve(result ? await rootStep.command?.retry() : undefined);
-										return;
-									}
-
-									case Directive.RequiresVerification: {
-										const result = await Container.instance.subscription.resendVerification({
-											source: 'quick-wizard',
-											detail: {
-												action: rootStep.command?.key,
-												'step.title': step.title,
-											},
-										});
-										resolve(result ? await rootStep.command?.retry() : undefined);
-										return;
-									}
-
-									case Directive.StartProTrial: {
-										const result = await Container.instance.subscription.loginOrSignUp(true, {
-											source: 'quick-wizard',
-											detail: {
-												action: rootStep.command?.key,
-												'step.title': step.title,
-											},
-										});
-										resolve(result ? await rootStep.command?.retry() : undefined);
-										return;
-									}
-
-									case Directive.RequiresPaidSubscription:
-										void Container.instance.subscription.upgrade('pro', {
-											source: 'quick-wizard',
-											detail: {
-												action: rootStep.command?.key,
-												'step.title': step.title,
-											},
-										});
-										resolve(undefined);
-										return;
 								}
 							}
 						}
@@ -799,7 +752,11 @@ export abstract class QuickWizardCommandBase extends GlCommandBase {
 				);
 
 				quickpick.title = step.title;
-				quickpick.prompt = supportedInVSCodeVersion('quickpick-prompt') ? step.prompt : undefined;
+				// Only touch `prompt` when supported: on older editors the setter itself is proposal-gated and throws
+				if (supportedInVSCodeVersion('quickpick-prompt')) {
+					quickpick.prompt = step.prompt;
+				}
+
 				quickpick.matchOnDescription = Boolean(step.matchOnDescription);
 				quickpick.matchOnDetail = Boolean(step.matchOnDetail);
 

@@ -16,7 +16,7 @@ import type { ReactiveControllerHost } from 'lit';
 import type { RebaseTodoCommitAction } from '@gitlens/git/models/rebase.js';
 import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
-import type { Author, Commit, RebaseEntry, State } from '../../rebase/protocol.js';
+import type { Author, Commit, RebaseEntry } from '../../rebase/protocol.js';
 import { isCommitEntry } from '../../rebase/protocol.js';
 import type {
 	RebaseAvatarsChangedEvent,
@@ -105,20 +105,6 @@ export class RebaseActions {
 		for (const sha of Object.keys(event.commits)) {
 			this._requestedCommitShas.delete(sha);
 		}
-	}
-
-	/** Handles a subscription-changed event from the host. */
-	onSubscriptionChanged(subscription: NonNullable<State['subscription']>): void {
-		if (!this._state) return;
-
-		// Subscription change can unlock previously-failed avatar/commit lookups
-		// (e.g., Pro upgrade enables integration-backed avatars). Clear blocklists
-		// so the next render is allowed to re-ask.
-		this._requestedAvatarEmails.clear();
-		this._requestedCommitShas.clear();
-
-		this._state = { ...this._state, subscription: subscription, timestamp: Date.now() };
-		this.host.requestUpdate();
 	}
 
 	/** Handles missing-avatar events from entry components */

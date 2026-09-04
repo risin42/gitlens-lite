@@ -47,7 +47,7 @@ Defined in [`tokens.scss`](../src/webviews/apps/shared/styles/tokens.scss). The 
 | Token                                | Value  | Use                                                  |
 | ------------------------------------ | ------ | ---------------------------------------------------- |
 | `--gl-input-border-radius`           | 0.4rem | text-entry control radius (inputs, textareas)        |
-| `--gl-max-input`                     | 560px  | AI / action input max-width                          |
+| `--gl-max-input`                     | 560px  | Action input max-width                               |
 | `--gl-panel-padding-left` / `-right` | 1.2rem | detail-panel horizontal padding (hosts may override) |
 | `--gitlens-gutter-width`             | 20px   | gutter width (in `properties.scss`)                  |
 

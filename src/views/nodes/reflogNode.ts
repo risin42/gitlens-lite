@@ -4,22 +4,18 @@ import { trace } from '@gitlens/utils/decorators/log.js';
 import type { GitUri } from '../../git/gitUri.js';
 import type { GlRepository } from '../../git/models/repository.js';
 import type { RepositoriesView } from '../repositoriesView.js';
-import type { WorkspacesView } from '../workspacesView.js';
 import { CacheableChildrenViewNode } from './abstract/cacheableChildrenViewNode.js';
 import type { PageableViewNode, ViewNode } from './abstract/viewNode.js';
 import { ContextValues, getViewNodeId } from './abstract/viewNode.js';
 import { LoadMoreNode, MessageNode } from './common.js';
 import { ReflogRecordNode } from './reflogRecordNode.js';
 
-export class ReflogNode
-	extends CacheableChildrenViewNode<'reflog', RepositoriesView | WorkspacesView>
-	implements PageableViewNode
-{
+export class ReflogNode extends CacheableChildrenViewNode<'reflog', RepositoriesView> implements PageableViewNode {
 	limit: number | undefined;
 
 	constructor(
 		uri: GitUri,
-		view: RepositoriesView | WorkspacesView,
+		view: RepositoriesView,
 		parent: ViewNode,
 		public readonly repo: GlRepository,
 	) {

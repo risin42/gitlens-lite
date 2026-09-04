@@ -2,6 +2,7 @@ import { Disposable, TreeItem, TreeItemCollapsibleState, window } from 'vscode';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { memoize } from '@gitlens/utils/decorators/memoize.js';
 import { weakEvent } from '@gitlens/utils/event.js';
@@ -16,7 +17,6 @@ import { getBranchAheadRange } from '../../git/utils/-webview/branch.utils.js';
 import { getStatusFilePseudoCommits } from '../../git/utils/-webview/statusFile.utils.js';
 import { configuration } from '../../system/-webview/configuration.js';
 import { getFolderGlobUri } from '../../system/-webview/path.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { FileHistoryView } from '../fileHistoryView.js';
 import { SubscribeableViewNode } from './abstract/subscribeableViewNode.js';
 import type { PageableViewNode, ViewNode } from './abstract/viewNode.js';
@@ -213,7 +213,6 @@ export class FileHistoryNode
 		const children = result.contributors.map(
 			contributor =>
 				new ContributorNode(this.uri, this.view, this, contributor, {
-					presence: undefined,
 					ref: this.uri.sha,
 					showMergeCommits: configuration.get('advanced.fileHistoryShowMergeCommits'),
 					pathspec: { uri: this.uri, isFolder: this.folder },

@@ -3,33 +3,24 @@ import { MarkdownString } from 'vscode';
 import type { GitCommitLine } from '@gitlens/git/models/commit.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitLineDiff, ParsedGitDiffHunk } from '@gitlens/git/models/diff.js';
-import type { PullRequest } from '@gitlens/git/models/pullRequest.js';
 import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { deletedOrMissing, uncommittedStaged } from '@gitlens/git/models/revision.js';
 import { isUncommitted, isUncommittedStaged, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { escapeMarkdownCodeBlocks } from '@gitlens/utils/markdown.js';
-import {
-	getSettledValue,
-	pauseOnCancelOrTimeout,
-	pauseOnCancelOrTimeoutMapTuplePromise,
-} from '@gitlens/utils/promise.js';
-import type { EnrichedAutolink } from '../autolinks/models/autolinks.js';
+import { getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
 import { DiffWithCommand } from '../commands/diffWith.js';
 import { ShowQuickCommitCommand } from '../commands/showQuickCommit.js';
 import type { GlCommands } from '../constants.commands.js';
+import type { Sources } from '../constants.context.js';
 import { GlyphChars } from '../constants.js';
-import type { Sources } from '../constants.telemetry.js';
 import type { Container } from '../container.js';
 import { CommitFormatter } from '../git/formatters/commitFormatter.js';
 import { GitUri } from '../git/gitUri.js';
 import {
 	findCommitFile,
-	getCommitAssociatedPullRequest,
-	getCommitEnrichedAutolinks,
 	getCommitPreviousComparisonUrisForRange,
 	isCommitSigned,
 } from '../git/utils/-webview/commit.utils.js';
-import { isRemoteMaybeIntegrationConnected, remoteSupportsIntegration } from '../git/utils/-webview/remote.utils.js';
 import { toAbortSignal } from '../system/-webview/cancellation.js';
 import { configuration } from '../system/-webview/configuration.js';
 import { editorLineToDiffRange } from '../system/-webview/vscode/range.js';
@@ -39,19 +30,14 @@ const trustedHoverCommands: (GlCommands | `gitlens.action.${string}`)[] = [
 	'gitlens.action.hover.commands' satisfies GlCommands,
 	'gitlens.action.openIssue' satisfies GlCommands,
 	'gitlens.action.openPullRequest' satisfies GlCommands,
-	'gitlens.ai.explainCommit:editor' satisfies GlCommands,
-	'gitlens.ai.explainWip:editor' satisfies GlCommands,
-	'gitlens.connectRemoteProvider' satisfies GlCommands,
 	'gitlens.copyShaToClipboard' satisfies GlCommands,
 	'gitlens.diffWith' satisfies GlCommands,
-	'gitlens.inviteToLiveShare' satisfies GlCommands,
 	'gitlens.openCommitOnRemote' satisfies GlCommands,
 	'gitlens.openFileRevision' satisfies GlCommands,
 	'gitlens.refreshHover' satisfies GlCommands,
 	'gitlens.revealCommitInView' satisfies GlCommands,
 	'gitlens.showCommitInView' satisfies GlCommands,
 	'gitlens.showCommitsInView' satisfies GlCommands,
-	'gitlens.showInCommitGraph' satisfies GlCommands,
 	'gitlens.showQuickCommitDetails' satisfies GlCommands,
 	'gitlens.showQuickCommitFileDetails' satisfies GlCommands,
 ];
@@ -106,7 +92,7 @@ export async function changesMessage(
 	if (diff == null) return undefined;
 
 	const range = editorLineToDiffRange(editorLine);
-	const telemetrySource = { source: sourceName } as const;
+	const commandSource = { source: sourceName } as const;
 
 	let message;
 	let previous;
@@ -120,7 +106,7 @@ export async function changesMessage(
 			rhs: { sha: compareUris.current.sha ?? '', uri: compareUris.current.uri },
 			repoPath: commit.repoPath,
 			range: compareUris.range,
-			source: telemetrySource,
+			source: commandSource,
 		})} "Open Changes")`;
 
 		previous =
@@ -130,22 +116,22 @@ export async function changesMessage(
 					})}_ &nbsp;${GlyphChars.ArrowLeftRightLong}&nbsp; `
 				: `  &nbsp;[$(git-commit) ${shortenRevision(
 						compareUris.previous.sha || '',
-					)}](${ShowQuickCommitCommand.createMarkdownCommandLink(compareUris.previous.sha || '', undefined, telemetrySource)} "Show Commit") &nbsp;${GlyphChars.ArrowLeftRightLong}&nbsp; `;
+					)}](${ShowQuickCommitCommand.createMarkdownCommandLink(compareUris.previous.sha || '', undefined, commandSource)} "Show Commit") &nbsp;${GlyphChars.ArrowLeftRightLong}&nbsp; `;
 
 		current =
 			compareUris.current.sha == null || isUncommitted(compareUris.current.sha)
 				? `_${shortenRevision(compareUris.current.sha, { strings: { working: 'Working Tree' } })}_`
 				: `[$(git-commit) ${shortenRevision(
 						compareUris.current.sha || '',
-					)}](${ShowQuickCommitCommand.createMarkdownCommandLink(compareUris.current.sha || '', undefined, telemetrySource)} "Show Commit")`;
+					)}](${ShowQuickCommitCommand.createMarkdownCommandLink(compareUris.current.sha || '', undefined, commandSource)} "Show Commit")`;
 	} else {
-		message = `[$(compare-changes)](${DiffWithCommand.createMarkdownCommandLink(commit, range, telemetrySource)} "Open Changes")`;
+		message = `[$(compare-changes)](${DiffWithCommand.createMarkdownCommandLink(commit, range, commandSource)} "Open Changes")`;
 
 		previousSha ??= await GitCommit.getPreviousSha(commit);
 		if (previousSha && previousSha !== deletedOrMissing) {
 			previous = `  &nbsp;[$(git-commit) ${shortenRevision(
 				previousSha,
-			)}](${ShowQuickCommitCommand.createMarkdownCommandLink(previousSha, undefined, telemetrySource)} "Show Commit") &nbsp;${
+			)}](${ShowQuickCommitCommand.createMarkdownCommandLink(previousSha, undefined, commandSource)} "Show Commit") &nbsp;${
 				GlyphChars.ArrowLeftRightLong
 			}&nbsp;`;
 		}
@@ -153,7 +139,7 @@ export async function changesMessage(
 		current = `[$(git-commit) ${commit.shortSha}](${ShowQuickCommitCommand.createMarkdownCommandLink(
 			commit.sha,
 			undefined,
-			telemetrySource,
+			commandSource,
 		)} "Show Commit")`;
 	}
 
@@ -184,7 +170,7 @@ export async function localChangesMessage(
 		const file = await findCommitFile(fromCommit, uri);
 		if (file == null) return undefined;
 
-		const telemetrySource = { source: sourceName } as const;
+		const commandSource = { source: sourceName } as const;
 		message = `[$(compare-changes)](${DiffWithCommand.createMarkdownCommandLink({
 			lhs: {
 				sha: fromCommit.sha,
@@ -193,13 +179,13 @@ export async function localChangesMessage(
 			rhs: { sha: '', uri: uri.workingFileUri },
 			repoPath: uri.repoPath!,
 			range: editorLineToDiffRange(editorLine),
-			source: telemetrySource,
+			source: commandSource,
 		})} "Open Changes")`;
 
 		previous = `[$(git-commit) ${fromCommit.shortSha}](${ShowQuickCommitCommand.createMarkdownCommandLink(
 			fromCommit.sha,
 			undefined,
-			telemetrySource,
+			commandSource,
 		)} "Show Commit")`;
 
 		current = '_Working Tree_';
@@ -223,14 +209,11 @@ export async function detailsMessage(
 		autolinks?: boolean;
 		cancellation?: CancellationToken;
 		dateFormat: string | null;
-		enrichedAutolinks?: Promise<Map<string, EnrichedAutolink> | undefined> | undefined;
 		format: string;
 		getBranchAndTagTips?: (
 			sha: string,
 			options?: { compact?: boolean | undefined; icons?: boolean | undefined },
 		) => string | undefined;
-		pullRequest?: Promise<PullRequest | undefined> | PullRequest | undefined;
-		pullRequests?: boolean;
 		remotes?: GitRemote[];
 		timeout?: number;
 		sourceName: Sources;
@@ -243,70 +226,20 @@ export async function detailsMessage(
 	);
 
 	let remotes: GitRemote[] | undefined;
-	let remote: GitRemote | undefined;
 	if (remotesResult.paused) {
 		if (remotesResult.reason === 'cancelled') return undefined;
 		// If we timed out, just continue without the remotes
 	} else {
 		remotes = remotesResult.value;
-		[remote] = remotes;
 	}
 
 	const cfg = configuration.get('hovers');
-	const enhancedAutolinks =
-		options?.autolinks !== false &&
-		(options?.autolinks || cfg.autolinks.enabled) &&
-		cfg.autolinks.enhanced &&
-		CommitFormatter.has(cfg.detailsMarkdownFormat, 'message');
-	const prs =
-		remote != null &&
-		remoteSupportsIntegration(remote) &&
-		isRemoteMaybeIntegrationConnected(remote) !== false &&
-		(options?.pullRequests || (options?.pullRequests !== false && cfg.pullRequests.enabled)) &&
-		CommitFormatter.has(
-			options.format,
-			'pullRequest',
-			'pullRequestAgo',
-			'pullRequestAgoOrDate',
-			'pullRequestDate',
-			'pullRequestState',
-		);
-
 	const showSignature =
 		configuration.get('signing.showSignatureBadges') &&
 		!commit.isUncommitted &&
 		CommitFormatter.has(options.format, 'signature');
 
-	const [
-		enrichedAutolinksResult,
-		prResult,
-		presenceResult,
-		previousLineComparisonUrisResult,
-		_fullDetailsResult,
-		signedResult,
-	] = await Promise.allSettled([
-		enhancedAutolinks
-			? pauseOnCancelOrTimeoutMapTuplePromise(
-					options?.enrichedAutolinks ??
-						getCommitEnrichedAutolinks(commit.repoPath, commit.message, commit.summary, remote),
-					toAbortSignal(options?.cancellation),
-					options?.timeout,
-				)
-			: undefined,
-		prs
-			? pauseOnCancelOrTimeout(
-					options?.pullRequest ?? getCommitAssociatedPullRequest(commit.repoPath, commit.sha, remote),
-					toAbortSignal(options?.cancellation),
-					options?.timeout,
-				)
-			: undefined,
-		container.vsls.active
-			? pauseOnCancelOrTimeout(
-					container.vsls.getContactPresence(commit.author.email),
-					toAbortSignal(options?.cancellation),
-					Math.min(options?.timeout ?? 250, 250),
-				)
-			: undefined,
+	const [previousLineComparisonUrisResult, _fullDetailsResult, signedResult] = await Promise.allSettled([
 		commit.isUncommitted
 			? getCommitPreviousComparisonUrisForRange(commit, editorLineToDiffRange(editorLine), uri.sha)
 			: undefined,
@@ -316,9 +249,6 @@ export async function detailsMessage(
 
 	if (options?.cancellation?.isCancellationRequested) return undefined;
 
-	const enrichedResult = getSettledValue(enrichedAutolinksResult);
-	const pr = getSettledValue(prResult);
-	const presence = getSettledValue(presenceResult);
 	const previousLineComparisonUris = getSettledValue(previousLineComparisonUrisResult);
 	const signed = getSettledValue(signedResult);
 
@@ -327,15 +257,11 @@ export async function detailsMessage(
 		commit,
 		{ source: options.sourceName },
 		{
-			ai: { allowed: container.ai.allowed },
-			enrichedAutolinks:
-				enrichedResult?.value != null && !enrichedResult.paused ? enrichedResult.value : undefined,
 			dateFormat: options.dateFormat ?? 'MMMM Do, YYYY h:mma',
 			editor: { line: editorLine, uri: uri },
 			getBranchAndTagTips: options?.getBranchAndTagTips,
 			messageAutolinks: options?.autolinks || (options?.autolinks !== false && cfg.autolinks.enabled),
-			pullRequest: pr?.value,
-			presence: presence?.value,
+			pullRequest: undefined,
 			previousLineComparisonUris: previousLineComparisonUris,
 			outputFormat: 'markdown',
 			remotes: remotes,

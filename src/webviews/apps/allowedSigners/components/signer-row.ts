@@ -1,6 +1,6 @@
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { CandidateSigner, SignerProvider } from '../../../allowedSigners/protocol.js';
+import type { CandidateSigner } from '../../../allowedSigners/protocol.js';
 import type { Checkbox } from '../../shared/components/checkbox/checkbox.js';
 import '../../shared/components/checkbox/checkbox.js';
 import '../../shared/components/code-icon.js';
@@ -82,15 +82,6 @@ export class GlSignerRow extends LitElement {
 			color: var(--vscode-descriptionForeground);
 			white-space: nowrap;
 		}
-
-		.provider-icon {
-			color: var(--vscode-foreground);
-		}
-
-		.provider-icon--unverified {
-			color: var(--vscode-descriptionForeground);
-			opacity: 0.6;
-		}
 	`;
 
 	@property({ type: Object })
@@ -102,14 +93,6 @@ export class GlSignerRow extends LitElement {
 	/** Whether this signer is already in the target file; such rows are read-only (no add checkbox). */
 	@property({ type: Boolean })
 	present = false;
-
-	/** The connected integration's provider, used to render the provider icon on provider-verified signers. */
-	@property({ type: Object })
-	provider?: SignerProvider;
-
-	/** Whether a git-host integration is connected, to word the "not registered" tooltip accurately. */
-	@property({ type: Boolean })
-	integrationConnected = false;
 
 	private onToggle(e: Event) {
 		this.dispatchToggle((e.target as Checkbox).checked);
@@ -130,30 +113,6 @@ export class GlSignerRow extends LitElement {
 				composed: true,
 			}),
 		);
-	}
-
-	/**
-	 * The right-side indicator of whether this signer's key is registered with the connected provider: the provider's
-	 * own icon (with a "Registered with …" tooltip) when it is, or a muted "unverified" icon otherwise.
-	 */
-	private renderProviderIndicator(): unknown {
-		const registered = this.signer.provenance === 'provider' || this.signer.provenance === 'both';
-		if (registered) {
-			const name = this.provider?.name;
-			return html`<gl-tooltip .content=${name ? `Registered with ${name}` : 'Registered with a provider'}>
-				<code-icon
-					class="provider-icon"
-					icon=${this.provider != null ? `gl-provider-${this.provider.icon}` : 'verified'}
-				></code-icon>
-			</gl-tooltip>`;
-		}
-
-		const content = this.integrationConnected
-			? 'Not registered with a provider'
-			: 'Connect an integration to verify registration';
-		return html`<gl-tooltip .content=${content}>
-			<code-icon class="provider-icon provider-icon--unverified" icon="unverified"></code-icon>
-		</gl-tooltip>`;
 	}
 
 	override render(): unknown {
@@ -190,7 +149,9 @@ export class GlSignerRow extends LitElement {
 							>`
 						: nothing
 				}
-				${this.renderProviderIndicator()}
+				<gl-tooltip content="Found in local commits. Verify the key fingerprint before trusting this signer.">
+					<code-icon icon="info"></code-icon>
+				</gl-tooltip>
 			</div>
 		`;
 

@@ -2,7 +2,6 @@ import { ppid } from 'process';
 import type { Disposable } from 'vscode';
 import { env, workspace } from 'vscode';
 import {
-	agentDiscoveryDir,
 	cleanupDiscoveryFile,
 	cliDiscoveryDir,
 	sweepStaleDiscoveryFiles,
@@ -24,16 +23,8 @@ interface CliPublishInfo {
 	pid: number;
 }
 
-/**
- * Owns the single HTTP IPC server for the extension host. CLI and agent capabilities
- * register their handlers here and publish their own discovery file. Both capabilities
- * share the same server (one port, one token); the discovery files live in distinct
- * directories so out-of-process readers (older `gk` binaries; peer GitLens windows)
- * keep working unchanged.
- */
+/** Owns the single HTTP IPC server for the extension host and publishes its CLI discovery file. */
 export class IpcService implements Disposable {
-	readonly agentDiscoveryDir = agentDiscoveryDir;
-
 	private _server: IpcServer<unknown, unknown> | undefined;
 	private _serverPromise: Promise<IpcServer<unknown, unknown> | undefined> | undefined;
 
@@ -44,14 +35,10 @@ export class IpcService implements Disposable {
 	// can't clobber a newly-written discovery file (port is stable).
 	private _cliQueue: Promise<unknown> = Promise.resolve();
 
-	private _agentsDiscoveryFilePath: string | undefined;
-	private _agentsWorkspacePaths: string[] = [];
-	private _agentsQueue: Promise<unknown> = Promise.resolve();
-
 	private readonly _disposable: Disposable;
 	private _sweepTimer: ReturnType<typeof setTimeout> | undefined;
 
-	constructor(private readonly container: Container) {
+	constructor(_container: Container) {
 		this._disposable = workspace.onDidChangeWorkspaceFolders(() => void this.refreshDiscoveryFiles());
 
 		// One-shot sweep of orphaned discovery files left by peer windows that crashed or were
@@ -71,11 +58,8 @@ export class IpcService implements Disposable {
 		}
 		// Best-effort sync cleanup (UnifiedDisposable.dispose is sync by contract).
 		void cleanupDiscoveryFile(this._cliDiscoveryFilePath);
-		void cleanupDiscoveryFile(this._agentsDiscoveryFilePath);
 		this._cliDiscoveryFilePath = undefined;
-		this._agentsDiscoveryFilePath = undefined;
 		this._cliPublished = false;
-		this._agentsWorkspacePaths = [];
 		this._server?.dispose();
 		this._server = undefined;
 		this._serverPromise = undefined;
@@ -95,10 +79,6 @@ export class IpcService implements Disposable {
 
 	get cliDiscoveryFilePath(): string | undefined {
 		return this._cliDiscoveryFilePath;
-	}
-
-	get agentsDiscoveryFilePath(): string | undefined {
-		return this._agentsDiscoveryFilePath;
 	}
 
 	/**
@@ -161,39 +141,9 @@ export class IpcService implements Disposable {
 		});
 	}
 
-	/**
-	 * Publish the agents discovery file (read by peer GitLens windows looking for
-	 * sibling agent sessions). The agents package owns workspacePaths and re-publishes
-	 * when its paths change.
-	 */
-	publishAgents(workspacePaths: string[]): Promise<void> {
-		return this.enqueueAgents(async () => {
-			const server = await this.ensureServer();
-			if (server == null) return;
-
-			this._agentsWorkspacePaths = workspacePaths;
-			this._agentsDiscoveryFilePath = await this.writeAgentsDiscoveryFile(server);
-		});
-	}
-
-	unpublishAgents(): Promise<void> {
-		return this.enqueueAgents(async () => {
-			this._agentsWorkspacePaths = [];
-			const filePath = this._agentsDiscoveryFilePath;
-			this._agentsDiscoveryFilePath = undefined;
-			await cleanupDiscoveryFile(filePath);
-		});
-	}
-
 	private enqueueCli<T>(op: () => Promise<T>): Promise<T> {
 		const next = this._cliQueue.then(op, op);
 		this._cliQueue = next.catch(() => undefined);
-		return next;
-	}
-
-	private enqueueAgents<T>(op: () => Promise<T>): Promise<T> {
-		const next = this._agentsQueue.then(op, op);
-		this._agentsQueue = next.catch(() => undefined);
 		return next;
 	}
 
@@ -207,11 +157,6 @@ export class IpcService implements Disposable {
 			},
 			(ex: unknown) => {
 				Logger.error(ex, `${formatLoggableScopeBlock('IPC')} Failed to start IPC server`);
-				if (this.container.telemetry.enabled) {
-					this.container.telemetry.sendEvent('cli/ipc/failed', {
-						'error.message': ex instanceof Error ? ex.message : 'Unknown error',
-					});
-				}
 				this._serverPromise = undefined;
 				return undefined;
 			},
@@ -220,9 +165,6 @@ export class IpcService implements Disposable {
 	}
 
 	private refreshDiscoveryFiles(): Promise<void> {
-		// Only the CLI discovery file is refreshed here; the agents discovery file is
-		// owned by the agents package, which re-calls `publishAgents` whenever its
-		// workspacePaths change.
 		return this.enqueueCli(async () => {
 			const server = this._server;
 			if (server == null) return;
@@ -250,16 +192,6 @@ export class IpcService implements Disposable {
 		});
 	}
 
-	private writeAgentsDiscoveryFile(server: IpcServer<unknown, unknown>): Promise<string> {
-		return writeDiscoveryFile(agentDiscoveryDir, {
-			token: server.ipcToken,
-			address: server.ipcAddress,
-			port: server.ipcPort,
-			workspacePaths: this._agentsWorkspacePaths,
-			createdAt: new Date().toISOString(),
-		});
-	}
-
 	/**
 	 * One-shot sweep of orphaned discovery files left by peer windows that crashed or were
 	 * hard-killed without running dispose(). Our own live files are excluded up front; the
@@ -267,10 +199,8 @@ export class IpcService implements Disposable {
 	 */
 	private async runDiscoverySweep(): Promise<void> {
 		try {
-			const ownPaths = [this._cliDiscoveryFilePath, this._agentsDiscoveryFilePath].filter(
-				(p): p is string => p != null,
-			);
-			const { scanned, pruned } = await sweepStaleDiscoveryFiles([cliDiscoveryDir, agentDiscoveryDir], {
+			const ownPaths = this._cliDiscoveryFilePath == null ? undefined : [this._cliDiscoveryFilePath];
+			const { scanned, pruned } = await sweepStaleDiscoveryFiles([cliDiscoveryDir], {
 				excludePorts: this.port != null ? [this.port] : undefined,
 				excludePaths: ownPaths,
 			});

@@ -192,8 +192,8 @@ export class FilesService {
 	/**
 	 * Open a file's changes between two refs as a diff editor, scrolled to a specific line on the rhs.
 	 *
-	 * `line` and `lineEnd` are 1-based to match the AI's diff line numbers; the resulting
-	 * selection is anchored on the rhs (the AI's "after" reference frame).
+	 * `line` and `lineEnd` are 1-based diff line numbers; the resulting selection is anchored on
+	 * the rhs (the "after" reference frame).
 	 */
 	// oxlint-disable-next-line typescript/require-await
 	async openFileChanges(

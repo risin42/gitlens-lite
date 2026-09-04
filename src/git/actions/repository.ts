@@ -51,8 +51,7 @@ export function push(
 }
 
 // Resolves a sha to a commit reference then pushes up to it. Centralizes the "push-to-commit"
-// flow so the Graph IPC (which only carries a sha string from row events) and any other
-// sha-only entry point dispatch through the same place as the tree-view `pushToCommit`.
+// flow so every sha-only entry point dispatches through the same place as the tree-view action.
 export async function pushToCommit(repoPath: string, sha: string): Promise<void> {
 	const commit = await Container.instance.git.getRepositoryService(repoPath).commits.getCommit(sha);
 	if (commit == null) {

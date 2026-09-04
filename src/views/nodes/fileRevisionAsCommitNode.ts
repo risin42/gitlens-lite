@@ -9,7 +9,7 @@ import type { DiffRange } from '@gitlens/git/providers/types.js';
 import { getGitFileStatusIcon } from '@gitlens/git/utils/fileStatus.utils.js';
 import { getConflictIncomingRef, resolveConflictFilePaths } from '@gitlens/git/utils/pausedOperationStatus.utils.js';
 import { joinPaths } from '@gitlens/utils/path.js';
-import { getSettledValue, pauseOnCancelOrTimeoutMapTuplePromise } from '@gitlens/utils/promise.js';
+import { getSettledValue } from '@gitlens/utils/promise.js';
 import type { DiffWithCommandArgs } from '../../commands/diffWith.js';
 import type { DiffWithPreviousCommandArgs } from '../../commands/diffWithPrevious.js';
 import type { Colors } from '../../constants.colors.js';
@@ -17,13 +17,7 @@ import type { Container } from '../../container.js';
 import { CommitFormatter } from '../../git/formatters/commitFormatter.js';
 import { StatusFileFormatter } from '../../git/formatters/statusFormatter.js';
 import { GitUri } from '../../git/gitUri.js';
-import {
-	getCommitAssociatedPullRequest,
-	getCommitAuthorAvatarUri,
-	getCommitEnrichedAutolinks,
-	getCommitForFile,
-} from '../../git/utils/-webview/commit.utils.js';
-import { remoteSupportsIntegration } from '../../git/utils/-webview/remote.utils.js';
+import { getCommitAuthorAvatarUri, getCommitForFile } from '../../git/utils/-webview/commit.utils.js';
 import { toAbortSignal } from '../../system/-webview/cancellation.js';
 import { createCommand } from '../../system/-webview/command.js';
 import { configuration } from '../../system/-webview/configuration.js';
@@ -188,7 +182,7 @@ export class FileRevisionAsCommitNode extends ViewRefFileNode<
 
 		if (!this.commit.isUncommitted && this.view.config.avatars) {
 			item.iconPath = this._options.unpublished
-				? new ThemeIcon('arrow-up', new ThemeColor('gitlens.unpublishedCommitIconColor' satisfies Colors))
+				? new ThemeIcon('arrow-up', new ThemeColor('gitlens-lite.unpublishedCommitIconColor' satisfies Colors))
 				: await getCommitAuthorAvatarUri(this.commit, {
 						defaultStyle: configuration.get('defaultGravatarsStyle'),
 					});
@@ -335,26 +329,6 @@ export async function getFileRevisionAsCommitTooltip(
 	if (options?.cancellation?.isCancellationRequested) return undefined;
 
 	const remotes = getSettledValue(remotesResult, []);
-	const [remote] = remotes;
-
-	let enrichedAutolinks;
-	let pr;
-
-	if (remote != null && remoteSupportsIntegration(remote)) {
-		const [enrichedAutolinksResult, prResult] = await Promise.allSettled([
-			pauseOnCancelOrTimeoutMapTuplePromise(
-				getCommitEnrichedAutolinks(commit.repoPath, commit.message, commit.summary, remote),
-				toAbortSignal(options?.cancellation),
-			),
-			getCommitAssociatedPullRequest(commit.repoPath, commit.sha, remote),
-		]);
-
-		const enrichedAutolinksMaybeResult = getSettledValue(enrichedAutolinksResult);
-		if (!enrichedAutolinksMaybeResult?.paused) {
-			enrichedAutolinks = enrichedAutolinksMaybeResult?.value;
-		}
-		pr = getSettledValue(prResult);
-	}
 
 	const status = StatusFileFormatter.fromTemplate(
 		`\${status}\${ (originalPath)}\${'&nbsp;&nbsp;•&nbsp;&nbsp;'changesDetail}`,
@@ -368,12 +342,10 @@ export async function getFileRevisionAsCommitTooltip(
 		commit,
 		{ source: 'view:hover' },
 		{
-			enrichedAutolinks: enrichedAutolinks,
 			dateFormat: configuration.get('defaultDateFormat'),
 			getBranchAndTagTips: options?.getBranchAndTagTips,
 			messageAutolinks: true,
 			messageIndent: 4,
-			pullRequest: pr,
 			outputFormat: 'markdown',
 			remotes: remotes,
 			unpublished: options?.unpublished,

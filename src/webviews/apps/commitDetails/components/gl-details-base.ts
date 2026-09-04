@@ -50,9 +50,6 @@ export class GlDetailsBase extends LitElement {
 	preferences?: Preferences;
 
 	@property({ type: Object })
-	orgSettings?: State['orgSettings'];
-
-	@property({ type: Object })
 	searchContext?: State['searchContext'];
 
 	@property({ type: Boolean, attribute: 'file-icons' })
@@ -60,12 +57,6 @@ export class GlDetailsBase extends LitElement {
 
 	@property({ type: Boolean, attribute: 'files-collapsable' })
 	filesCollapsable = true;
-
-	@property({ type: Boolean })
-	hasAccount = false;
-
-	@property({ type: Boolean })
-	hasIntegrationsConnected = false;
 
 	@property({ attribute: 'empty-text' })
 	emptyText? = 'No Files';

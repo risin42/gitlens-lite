@@ -12,7 +12,7 @@ type OperationOrigin = {
 /**
  * Tracks which repositories have a rebase-capable git operation that was started (or adopted)
  * from inside GitLens, so watcher-driven auto-open (`rebaseEditor.openOnPausedRebase: 'auto'`)
- * can ignore rebases started externally (terminals, agents, other tools).
+ * can ignore rebases started externally (terminals or other tools).
  *
  * In-memory only — a window reload mid-rebase degrades to no auto-open until the user acts on
  * the operation through GitLens again (see {@link markAdopted}).

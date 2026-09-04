@@ -1,7 +1,5 @@
 import type { TemplateResult } from 'lit';
-import type { AgentSessionPhase } from '@gitlens/agents/types.js';
 import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
-import type { DraftPatchFileChange } from '../../../../../plus/drafts/models/drafts.js';
 
 /** `dataTransfer` type used when a draggable file row (opt-in `draggableFiles`) is dragged; the
  *  payload is the row's file `path`. Consumers key their drop handling off this type. */
@@ -80,16 +78,12 @@ export interface TreeItemDecorationBase {
 	position?: 'before' | 'after';
 }
 
-/** Color treatment for an icon decoration, keyed to the Launchpad indicator colors. */
-export type TreeItemDecorationIconKind = 'launchpad-mergeable' | 'launchpad-blocked' | 'launchpad-attention';
-
 export interface TreeItemDecorationIcon extends TreeItemDecorationBase {
 	type: 'icon';
 	icon: string;
 	/** Renders in the description color — for a glyph that marks state rather than demanding attention. */
 	muted?: boolean;
 	/** When set, colors the icon — rendered as a `decoration-icon--<kind>` class (see `tree.css.ts`). */
-	kind?: TreeItemDecorationIconKind;
 }
 
 export type TreeItemDecorationKind = 'added' | 'deleted' | 'modified' | 'untracked' | 'renamed' | 'conflict' | 'muted';
@@ -119,12 +113,6 @@ export interface TreeItemDecorationConflict extends TreeItemDecorationBase {
 	kind?: TreeItemDecorationKind;
 }
 
-export interface TreeItemDecorationAgent extends TreeItemDecorationBase {
-	type: 'agent';
-	phase: AgentSessionPhase;
-	tooltip?: string;
-}
-
 /** Clean/dirty only — the badge renders a pencil or a check and nothing finer. A row wanting the `+N ~M -K`
  *  breakdown fetches it for its tooltip; carrying the numbers here would oblige every producer to run a
  *  `git status` per row to fill fields the badge doesn't draw. */
@@ -149,7 +137,6 @@ export type TreeItemDecoration =
 	| TreeItemDecorationStatus
 	| TreeItemDecorationTracking
 	| TreeItemDecorationConflict
-	| TreeItemDecorationAgent
 	| TreeItemDecorationWip
 	| TreeItemDecorationStack;
 
@@ -160,7 +147,6 @@ interface TreeModelBase<Context = any[]> extends TreeItemBase {
 		| { type: 'status'; name: GitFileStatus }
 		| { type: 'branch'; status?: string; worktree?: boolean; hasChanges?: boolean }
 		| { type: 'file-icon'; filename: string }
-		| { type: 'agent'; phase: AgentSessionPhase; provider?: string }
 		| { type: 'pull-request'; state?: string; draft?: boolean };
 	description?: string;
 	context?: Context;
@@ -178,7 +164,7 @@ interface TreeModelBase<Context = any[]> extends TreeItemBase {
 	/** Lower sorts first within its parent; treated as `0` when unset. */
 	priority?: number;
 	/** Dims the whole row (label, icon, description) to de-emphasize it while keeping it legible and
-	 *  its actions clickable — e.g. an ended agent session shown as done history. */
+	 *  its actions clickable while keeping the row legible. */
 	muted?: boolean;
 }
 
@@ -193,7 +179,7 @@ export interface TreeModelFlat extends TreeModelBase {
 
 export interface TreeItemSelectionDetail {
 	node: TreeItemBase;
-	context?: DraftPatchFileChange[];
+	context?: unknown[];
 	dblClick: boolean;
 	altKey: boolean;
 	ctrlKey: boolean;

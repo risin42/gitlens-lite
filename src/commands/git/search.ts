@@ -208,7 +208,6 @@ export class SearchGitCommand extends QuickCommand<State> {
 
 			let search: SearchQuery = {
 				query: state.query,
-				naturalLanguage: state.naturalLanguage ?? false,
 				matchAll: state.matchAll,
 				matchCase: state.matchCase,
 				matchRegex: state.matchRegex,
@@ -226,19 +225,6 @@ export class SearchGitCommand extends QuickCommand<State> {
 				search = result.search;
 				searchKey = getSearchQueryComparisonKey(search);
 				context.resultsKey = searchKey;
-			}
-
-			const nl = typeof search.naturalLanguage === 'object' ? search.naturalLanguage : undefined;
-			if (nl?.error) {
-				void window.showErrorMessage(`Unable to build a search from your description — ${nl.error}`);
-
-				// Re-enter the query step with the typed sentence intact: the step reads its value from
-				// `naturalLanguage.query` when it's an object.
-				state.naturalLanguage = nl;
-				state.query = undefined!;
-				context.resultPromise = undefined;
-				context.resultsKey = undefined;
-				continue;
 			}
 
 			if (state.showResultsInSideBar) {
@@ -336,9 +322,7 @@ export class SearchGitCommand extends QuickCommand<State> {
 		state: StepState<State<GlRepository>>,
 		context: Context,
 	): StepResultGenerator<string> {
-		type Items =
-			| { type: 'add'; operator: SearchOperatorsLongForm }
-			| { type: 'search'; useNaturalLanguage: boolean; value?: string };
+		type Items = { type: 'add'; operator: SearchOperatorsLongForm } | { type: 'search'; value?: string };
 
 		const items: QuickPickItemOfT<Items>[] = [
 			{
@@ -419,8 +403,6 @@ export class SearchGitCommand extends QuickCommand<State> {
 			);
 		}
 
-		const aiAllowed = this.container.ai.allowed;
-
 		const matchCaseButton = createMatchCaseToggle(state.matchCase);
 		const matchAllButton = createMatchAllToggle(state.matchAll);
 		const matchRegexButton = createMatchRegexToggle(state.matchRegex);
@@ -428,16 +410,13 @@ export class SearchGitCommand extends QuickCommand<State> {
 
 		const step = createPickStep<(typeof items)[number]>({
 			title: appendReposToTitle(context.title, state, context),
-			placeholder:
-				aiAllowed && state.naturalLanguage
-					? 'e.g. "Show my commits from last month"'
-					: 'e.g. "Updates dependencies" author:eamodio',
+			placeholder: 'e.g. "Updates dependencies" author:eamodio',
 			ignoreFocusOut: true,
 			matchOnDescription: true,
 			matchOnDetail: true,
 			additionalButtons: [matchCaseButton, matchWholeWordButton, matchRegexButton, matchAllButton],
 			items: items,
-			value: typeof state.naturalLanguage === 'object' ? state.naturalLanguage.query : state.query,
+			value: state.query,
 			selectValueWhenShown: false,
 			canGoBack: true, // Always show back button - onGoBack clears query first
 			onGoBack: quickpick => {
@@ -454,7 +433,6 @@ export class SearchGitCommand extends QuickCommand<State> {
 
 				if (item.item.type === 'search') {
 					item.item.value = quickpick.value.trim();
-					state.naturalLanguage = item.item.useNaturalLanguage;
 					return true;
 				}
 
@@ -532,27 +510,10 @@ export class SearchGitCommand extends QuickCommand<State> {
 						label: 'Search for',
 						description: quickpick.value,
 						iconPath: new ThemeIcon('search'),
-						item: { type: 'search', useNaturalLanguage: false },
+						item: { type: 'search' },
 						picked: true,
 					};
-
-					if (aiAllowed) {
-						const naturalLanguageItem: QuickPickItemOfT<Items> = {
-							label: 'Search using Natural Language',
-							description: quickpick.value,
-							iconPath: new ThemeIcon('sparkle'),
-							alwaysShow: true,
-							item: { type: 'search', useNaturalLanguage: true },
-						};
-
-						if (state.naturalLanguage) {
-							newItems.splice(0, 0, naturalLanguageItem, searchItem);
-						} else {
-							newItems.splice(0, 0, searchItem, naturalLanguageItem);
-						}
-					} else {
-						newItems.splice(0, 0, searchItem);
-					}
+					newItems.splice(0, 0, searchItem);
 
 					quickpick.items = newItems;
 					quickpick.activeItems = [quickpick.items[0]];

@@ -1,278 +1,67 @@
-import type { ColumnMode } from '@gitkraken/commit-graph/view.js';
-import type { AIProviderAndModel, AIProviders } from '@gitlens/ai/constants.js';
 import type { GitHealthSlowness, GitHealthSlownessSample } from '@gitlens/git/gitHealth.js';
 import type { GitRevisionRangeNotation } from '@gitlens/git/models/revision.js';
-import type {
-	IntegrationIds,
-	StoredConfiguredIntegrationDescriptor,
-	StoredIntegrationConfigurations,
-} from '@gitlens/integrations/constants.js';
-import type { IntegrationConnectedKey } from '@gitlens/integrations/models/integration.js';
-import type { GraphBranchesVisibility, ViewShowBranchComparison } from './config.js';
-import type { SubscriptionState } from './constants.subscription.js';
-import type { TrackedUsage, TrackedUsageKeys } from './constants.telemetry.js';
+import type { ViewShowBranchComparison } from './config.js';
+import type { TrackedUsage, TrackedUsageKeys } from './constants.context.js';
 import type { GroupableTreeViewTypes, TreeViewTypes } from './constants.views.js';
-import type { Environment } from './container.js';
-import type { FeatureFlagMap } from './featureFlags/featureFlagService.js';
-import type { FeaturePreviews } from './features.js';
 import type { OnboardingStorage } from './onboarding/models/onboarding.js';
-import type { OrganizationSettings } from './plus/gk/models/organization.js';
-import type { PaidSubscriptionPlanIds, Subscription } from './plus/gk/models/subscription.js';
-import type { DeepLinkServiceState } from './uris/deepLinks/deepLink.js';
-import type {
-	GraphDisplayMode,
-	GraphSidebarPanel,
-	GraphTreemapMode,
-	VisualizationMode,
-} from './webviews/plus/graph/protocol.js';
-import type { TimelinePeriod, TimelineSliceBy } from './webviews/plus/timeline/protocol.js';
-import type { OverviewRecentThreshold } from './webviews/shared/overviewBranches.js';
 
-export type SecretKeys =
-	| IntegrationAuthenticationKeys
-	| `gitlens.${AIProviders}.key`
-	| `gitlens.plus.auth:${Environment}`
-	| 'deepLinks:pending';
-
-export type IntegrationAuthenticationKeys =
-	| `gitlens.integration.auth:${IntegrationIds}|${string}`
-	| `gitlens.integration.auth.cloud:${IntegrationIds}|${string}`;
+export type SecretKeys = string;
 
 export const enum SyncedStorageKeys {
 	Version = 'gitlens:synced:version',
-	PreReleaseVersion = 'gitlens:synced:preVersion',
 	ApprovedAvatarRemoteTemplates = 'gitlens:avatars:approvedRemoteTemplates',
 }
 
 export type DeprecatedGlobalStorage = {
-	/** @deprecated */
-	'confirm:ai:generateCommits': boolean;
-	/** @deprecated */
-	'confirm:ai:generateRebase': boolean;
-	/** @deprecated */
-	'confirm:ai:tos': boolean;
-	/** @deprecated */
-	'confirm:sendToOpenAI': boolean;
-	/** @deprecated */
-	'home:actions:completed': ('dismissed:welcome' | 'opened:scm')[];
-	/** @deprecated */
-	'home:steps:completed': string[];
-	/** @deprecated */
-	'home:sections:dismissed': string[];
-	/** @deprecated */
-	'home:status:pinned': boolean;
-	/** @deprecated */
-	'home:banners:dismissed': string[];
-	/** @deprecated */
 	pendingWelcomeOnFocus: boolean;
-	/** @deprecated */
-	'plus:discountNotificationShown': boolean;
-	/** @deprecated */
-	'plus:migratedAuthentication': boolean;
-	/** @deprecated */
-	'plus:renewalDiscountNotificationShown': boolean;
-	/** @deprecated */
 	'views:layout': 'gitlens' | 'scm';
-	/** @deprecated */
 	'views:commitDetails:dismissed': 'sidebar'[];
-	/** @deprecated */
 	'views:welcome:visible': boolean;
-	/** @deprecated Use OnboardingService */
-	'home:walkthrough:dismissed': boolean;
-	/** @deprecated Use OnboardingService */
-	'mcp:banner:dismissed': boolean;
-	/** @deprecated Use OnboardingService */
 	'views:scm:grouped:welcome:dismissed': boolean;
-	/** @deprecated Use OnboardingService dismiss('composer:onboarding') */
-	'composer:onboarding:dismissed': string;
-	/** @deprecated Use OnboardingService setItemState('composer:onboarding', ...) */
-	'composer:onboarding:stepReached': number;
-} & {
-	/** @deprecated */
-	[key in `disallow:connection:${string}`]: any;
-} & {
-	/** @deprecated */
-	[key in `confirm:ai:tos:${AIProviders}`]: boolean;
 };
 
-interface GlobalStorageCore {
+export interface GlobalStorage {
 	avatars: [string, StoredAvatar][];
-	'ai:scope:compose:model': AIProviderAndModel;
-	'ai:scope:review:model': AIProviderAndModel;
-	'ai:scope:resolve:model': AIProviderAndModel;
 	'avatars:approvedRemoteTemplates': Record<string, 'allow' | 'deny'>;
 	repoVisibility: [string, StoredRepoVisibilityInfo][];
 	pendingWhatsNewOnFocus: boolean;
-	/** Ids of one-time settings migrations already applied (see `migrateSettings`). */
 	'settings:migrated': string[];
-	// Don't change this key name ('premium`) as its the stored subscription
-	'premium:subscription': Stored<Subscription & { lastValidatedAt: number | undefined }>;
 	'synced:version': string;
-	// Keep the pre-release version separate from the released version
-	'synced:preVersion': string;
 	usages: Record<TrackedUsageKeys, TrackedUsage>;
 	version: string;
-	// Keep the pre-release version separate from the released version
-	preVersion: string;
-	'product:config': Stored<StoredProductConfig>;
-	'confirm:draft:storage': boolean;
-	'home:sections:collapsed': string[];
-	'launchpad:groups:collapsed': StoredLaunchpadGroup[];
-	'launchpad:indicator:hasLoaded': boolean;
-	'launchpad:indicator:hasInteracted': string;
-	'launchpadView:groups:expanded': StoredLaunchpadGroup[];
-	'graph:defaultLayout': StoredGraphDefaultLayout;
-	'graph:searchMode': StoredGraphSearchMode;
-	/** A/B (intro-video): the variant the most recently RENDERED sign-in gate actually showed */
-	'graph:signInGate:introVideoShown': boolean;
-	'graph:useNaturalLanguageSearch': boolean;
-	'views:pendingLegacyHide': boolean;
-	'integrations:configured': StoredIntegrationConfigurations;
-	/** Unified onboarding/dismissible UI state */
 	'onboarding:state': OnboardingStorage;
-	'featureFlags:flags': FeatureFlagMap;
-	/** Whether a feature-flag fetch has ever completed (even unsuccessfully) — see `hasEverFetched` */
-	'featureFlags:fetched': boolean;
-}
-
-type GlobalStorageDynamic = Record<`plus:preview:${FeaturePreviews}:usages`, StoredFeaturePreviewUsagePeriod[]> &
-	Record<`plus:trialReset:${string}:attempted`, boolean> &
-	Record<
-		`plus:organization:${string}:settings`,
-		Stored<(OrganizationSettings & { lastValidatedAt: number }) | undefined>
-	> &
-	Record<`provider:authentication:skip:${string}`, boolean> &
-	Record<`gk:promo:${string}:ai:allAccess:dismissed`, boolean> &
-	Record<`gk:promo:${string}:ai:allAccess:notified`, boolean> &
-	Record<`gk:${string}:organizations`, Stored<StoredOrganization[]>> &
-	Record<`jira:${string}:organizations`, Stored<StoredJiraOrganization[] | undefined>> &
-	Record<`jira:${string}:projects`, Stored<StoredJiraProject[] | undefined>> &
-	Record<`azure:${string}:account`, Stored<StoredAzureAccount | undefined>> &
-	Record<`azure:${string}:organizations`, Stored<StoredAzureOrganization[] | undefined>> &
-	Record<`azure:${string}:projects`, Stored<StoredAzureProject[] | undefined>> &
-	Record<`bitbucket:${string}:account`, Stored<StoredBitbucketAccount | undefined>> &
-	Record<`bitbucket:${string}:workspaces`, Stored<StoredBitbucketWorkspace[] | undefined>> &
-	Record<`bitbucket-server:${string}:account`, Stored<StoredBitbucketAccount | undefined>>;
-
-export type GlobalStorage = GlobalStorageCore & GlobalStorageDynamic;
-
-/**
- * Storage keys that contain environment-specific data (e.g., file paths, install status).
- * These are automatically scoped by platform and remote info to avoid conflicts when
- * globalState is shared across local/remote environments (Windows, WSL, containers, SSH).
- *
- * Use `storage.getScoped()` / `storage.storeScoped()` / `storage.deleteScoped()` for these keys.
- */
-export interface GlobalScopedStorage {
-	'gk:cli:install': StoredGkCLIInstallInfo;
-}
-
-export interface StoredGkCLIInstallInfo {
-	status: 'attempted' | 'unsupported' | 'completed';
-	attempts: number;
-	version?: string;
-}
-
-// Re-export the canonical stored-configuration types (imported above) rather than redefining them here,
-// so the multi-account descriptor shape (id/primary/type/accountName) can't drift between the extension's
-// storage typing and the integrations package that owns it.
-export type { StoredConfiguredIntegrationDescriptor, StoredIntegrationConfigurations };
-
-export interface StoredProductConfig {
-	promos: StoredPromo[];
-}
-
-export interface StoredPromo {
-	key: string;
-	code?: string;
-	plan?: PaidSubscriptionPlanIds;
-	states?: SubscriptionState[];
-	locations?: ('account' | 'badge' | 'gate' | 'home')[];
-	expiresOn?: number;
-	startsOn?: number;
-	percentile?: number;
 }
 
 export type DeprecatedWorkspaceStorage = {
-	/** @deprecated */
-	'confirm:ai:tos': boolean;
-	/** @deprecated */
-	'confirm:sendToOpenAI': boolean;
-	/** @deprecated */
-	'graph:banners:dismissed': Record<string, boolean>;
-	/** @deprecated */
 	'views:searchAndCompare:keepResults': boolean;
-	/** @deprecated Superseded by v2; its data included remote/interactive command time. */
 	'gitHealth:slowness': Record<string, GitHealthSlownessSample>;
-	/** @deprecated Superseded by v3; aggregate data cannot be safely assigned to an operation family. */
 	'gitHealth:slowness:v2': Record<string, GitHealthSlownessSample>;
-} & {
-	/** @deprecated */
-	[key in `confirm:ai:tos:${AIProviders}`]: boolean;
 };
 
-/** Persisted passive-slowness summary for a repo. */
 export type StoredGitHealthSlowness = GitHealthSlowness;
-
-/** Per-repo Git Health banner suppression timestamps. */
 export type StoredGitHealthBannerSuppression = { dismissedAt?: number; visitedAt?: number };
 
 interface WorkspaceStorageCore {
 	assumeRepositoriesOnStartup?: boolean;
 	'branch:comparisons': StoredBranchComparisons;
 	'gitComandPalette:usage': StoredRecentUsage;
-	/** Per-repo sticky state for switch's "In a New Worktree" toggle. Key is the repo id. */
 	'gitComandPalette:switch:viaWorktree': Record<string, boolean>;
 	'gitComandPalette:worktreeDelete:actions': StoredWorktreeDeleteActions;
-	/** Per-repo Git Health banner suppression — when the user dismissed the strip and last visited the health view. */
 	'gitHealth:banner:v1': Record<string, StoredGitHealthBannerSuppression>;
-	/** Operation-classified local git-slowness summary per repo path (feeds targeted Git Health guidance). */
 	'gitHealth:slowness:v3': Record<string, StoredGitHealthSlowness>;
 	gitPath: string;
-	'graph:columns': Record<string, StoredGraphColumn>;
-	'graph:filtersByRepo': Record<string, StoredGraphFilters>;
-	'graph:state': StoredGraphState;
-	/** Per-worktree commit draft for the Graph's WIP details panel. Key is the worktree's
-	 *  fsPath — invariant whether the user opens the main repo or the worktree directly. */
-	'graph:wipDrafts': Record<string, StoredGraphWipDraft>;
-	/** Unified onboarding/dismissible UI state (workspace-scoped items) */
 	'onboarding:state': OnboardingStorage;
 	'starred:repositories': StoredStarred;
-	'views:commitDetails:pullRequestExpanded': boolean;
 	'views:commitDetails:showSearchBox': boolean;
 	'views:commitDetails:searchBoxFilter': boolean;
 	'views:repositories:autoRefresh': boolean;
 	'views:searchAndCompare:pinned': StoredSearchAndCompareItems;
 	'views:scm:grouped:selected': GroupableTreeViewTypes;
-	/** MRU of "Run Task on Worktree" picks. Key is the worktree's fsPath; values are task keys
-	 *  (`${task.source}:${task.name}`), newest first. */
-	'worktrees:runTaskHistory': string[];
 }
 
-/**
- * Repository filter values:
- * - `undefined` or `'all'` - show all repositories (new code should set `'all'`)
- * - `'exclude-worktrees'` - show all except linked worktrees (worktrees whose main repo is also open)
- * - `string[]` - show only the specified repository IDs
- */
 export type RepositoryFilterValue = 'all' | 'exclude-worktrees' | string[] | undefined;
 
-type WorkspaceStorageDynamic = Record<IntegrationConnectedKey, boolean> &
-	Record<`views:${TreeViewTypes}:repositoryFilter`, RepositoryFilterValue> &
-	Record<`graph:searchHistory:${string}`, StoredGraphSearchHistory[]> &
-	/** Rollback record for a completed automatic rebase. Key suffix is the repo path. */
-	Record<`autoRebase:undo:${string}`, Stored<StoredAutoRebaseUndo>>;
-
-export interface StoredAutoRebaseUndo {
-	/** The branch that was rebased */
-	branch: string | undefined;
-	/** The branch tip before the rebase (orig-head) */
-	preRebaseSha: string;
-	/** The branch tip when the automatic rebase completed — undo refuses if the branch has moved since */
-	postRebaseSha: string;
-	/** What happened to the autostash at the end of the run */
-	autostash: 'none' | 'reapplied' | 'left-in-stash';
-}
+type WorkspaceStorageDynamic = Record<`views:${TreeViewTypes}:repositoryFilter`, RepositoryFilterValue>;
 
 export type WorkspaceStorage = WorkspaceStorageCore & WorkspaceStorageDynamic;
 
@@ -280,64 +69,6 @@ export interface Stored<T, SchemaVersion extends number = 1> {
 	v: SchemaVersion;
 	data: T;
 	timestamp?: number;
-}
-
-export interface StoredOrganization {
-	id: string;
-	name: string;
-	role: 'owner' | 'admin' | 'billing' | 'user';
-}
-
-export interface StoredJiraOrganization {
-	key: string;
-	id: string;
-	name: string;
-	url: string;
-	avatarUrl: string;
-}
-
-export interface StoredJiraProject {
-	key: string;
-	id: string;
-	name: string;
-	resourceId: string;
-}
-
-export interface StoredAzureAccount {
-	id: string;
-	name: string | undefined;
-	username: string | undefined;
-	email: string | undefined;
-	avatarUrl: string | undefined;
-}
-
-export interface StoredAzureOrganization {
-	key: string;
-	id: string;
-	name: string;
-}
-
-export interface StoredAzureProject {
-	key: string;
-	id: string;
-	name: string;
-	resourceId: string;
-	resourceName: string;
-}
-
-export interface StoredBitbucketAccount {
-	id: string;
-	name: string | undefined;
-	username: string | undefined;
-	email: string | undefined;
-	avatarUrl: string | undefined;
-}
-
-export interface StoredBitbucketWorkspace {
-	key: string;
-	id: string;
-	name: string;
-	slug: string;
 }
 
 export interface StoredAvatar {
@@ -363,154 +94,6 @@ export interface StoredBranchComparison {
 
 export type StoredBranchComparisons = Record<string, string | StoredBranchComparison>;
 
-export interface StoredDeepLinkContext {
-	url?: string | undefined;
-	repoPath?: string | undefined;
-	targetSha?: string | undefined;
-	secondaryTargetSha?: string | undefined;
-	useProgress?: boolean | undefined;
-	state?: DeepLinkServiceState | undefined;
-	prData?: string | undefined;
-	issueData?: string | undefined;
-	instructions?: string | undefined;
-	/** Agent descriptor for Start Work / Start Review with `showOpenInAgent`. Plain JSON shape. */
-	agent?: unknown;
-	/** Worktree path for CLI dispatch `cwd`. */
-	worktreePath?: string | undefined;
-}
-
-/** The column-mode vocabulary AS PERSISTED. Deliberately re-declared rather than imported from the
- *  engine: stored settings are a contract with data already on disk, so an engine-side change must
- *  surface as a compile error at {@link storedGraphColumnModeBridge} and be answered with a migration
- *  decision — not silently redefine what existing values mean. */
-export type StoredGraphColumnMode = 'numbers' | 'squares' | 'bar' | 'bipolar' | 'compact';
-
-/** Fails to compile if the persisted vocabulary and the engine's {@link ColumnMode} diverge in EITHER
- *  direction (a mode added, removed, or renamed). Resolve by migrating stored values, then updating
- *  {@link StoredGraphColumnMode} to match. */
-type ExactlyEqual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-export const storedGraphColumnModeBridge: ExactlyEqual<StoredGraphColumnMode, ColumnMode> = true;
-
-export interface StoredGraphColumn {
-	isHidden?: boolean;
-	mode?: StoredGraphColumnMode;
-	width?: number;
-	/** Left-to-right position of the column. Persisted by the webview's full-config writes; absent for records written only by host-side single-field toggles. */
-	order?: number;
-	/** Column↔grouped placement for both columns: `undefined`/`true` = grouped with the default host zone (host Group commands write `true`; the webview echoes back the resolved zone id), a zone-id string = grouped with that zone, `false` = standalone column. */
-	grouped?: boolean | string;
-}
-
-export interface StoredGraphState {
-	displayMode?: GraphDisplayMode;
-	visualizationMode?: VisualizationMode;
-	panels?: {
-		details?: {
-			visible?: boolean;
-			position?: number;
-			bottomPosition?: number;
-			/** Whether the file-tree search box is visible. */
-			showSearchBox?: boolean;
-			/** How the file-tree search box presents non-matches: `true` hides them (filter), `false` dims them (highlight). */
-			searchBoxFilter?: boolean;
-		};
-		sidebar?: {
-			visible?: boolean;
-			position?: number;
-			activePanel?: GraphSidebarPanel;
-			/** How the sidebar's filter input presents non-matches: `true` hides them (filter), `false` dims them (highlight). */
-			searchBoxFilter?: boolean;
-			/** Whether the agents panel shows past (ended) sessions. Defaults to false (hidden). */
-			showPastAgentSessions?: boolean;
-		};
-		minimap?: {
-			visible?: boolean;
-			position?: number;
-		};
-	};
-	overview?: {
-		recentThreshold?: OverviewRecentThreshold;
-	};
-	timeline?: {
-		period?: TimelinePeriod;
-		sliceBy?: TimelineSliceBy;
-		showAllBranches?: boolean;
-	};
-	treemap?: {
-		mode?: GraphTreemapMode;
-	};
-}
-
-/** A user-saved snapshot of the Commit Graph layout, stored globally and used to seed workspaces
- *  that have no layout of their own yet (see `GraphWebviewProvider.ensureDefaultLayoutSeeded`).
- *  `columns` mirrors the workspace `graph:columns` record verbatim (possibly partial — built-in
- *  defaults fill the gaps at read time); `panels` mirrors `StoredGraphState['panels']`. */
-export interface StoredGraphDefaultLayout {
-	columns?: Record<string, StoredGraphColumn>;
-	panels?: StoredGraphState['panels'];
-}
-
-export interface StoredGraphWipDraft {
-	/** The commit message currently in the WIP commit input. */
-	message: string;
-	/** `true` when the message is user-authored (typed, AI-generated, or restored from an undone
-	 *  commit) and must not be dropped by the HEAD-move auto-clear path. Mirrors the in-memory
-	 *  `commitMessageDirty` signal on the details panel. */
-	messageDirty: boolean;
-	/** Present iff amend mode was active when the draft was saved. `baseSha` records the worktree
-	 *  HEAD the amend was bound to so the existing HEAD-move auto-clear (in
-	 *  `gl-graph-details-panel.ts`) can detect a stale amend on restore. */
-	amend?: { baseSha: string };
-}
-
-export type StoredGraphExcludeTypes = 'remotes' | 'stashes' | 'tags';
-
-export interface StoredGraphFilters {
-	branchesVisibility?: GraphBranchesVisibility;
-	includeOnlyRefs?: Record<string, StoredGraphIncludeOnlyRef>;
-	excludeRefs?: Record<string, StoredGraphExcludedRef>;
-	excludeTypes?: Record<StoredGraphExcludeTypes, boolean>;
-	pinnedRef?: StoredGraphPinnedRef;
-}
-
-export type StoredGraphRefType = 'head' | 'remote' | 'tag';
-
-export type StoredGraphSearchHistory = {
-	query: string;
-	matchAll: boolean | undefined;
-	matchCase: boolean | undefined;
-	matchRegex: boolean | undefined;
-	matchWholeWord: boolean | undefined;
-	naturalLanguage: boolean | undefined;
-	/** For NL queries, store the last known structured form to show in history */
-	nlStructuredQuery?: string;
-};
-
-export type StoredGraphSearchMode = 'normal' | 'filter';
-
-export interface StoredGraphExcludedRef {
-	id: string;
-	type: StoredGraphRefType;
-	name: string;
-	owner?: string;
-	/** For a whole-remote wildcard (`name: '*'`) only — ids of branches exempted from the hide. */
-	except?: string[];
-}
-
-export interface StoredGraphIncludeOnlyRef {
-	id: string;
-	type: StoredGraphRefType;
-	name: string;
-	owner?: string;
-}
-
-export interface StoredGraphPinnedRef {
-	id: string;
-	type: StoredGraphRefType;
-	name: string;
-	owner?: string;
-}
-
 export interface StoredNamedRef {
 	label?: string;
 	ref: string;
@@ -523,7 +106,6 @@ export interface StoredComparison {
 	ref1: StoredNamedRef;
 	ref2: StoredNamedRef;
 	notation?: GitRevisionRangeNotation;
-
 	checkedFiles?: string[];
 }
 
@@ -533,12 +115,7 @@ export interface StoredSearch {
 	path: string;
 	labels: {
 		label: string;
-		queryLabel:
-			| string
-			| {
-					label: string;
-					resultsType?: { singular: string; plural: string };
-			  };
+		queryLabel: string | { label: string; resultsType?: { singular: string; plural: string } };
 	};
 	search: StoredSearchQuery;
 }
@@ -549,7 +126,6 @@ export interface StoredSearchQuery {
 	matchCase?: boolean;
 	matchRegex?: boolean;
 	matchWholeWord?: boolean;
-	naturalLanguage?: boolean | { query: string; processedQuery?: string };
 }
 
 export type StoredSearchAndCompareItem = StoredComparison | StoredSearch;
@@ -557,20 +133,3 @@ export type StoredSearchAndCompareItems = Record<string, StoredSearchAndCompareI
 export type StoredStarred = Record<string, boolean>;
 export type StoredRecentUsage = Record<string, number>;
 export type StoredWorktreeDeleteActions = { branch: boolean; upstream: boolean };
-
-export type StoredLaunchpadGroup =
-	| 'current-branch'
-	| 'pinned'
-	| 'mergeable'
-	| 'blocked'
-	| 'follow-up'
-	| 'needs-review'
-	| 'waiting-for-review'
-	| 'draft'
-	| 'other'
-	| 'snoozed';
-
-export interface StoredFeaturePreviewUsagePeriod {
-	startedOn: string;
-	expiresOn: string;
-}

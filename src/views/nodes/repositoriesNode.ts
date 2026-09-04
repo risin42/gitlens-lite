@@ -1,15 +1,13 @@
 import type { TextEditor } from 'vscode';
-import { Disposable, TreeItem, TreeItemCollapsibleState, window, workspace } from 'vscode';
+import { Disposable, TreeItem, TreeItemCollapsibleState, window } from 'vscode';
 import { debounce } from '@gitlens/utils/debounce.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { weakEvent } from '@gitlens/utils/event.js';
-import { szudzikPairing } from '@gitlens/utils/function.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import type { RepositoriesChangeEvent } from '../../git/gitProviderService.js';
 import { GitUri, unknownGitUri } from '../../git/gitUri.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { ViewsWithRepositoriesNode } from '../viewBase.js';
-import { createViewDecorationUri } from '../viewDecorationProvider.js';
 import { SubscribeableViewNode } from './abstract/subscribeableViewNode.js';
 import type { ViewNode } from './abstract/viewNode.js';
 import { ContextValues } from './abstract/viewNode.js';
@@ -37,31 +35,9 @@ export class RepositoriesNode extends SubscribeableViewNode<
 	}
 
 	getTreeItem(): TreeItem {
-		const isInWorkspacesView = this.view.type === 'workspaces';
-		const isLinkedWorkspace = isInWorkspacesView && this.view.container.workspaces.currentWorkspaceId != null;
-		const isCurrentLinkedWorkspace = isLinkedWorkspace && this.view.container.workspaces.currentWorkspace != null;
-		const item = new TreeItem(
-			isInWorkspacesView ? 'Current Window' : 'Repositories',
-			isInWorkspacesView ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.Expanded,
-		);
+		const item = new TreeItem('Repositories', TreeItemCollapsibleState.Expanded);
 
-		if (isInWorkspacesView) {
-			item.description = workspace.name ?? workspace.workspaceFolders?.[0]?.name ?? '';
-		}
-
-		let contextValue: string = ContextValues.Repositories;
-		if (isInWorkspacesView) {
-			contextValue += '+workspaces';
-		}
-
-		if (isLinkedWorkspace) {
-			contextValue += '+linked';
-		}
-
-		if (isCurrentLinkedWorkspace) {
-			contextValue += '+current';
-			item.resourceUri = createViewDecorationUri('repositories', { currentWorkspace: true });
-		}
+		const contextValue: string = ContextValues.Repositories;
 
 		item.contextValue = contextValue;
 		return item;
@@ -122,7 +98,7 @@ export class RepositoriesNode extends SubscribeableViewNode<
 	}
 
 	protected override etag(): number {
-		return szudzikPairing(this.view.container.git.etag, this.view.container.subscription.etag);
+		return this.view.container.git.etag;
 	}
 
 	@trace({ args: false })

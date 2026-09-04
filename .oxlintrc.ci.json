@@ -13,21 +13,12 @@
 	},
 	// `extends` merges rules/plugins/options but NOT ignorePatterns — repeat them. Keep in sync with .oxlintrc.json.
 	"ignorePatterns": [
-		"**/.agents",
-		"!.claude/settings.json",
-		".claude/settings.local.json",
-		".claude/scheduled_tasks.lock",
-		".claude/worktrees/**/*",
-		".claude/*.lock",
 		"**/.codex",
 		"**/.DS_Store",
 		"**/.work/",
 		"**/.superpowers",
 		"**/.tasks",
 		"**/.vscode-clean/**/*",
-		"**/.vscode-test/**/*",
-		"**/.vscode-test-web/**/*",
-		"**/test-results/**/*",
 		"**/dist",
 		"**/out",
 		"**/node_modules",
@@ -43,8 +34,6 @@
 		"/patches",
 		"/scripts",
 		"/src/@types",
-		"/packages/core",
-		"/tests/e2e/runner/**",
-		"/tests/fixtures/**"
+		"/packages/core"
 	]
 }

@@ -1,6 +1,6 @@
 // Browser/webworker stub — IPC server is not available in the web extension host.
-// CLI integration and agent providers are no-ops on the web (see env/browser/providers.ts),
-// so this stub never has handlers registered or capabilities published.
+// CLI integration is a no-op on the web (see env/browser/providers.ts), so this stub never
+// has handlers registered or capabilities published.
 import type { Disposable } from 'vscode';
 import type { IpcHandler } from '@gitlens/ipc/ipcServer.js';
 import type { UnifiedDisposable } from '@gitlens/utils/disposable.js';
@@ -29,10 +29,6 @@ export class IpcService implements Disposable {
 		return undefined;
 	}
 
-	get agentsDiscoveryFilePath(): string | undefined {
-		return undefined;
-	}
-
 	registerHandler<Request = unknown, Response = unknown>(
 		_name: string,
 		_handler: IpcHandler<Request, Response>,
@@ -45,14 +41,6 @@ export class IpcService implements Disposable {
 	}
 
 	unpublishCli(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	publishAgents(_workspacePaths: string[]): Promise<void> {
-		return Promise.resolve();
-	}
-
-	unpublishAgents(): Promise<void> {
 		return Promise.resolve();
 	}
 }

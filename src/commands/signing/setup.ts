@@ -48,11 +48,6 @@ export class SetupSigningWizardCommand extends GlCommandBase {
 		const signingConfig = await repository.git.config.getSigningConfig();
 		const alreadyConfigured = Boolean(signingConfig?.enabled && signingConfig?.signingKey);
 
-		// Send telemetry event
-		this.container.telemetry.sendEvent('commit/signing/setupWizard/opened', {
-			alreadyConfigured: alreadyConfigured,
-		});
-
 		if (alreadyConfigured) {
 			const result = await window.showInformationMessage(
 				`Commit signing is already configured using ${signingConfig?.format?.toUpperCase() ?? 'GPG'}.`,
@@ -163,12 +158,6 @@ export class SetupSigningWizardCommand extends GlCommandBase {
 			if (result === 'Test Signing') {
 				await this.testSigning(repository);
 			}
-
-			// Send telemetry event for successful setup
-			this.container.telemetry.sendEvent('commit/signing/setup', {
-				format: format.value,
-				keyGenerated: false, // We don't support key generation yet
-			});
 		} catch (ex) {
 			void window.showErrorMessage(
 				`Failed to configure commit signing: ${ex instanceof Error ? ex.message : String(ex)}`,

@@ -14,8 +14,8 @@ export interface GitGraphRowHead {
 	 *
 	 * The CLI provider stamps an id on every ref it emits (`git-cli/providers/graph.ts:781`, `:805`,
 	 * `:836`); the GitHub provider never does, because it has no branch metadata to key
-	 * (`git-github/providers/github/graph.ts:231`, `:239`). So `id == null` means "this ref came from a
-	 * provider that computes nothing beyond a name", and every id-keyed feature — ref metadata, exclusions,
+	 * Other providers may omit the id when they compute nothing beyond a name. So `id == null` means "this ref
+	 * came from a provider that computes nothing beyond a name", and every id-keyed feature — ref metadata, exclusions,
 	 * pinning, PR/issue lookup — must degrade rather than guess. Consumers already do this; it is written
 	 * down here because until now it was an accident of two providers rather than a stated contract.
 	 *
@@ -406,7 +406,7 @@ export type IncrementalGraphFallbackReason =
  * Also populates `context.avatars` with email → URL mappings.
  *
  * Per-ref contexts are NOT serialized here. The webview builds them from the structured ref fields
- * (`webviews/apps/plus/graph/utils/refContext.utils.ts`), where live state the host would have baked in
+ * (the webview row context helper), where live state the host would have baked in
  * stale — whether a branch is starred, which ref is pinned — is actually visible. What remains here needs
  * something the webview cannot reach: the extension's asset URIs, or the whole-row grouping.
  *

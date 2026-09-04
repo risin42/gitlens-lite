@@ -1,9 +1,5 @@
 import type { RemoteProviderId } from '@gitlens/git/models/remoteProvider.js';
 import type { RemoteProviderConfig } from '@gitlens/git/remotes/matcher.js';
-import type { ConfiguredIntegrationDescriptor } from '@gitlens/integrations/authentication/models.js';
-import type { CloudGitSelfManagedHostIntegrationIds } from '@gitlens/integrations/constants.js';
-import { GitSelfManagedHostIntegrationId } from '@gitlens/integrations/constants.js';
-import { isCloudGitSelfManagedHostIntegrationId } from '@gitlens/integrations/utils/integration.utils.js';
 
 /**
  * Configuration shape for user-configured custom remotes (from VS Code settings).
@@ -19,7 +15,7 @@ export interface RemotesConfigLike {
 }
 
 /**
- * Converts a PascalCase config type value (from `gitlens.remotes[].type` in package.json)
+ * Converts a PascalCase config type value (from `gitlens-lite.remotes[].type` in package.json)
  * to a kebab-case {@link RemoteProviderId}.
  */
 const configTypeMap: Record<string, RemoteProviderId> = {
@@ -35,15 +31,14 @@ const configTypeMap: Record<string, RemoteProviderId> = {
 };
 
 /**
- * Converts user-configured custom remotes and cloud self-managed host integrations
+ * Converts user-configured custom remotes
  * into library-compatible {@link RemoteProviderConfig} entries.
  *
  * Used by both the host context adapter (for git operations) and standalone callers
- * (e.g., drafts service) that need to build a remote provider matcher.
+ *  that need to build a remote provider matcher.
  */
 export function buildRemoteProviderConfigs(
 	configuredRemotes: RemotesConfigLike[] | null | undefined,
-	configuredIntegrations: ConfiguredIntegrationDescriptor[] | undefined,
 ): RemoteProviderConfig[] | undefined {
 	const configs: RemoteProviderConfig[] = [];
 
@@ -66,40 +61,5 @@ export function buildRemoteProviderConfigs(
 		}
 	}
 
-	// Cloud self-managed host integrations
-	if (configuredIntegrations?.length) {
-		for (const ci of configuredIntegrations) {
-			if (!isCloudGitSelfManagedHostIntegrationId(ci.integrationId) || !ci.domain) continue;
-
-			const type = cloudIntegrationIdToProviderId(ci.integrationId);
-			if (type == null) continue;
-
-			const domain = ci.domain.toLowerCase();
-			// Cloud integration takes precedence over user config with the same domain
-			const dupIndex = configs.findIndex(c => c.domain === domain);
-			const config: RemoteProviderConfig = { type: type, domain: domain };
-			if (dupIndex !== -1) {
-				configs[dupIndex] = config;
-			} else {
-				configs.push(config);
-			}
-		}
-	}
-
 	return configs.length ? configs : undefined;
-}
-
-function cloudIntegrationIdToProviderId(id: CloudGitSelfManagedHostIntegrationIds): RemoteProviderId | undefined {
-	switch (id) {
-		case GitSelfManagedHostIntegrationId.CloudGitHubEnterprise:
-			return 'github';
-		case GitSelfManagedHostIntegrationId.CloudGitLabSelfHosted:
-			return 'gitlab';
-		case GitSelfManagedHostIntegrationId.BitbucketServer:
-			return 'bitbucket-server';
-		case GitSelfManagedHostIntegrationId.AzureDevOpsServer:
-			return 'azure-devops';
-		default:
-			return undefined;
-	}
 }

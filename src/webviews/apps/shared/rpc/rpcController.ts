@@ -29,27 +29,24 @@ import { subscribe } from '@eamodio/supertalk';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { isErrorLike } from '@gitlens/utils/error.js';
 import { Logger } from '@gitlens/utils/logger.js';
-import type { TelemetryService } from '../../../rpc/services/telemetry.js';
 import type { WebviewViewService } from '../../../rpc/webviewViewService.js';
 import { isConnectionClosedError, noop } from '../actions/rpc.js';
 import { subscribeAll } from '../events/subscriptions.js';
 import { getWebviewClientInfo } from '../hostApi.js';
 import type { RpcClient, RpcClientOptions } from '../rpcClient.js';
 import { createRpcClient } from '../rpcClient.js';
-import type { TelemetrySendEventParams } from '../telemetry.js';
 
 /**
  * The shared-core service groups this controller wires centrally.
  *
- * Every RPC-capable surface's services type extends `SharedWebviewServices`
- * (`rpc/services/common.ts`), so these groups are always present on the remote.
+ * Every RPC-capable surface must expose these lifecycle methods, even when it
+ * only uses a subset of the other shared services.
  */
 interface CoreWebviewServices {
 	readonly webview: Pick<
 		WebviewViewService,
 		'connect' | 'focusChanged' | 'onHostWindowFocusChanged' | 'onVisibilityChanged' | 'onWebviewFocusChanged'
 	>;
-	readonly telemetry: Pick<TelemetryService, 'sendEvent'>;
 }
 
 /**
@@ -58,9 +55,6 @@ interface CoreWebviewServices {
  * services type.
  */
 export interface WebviewRpc {
-	/** Sends a webview-emitted telemetry event to the host's pipeline (buffered until ready). */
-	sendTelemetry(detail: TelemetrySendEventParams): void;
-
 	/** Reports a debounced, re-verified focus change to the host (context keys). */
 	sendFocusChanged(params: { focused: boolean; inputFocused: boolean }): void;
 }
@@ -126,19 +120,13 @@ export interface RpcControllerOptions<TServices extends object> {
 const abortReasonReconnect = new DOMException('rpc reconnect: host reconnected', 'AbortError');
 const abortReasonHostDisconnected = new DOMException('rpc disconnect: host disconnected', 'AbortError');
 
-export class RpcController<TServices extends object> implements ReactiveController, WebviewRpc {
+export class RpcController<TServices extends CoreWebviewServices> implements ReactiveController, WebviewRpc {
 	private _client?: RpcClient<TServices>;
 	private _services?: Remote<TServices>;
 	private _connectionAbort?: AbortController;
 
 	/** Memoized `webview` group proxy for this session; undefined while no session is live. */
 	private _webview?: Remote<CoreWebviewServices>['webview'];
-	/** Memoized `telemetry` group proxy for this session; undefined while no session is live. */
-	private _telemetry?: Remote<CoreWebviewServices>['telemetry'];
-
-	/** Telemetry emitted before a session existed (startup churn, early emits) — flushed in order on ready. */
-	private _pendingTelemetry: TelemetrySendEventParams[] = [];
-
 	/** The shared-core event subscription — armed once per controller; supertalk re-runs its
 	 *  subscriber on every successful handshake (including reconnects), so it never double-arms. */
 	private _coreSubscription?: Subscription;
@@ -193,7 +181,6 @@ export class RpcController<TServices extends object> implements ReactiveControll
 		// The per-session core proxies die with the session; sends made before the next handshake
 		// buffer again. The event subscription stays armed on the long-lived connection.
 		this._webview = undefined;
-		this._telemetry = undefined;
 	}
 
 	/**
@@ -209,25 +196,11 @@ export class RpcController<TServices extends object> implements ReactiveControll
 		this._connectionAbort = undefined;
 		this._services = undefined;
 		this._webview = undefined;
-		this._telemetry = undefined;
-		this._pendingTelemetry.length = 0;
 		this._coreSubscription?.unsubscribe();
 		this._coreSubscription = undefined;
 		// `dispose()`, not `stop()` then `dispose()` — `close()` already settles in-flight work.
 		this._client?.dispose();
 		this._client = undefined;
-	}
-
-	sendTelemetry(detail: TelemetrySendEventParams): void {
-		if (this._telemetry == null) {
-			// No session yet — buffer so early emits (startup churn, pre-ready tracking) aren't dropped.
-			this._pendingTelemetry.push(detail);
-			return;
-		}
-
-		void this._telemetry
-			.then(telemetry => telemetry.sendEvent(detail.name, detail.data, detail.source))
-			.catch(noop);
 	}
 
 	sendFocusChanged(params: { focused: boolean; inputFocused: boolean }): void {
@@ -248,9 +221,11 @@ export class RpcController<TServices extends object> implements ReactiveControll
 
 			this._services = services;
 
-			// Shared-core wiring — focus/visibility events, telemetry, and context-key focus reports
+			// Shared-core wiring for focus, visibility, and context-key focus reports
 			// ride these groups on every RPC-capable surface. Memoized per session (the group proxies
 			// are thenables resolved by the handshake); cleared in hostDisconnected.
+			// Remote's conditional mapped type cannot narrow an unresolved generic. The class
+			// constraint guarantees this service exists before we project its lifecycle methods.
 			const core = services as unknown as Remote<CoreWebviewServices>;
 			this._webview = core.webview;
 
@@ -264,21 +239,6 @@ export class RpcController<TServices extends object> implements ReactiveControll
 			if (signal.aborted) return;
 
 			this._armCoreSubscription();
-
-			// Assigned only now, immediately before the buffer flush below: a `gl-telemetry-fired`
-			// event landing anywhere earlier in this connect path (including the `await` above) must
-			// keep buffering in `_pendingTelemetry` rather than bypass it, or it could be delivered
-			// ahead of the buffered pre-session events.
-			this._telemetry = core.telemetry;
-
-			// Deliver anything emitted before the session existed, in order, before app-level
-			// `onReady` code runs.
-			if (this._pendingTelemetry.length > 0) {
-				const pending = this._pendingTelemetry.splice(0);
-				for (const detail of pending) {
-					this.sendTelemetry(detail);
-				}
-			}
 
 			if (this.options?.onReady != null) {
 				try {
@@ -339,8 +299,7 @@ export class RpcController<TServices extends object> implements ReactiveControll
 					}),
 				() =>
 					webview.onHostWindowFocusChanged(({ focused }) => {
-						// No window event: only the Graph consumes host-window focus, via its app-level
-						// override through the options callback.
+						// Host-window focus is exposed through the optional app-level callback.
 						this.options?.onHostWindowFocusChanged?.(focused);
 					}),
 			]);

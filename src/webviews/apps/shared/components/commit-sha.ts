@@ -65,7 +65,7 @@ export class GlCommitSha extends LitElement {
 
 		if (!this.sha || isUncommitted(this.sha)) {
 			// Reserve the same leading-icon slot as committed shas so consumers that mix the two
-			// (e.g. the timeline footer's slider readout) keep a consistent horizontal offset.
+			// Keep a consistent horizontal offset in compact footer readouts.
 			// `pencil` for working-tree changes ("you've been editing") and `check` for staged
 			// ("approved/ready for commit") — the two icons read as a natural progression toward
 			// committed state without leaning on the prior `folder` / `folder-active` pair, which
@@ -116,7 +116,7 @@ export class GlCommitShaCopy extends LitElement {
 		if (this.sha == null) return nothing;
 
 		// Empty or uncommitted-sentinel shas have nothing meaningful to copy — render the label
-		// directly so consumers (e.g. the timeline's Working Tree placeholder) still see "Working".
+		// directly so consumers still see "Working" for the working-tree placeholder.
 		if (!this.sha || isUncommitted(this.sha)) {
 			return html`<gl-commit-sha .sha=${this.sha} .icon=${this.icon} .size=${this.size}></gl-commit-sha>`;
 		}

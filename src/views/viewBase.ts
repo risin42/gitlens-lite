@@ -27,11 +27,8 @@ import type {
 	BranchesViewConfig,
 	CommitsViewConfig,
 	ContributorsViewConfig,
-	DraftsViewConfig,
 	FileHistoryViewConfig,
-	LaunchpadViewConfig,
 	LineHistoryViewConfig,
-	PullRequestViewConfig,
 	RemotesViewConfig,
 	RepositoriesViewConfig,
 	SearchAndCompareViewConfig,
@@ -39,12 +36,11 @@ import type {
 	TagsViewConfig,
 	ViewsCommonConfig,
 	ViewsConfigKeys,
-	WorktreesViewConfig,
 } from '../config.js';
 import { viewsCommonConfigKeys, viewsConfigKeys } from '../config.js';
 import type { GlTreeViewCommandSuffixesByViewType } from '../constants.commands.js';
+import type { TrackedUsageFeatures } from '../constants.context.js';
 import type { RepositoryFilterValue } from '../constants.storage.js';
-import type { TrackedUsageFeatures } from '../constants.telemetry.js';
 import type { TreeViewIds, TreeViewTypes, WebviewViewTypes } from '../constants.views.js';
 import type { Container } from '../container.js';
 import type { GlRepository } from '../git/models/repository.js';
@@ -60,21 +56,16 @@ import { getViewFocusCommand } from '../system/-webview/vscode/views.js';
 import type { BranchesView } from './branchesView.js';
 import type { CommitsView } from './commitsView.js';
 import type { ContributorsView } from './contributorsView.js';
-import type { DraftsView } from './draftsView.js';
 import type { FileHistoryView } from './fileHistoryView.js';
-import type { LaunchpadView } from './launchpadView.js';
 import type { LineHistoryView } from './lineHistoryView.js';
 import type { PageableViewNode, ViewNode } from './nodes/abstract/viewNode.js';
 import { isPageableViewNode } from './nodes/abstract/viewNode.js';
 import { GroupedHeaderNode } from './nodes/common.js';
-import type { PullRequestView } from './pullRequestView.js';
 import type { RemotesView } from './remotesView.js';
 import type { RepositoriesView } from './repositoriesView.js';
 import type { SearchAndCompareView } from './searchAndCompareView.js';
 import type { StashesView } from './stashesView.js';
 import type { TagsView } from './tagsView.js';
-import type { WorkspacesView } from './workspacesView.js';
-import type { WorktreesView } from './worktreesView.js';
 
 /**
  * VS Code debounces onDidChangeTreeData events for 200ms before processing.
@@ -92,7 +83,6 @@ const treeViewTypesSupportsRepositoryFilter: TreeViewTypes[] = [
 	'remotes',
 	'stashes',
 	'tags',
-	'worktrees',
 ];
 const treeViewTypesSupportsWorktreeCollapsing: TreeViewTypes[] = [
 	'branches',
@@ -100,25 +90,19 @@ const treeViewTypesSupportsWorktreeCollapsing: TreeViewTypes[] = [
 	'remotes',
 	'stashes',
 	'tags',
-	'worktrees',
 ];
 
 export type View =
 	| BranchesView
 	| CommitsView
 	| ContributorsView
-	| DraftsView
 	| FileHistoryView
-	| LaunchpadView
 	| LineHistoryView
-	| PullRequestView
 	| RemotesView
 	| RepositoriesView
 	| SearchAndCompareView
 	| StashesView
-	| TagsView
-	| WorkspacesView
-	| WorktreesView;
+	| TagsView;
 
 // prettier-ignore
 export type TreeViewByType = {
@@ -128,16 +112,10 @@ export type TreeViewByType = {
 		? CommitsView
 		: T extends 'contributors'
 		? ContributorsView
-		: T extends 'drafts'
-		? DraftsView
 		: T extends 'fileHistory'
 		? FileHistoryView
-		: T extends 'launchpad'
-		? LaunchpadView
 		: T extends 'lineHistory'
 		? LineHistoryView
-		: T extends 'pullRequest'
-		? PullRequestView
 		: T extends 'remotes'
 		? RemotesView
 		: T extends 'repositories'
@@ -148,10 +126,6 @@ export type TreeViewByType = {
 		? StashesView
 		: T extends 'tags'
 		? TagsView
-		: T extends 'workspaces'
-		? WorkspacesView
-		: T extends 'worktrees'
-		? WorktreesView
 		: View;
 };
 
@@ -159,37 +133,26 @@ export type TreeViewByType = {
 export type WebviewViewByType = {
 	[T in WebviewViewTypes]: T extends 'commitDetails'
 		? CommitsView
-		: T extends 'graph'
-		? CommitsView
-		: T extends 'home'
-		? CommitsView
-		: T extends 'patchDetails'
-		? CommitsView
-		: T extends 'timeline'
-		? CommitsView
 		: View;
 };
 
-export type ViewsWithBranches = BranchesView | CommitsView | RemotesView | RepositoriesView | WorkspacesView;
-export type ViewsWithBranchesNode = BranchesView | RepositoriesView | WorkspacesView;
+export type ViewsWithBranches = BranchesView | CommitsView | RemotesView | RepositoriesView;
+export type ViewsWithBranchesNode = BranchesView | RepositoriesView;
 export type ViewsWithCommits = Exclude<View, LineHistoryView | StashesView>;
 export type ViewsWithContributors = ViewsWithCommits;
 export type ViewsWithContributorsNode = ViewsWithCommits;
-export type ViewsWithRemotes = RemotesView | RepositoriesView | WorkspacesView;
-export type ViewsWithRemotesNode = RemotesView | RepositoriesView | WorkspacesView;
-export type ViewsWithRepositories = RepositoriesView | WorkspacesView;
-export type ViewsWithRepositoriesNode = RepositoriesView | WorkspacesView;
-export type ViewsWithRepositoryFolders = Exclude<
-	View,
-	DraftsView | FileHistoryView | LaunchpadView | LineHistoryView | PullRequestView | RepositoriesView | WorkspacesView
->;
+export type ViewsWithRemotes = RemotesView | RepositoriesView;
+export type ViewsWithRemotesNode = RemotesView | RepositoriesView;
+export type ViewsWithRepositories = RepositoriesView;
+export type ViewsWithRepositoriesNode = RepositoriesView;
+export type ViewsWithRepositoryFolders = Exclude<View, FileHistoryView | LineHistoryView>;
 export type ViewsWithStashes = StashesView | ViewsWithCommits;
-export type ViewsWithStashesNode = RepositoriesView | StashesView | WorkspacesView;
-export type ViewsWithTags = RepositoriesView | TagsView | WorkspacesView;
-export type ViewsWithTagsNode = RepositoriesView | TagsView | WorkspacesView;
-export type ViewsWithWorkingTree = RepositoriesView | WorktreesView | WorkspacesView;
-export type ViewsWithWorktrees = RepositoriesView | WorktreesView | WorkspacesView;
-export type ViewsWithWorktreesNode = RepositoriesView | WorktreesView | WorkspacesView;
+export type ViewsWithStashesNode = RepositoriesView | StashesView;
+export type ViewsWithTags = RepositoriesView | TagsView;
+export type ViewsWithTagsNode = RepositoriesView | TagsView;
+export type ViewsWithWorkingTree = RepositoriesView;
+export type ViewsWithWorktrees = RepositoriesView;
+export type ViewsWithWorktreesNode = RepositoriesView;
 
 export interface TreeViewNodeCollapsibleStateChangeEvent<T> extends TreeViewExpansionEvent<T> {
 	state: TreeItemCollapsibleState;
@@ -208,17 +171,13 @@ export abstract class ViewBase<
 		| BranchesViewConfig
 		| CommitsViewConfig
 		| ContributorsViewConfig
-		| DraftsViewConfig
 		| FileHistoryViewConfig
-		| LaunchpadViewConfig
 		| LineHistoryViewConfig
-		| PullRequestViewConfig
 		| RemotesViewConfig
 		| RepositoriesViewConfig
 		| SearchAndCompareViewConfig
 		| StashesViewConfig
-		| TagsViewConfig
-		| WorktreesViewConfig,
+		| TagsViewConfig,
 >
 	implements TreeDataProvider<ViewNode>, Disposable
 {

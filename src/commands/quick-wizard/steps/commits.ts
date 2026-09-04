@@ -21,7 +21,6 @@ import {
 	CommitCompareWithWorkingCommandQuickPickItem,
 	CommitCopyIdQuickPickItem,
 	CommitCopyMessageQuickPickItem,
-	CommitExplainCommandQuickPickItem,
 	CommitFileQuickPickItem,
 	CommitFilesQuickPickItem,
 	CommitOpenAllChangesCommandQuickPickItem,
@@ -35,7 +34,6 @@ import {
 	CommitOpenDirectoryCompareWithWorkingCommandQuickPickItem,
 	CommitOpenFileCommandQuickPickItem,
 	CommitOpenFilesCommandQuickPickItem,
-	CommitOpenInGraphCommandQuickPickItem,
 	CommitOpenRevisionCommandQuickPickItem,
 	CommitOpenRevisionsCommandQuickPickItem,
 	CommitRestoreFileChangesCommandQuickPickItem,
@@ -495,7 +493,6 @@ async function getShowCommitOrStashStepItems<
 >(state: State): Promise<CommandQuickPickItem[]> {
 	const items: (CommandQuickPickItem | QuickPickSeparator)[] = [
 		new CommitOpenDetailsCommandQuickPickItem(state.reference),
-		new CommitOpenInGraphCommandQuickPickItem(state.reference),
 	];
 
 	let unpublished: boolean | undefined;
@@ -532,8 +529,6 @@ async function getShowCommitOrStashStepItems<
 			new CommitCopyMessageQuickPickItem(state.reference),
 		);
 	} else {
-		items.push(createQuickPickSeparator(), new CommitExplainCommandQuickPickItem(state.reference));
-
 		const remotes = await state.repo.git.remotes.getRemotesWithProviders({ sort: true });
 		if (remotes?.length) {
 			items.push(
@@ -716,7 +711,6 @@ async function getShowCommitOrStashFileStepItems<
 
 	const items: (CommandQuickPickItem | QuickPickSeparator)[] = [
 		new CommitOpenDetailsCommandQuickPickItem(state.reference),
-		new CommitOpenInGraphCommandQuickPickItem(state.reference),
 	];
 
 	if (GitCommit.isStash(state.reference)) {
@@ -730,8 +724,6 @@ async function getShowCommitOrStashFileStepItems<
 			new CommitCopyMessageQuickPickItem(state.reference),
 		);
 	} else {
-		items.push(createQuickPickSeparator(), new CommitExplainCommandQuickPickItem(state.reference));
-
 		const remotes = await state.repo.git.remotes.getRemotesWithProviders({ sort: true });
 		if (remotes?.length) {
 			items.push(

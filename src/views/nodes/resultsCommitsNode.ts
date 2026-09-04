@@ -10,8 +10,6 @@ import { defer, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
 import type { TreeViewNodeTypes } from '../../constants.views.js';
 import { GitUri } from '../../git/gitUri.js';
 import type { CommitsQueryResults, FilesQueryResults } from '../../git/queryResults.js';
-import { getChangesForChangelog } from '../../git/utils/-webview/log.utils.js';
-import type { AIGenerateChangelogChanges } from '../../plus/ai/actions/generateChangelog.js';
 import { configuration } from '../../system/-webview/configuration.js';
 import type { ViewsWithCommits } from '../viewBase.js';
 import type { PageableViewNode } from './abstract/viewNode.js';
@@ -263,18 +261,6 @@ export class ResultsCommitsNodeBase<Type extends TreeViewNodeTypes, View extends
 		this.limit = results.log?.count;
 
 		void this.triggerChange(false);
-	}
-
-	async getChangesForChangelog(): Promise<AIGenerateChangelogChanges> {
-		const range: AIGenerateChangelogChanges['range'] = {
-			base: { ref: this.ref1!, label: `\`${this.ref1}\`` },
-			head: { ref: this.ref2!, label: `\`${this.ref2}\`` },
-		};
-
-		const { log } = await this.getCommitsQueryResults();
-		if (log == null) return { changes: [], range: range };
-
-		return getChangesForChangelog(this.view.container, range, log);
 	}
 }
 

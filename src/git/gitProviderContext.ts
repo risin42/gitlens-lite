@@ -1,30 +1,27 @@
 import { Uri as VscodeUri, workspace } from 'vscode';
 import type { CachedGitTypes } from '@gitlens/git/cache.js';
 import type { GitServiceConfig, GitServiceContext } from '@gitlens/git/context.js';
-import type { SigningErrorReason } from '@gitlens/git/errors.js';
 import type { RepositoryChange } from '@gitlens/git/models/repository.js';
 import { mixinDisposable } from '@gitlens/utils/disposable.js';
 import type { Uri } from '@gitlens/utils/uri.js';
 import { getRepositoryKey } from '@gitlens/utils/uri.js';
-import type { Source } from '../constants.telemetry.js';
 import type { Container } from '../container.js';
 import { configuration } from '../system/-webview/configuration.js';
-import { loadChunk } from '../system/-webview/loadChunk.js';
 import { buildRemoteProviderConfigs } from './remotes/remoteProviderConfigs.js';
-import { getIntegrationRepositoryInfo, sortRemotes } from './utils/-webview/remote.utils.js';
+import { sortRemotes } from './utils/-webview/remote.utils.js';
 
 /**
  * Creates a {@link GitServiceContext} — config, hooks, workspace resolution,
- * and integrations.
+ * and remote configuration.
  *
- * All hooks fire directly to the extension event bus or telemetry service.
+ * All hooks fire directly to the extension event bus.
  * Providers pass the context through unchanged (no augmentation needed).
  */
 export function createGitProviderContext(container: Container): GitServiceContext {
 	const config: GitServiceConfig = {
 		get commits() {
 			return {
-				includeFileDetails: !configuration.get('advanced.commits.delayLoadingFileDetails'),
+				includeFileDetails: (repoPath: string) => !container.gitHealth.shouldDelayFileDetails(repoPath),
 				ordering: configuration.get('advanced.commitOrdering'),
 				similarityThreshold: configuration.get('advanced.similarityThreshold'),
 				maxItems: configuration.get('advanced.maxListItems'),
@@ -45,10 +42,6 @@ export function createGitProviderContext(container: Container): GitServiceContex
 		get graph() {
 			return {
 				writeCommitGraph: configuration.get('gitOptimizations.enabled'),
-				commitOrdering: configuration.get('graph.commitOrdering'),
-				onlyFollowFirstParent: configuration.get('graph.onlyFollowFirstParent'),
-				avatars: configuration.get('graph.avatars'),
-				maxSearchItems: configuration.get('graph.searchItemLimit'),
 			};
 		},
 		get maintenance() {
@@ -87,18 +80,7 @@ export function createGitProviderContext(container: Container): GitServiceContex
 						changes: changes,
 					}),
 			},
-			commits: {
-				onSigned: (format, source) =>
-					container.telemetry.sendEvent('commit/signed', { format: format }, source as Source),
-				onSigningFailed: (reason: SigningErrorReason, format, source) =>
-					container.telemetry.sendEvent(
-						'commit/signing/failed',
-						{ reason: reason, format: format },
-						source as Source,
-					),
-			},
 			operations: {
-				onConflicted: command => container.telemetry.sendEvent('gitCommand/conflict', { command: command }),
 				onRebaseCapableOperation: (repoPath, command, phase) => {
 					if (phase === 'started') {
 						container.operationOrigins.markStarted(repoPath, command);
@@ -106,12 +88,6 @@ export function createGitProviderContext(container: Container): GitServiceContex
 						void container.operationOrigins.onOperationEnded(repoPath);
 					}
 				},
-				onGitDirResolveFailed: (repoPath, gitDir, errorMessage) =>
-					container.telemetry.sendEvent('op/git/gitDirResolve/failed', {
-						'repository.path': repoPath,
-						'git.dir': gitDir,
-						'error.message': errorMessage,
-					}),
 			},
 		},
 
@@ -131,24 +107,12 @@ export function createGitProviderContext(container: Container): GitServiceContex
 			getCustomProviders: (repoPath: string) => {
 				const repo = container.git.getRepository(repoPath);
 				const configuredRemotes = configuration.get('remotes', repo?.folder?.uri ?? null);
-				const configuredIntegrations = container.integrations.getConfigured();
-				// `getConfigured` is synchronous; the RemotesProvider port is Promise-typed, so bridge here.
-				return Promise.resolve(buildRemoteProviderConfigs(configuredRemotes, configuredIntegrations));
+				return Promise.resolve(buildRemoteProviderConfigs(configuredRemotes));
 			},
 
-			getRepositoryInfo: (providerId, targetDesc) =>
-				getIntegrationRepositoryInfo(container, providerId, targetDesc),
+			getRepositoryInfo: () => Promise.resolve(undefined),
 
 			sort: (remotes, cancellation) => sortRemotes(container, remotes, cancellation),
-		},
-
-		searchQuery: {
-			preprocessQuery: async (search, source) => {
-				const { processNaturalLanguageToSearchQuery } = await loadChunk(
-					() => import(/* webpackChunkName: "ai" */ './search.naturalLanguage.js'),
-				);
-				return processNaturalLanguageToSearchQuery(container, search, source as Source);
-			},
 		},
 
 		workspace: {

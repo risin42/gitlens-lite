@@ -4,6 +4,7 @@ import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitBranchReference, GitRevisionReference } from '@gitlens/git/models/reference.js';
 import { getReferenceLabel } from '@gitlens/git/utils/reference.utils.js';
 import { getDefaultRemoteOrOrigin } from '@gitlens/git/utils/remote.utils.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import type { BranchesViewConfig, ViewBranchesLayout, ViewFilesLayout } from '../config.js';
 import type { Container } from '../container.js';
 import { GitUri } from '../git/gitUri.js';
@@ -11,7 +12,6 @@ import type { RepositoryChangeEvent } from '../git/models/repository.js';
 import { getWorktreesByBranch } from '../git/utils/-webview/worktree.utils.js';
 import { executeCommand } from '../system/-webview/command.js';
 import { configuration } from '../system/-webview/configuration.js';
-import { gate } from '../system/decorators/gate.js';
 import { RepositoriesSubscribeableNode } from './nodes/abstract/repositoriesSubscribeableNode.js';
 import { RepositoryFolderNode } from './nodes/abstract/repositoryFolderNode.js';
 import type { ViewNode } from './nodes/abstract/viewNode.js';
@@ -177,16 +177,6 @@ export class BranchesView extends ViewBase<'branches', BranchesViewNode, Branche
 			registerViewCommand(
 				this.getQualifiedCommand('setShowBranchComparisonOff'),
 				() => this.setShowBranchComparison(false),
-				this,
-			),
-			registerViewCommand(
-				this.getQualifiedCommand('setShowBranchPullRequestOn'),
-				() => this.setShowBranchPullRequest(true),
-				this,
-			),
-			registerViewCommand(
-				this.getQualifiedCommand('setShowBranchPullRequestOff'),
-				() => this.setShowBranchPullRequest(false),
 				this,
 			),
 			registerViewCommand(
@@ -374,11 +364,6 @@ export class BranchesView extends ViewBase<'branches', BranchesViewNode, Branche
 			`views.${this.configKey}.showBranchComparison` as const,
 			enabled ? 'branch' : false,
 		);
-	}
-
-	private async setShowBranchPullRequest(enabled: boolean) {
-		await configuration.updateEffective(`views.${this.configKey}.pullRequests.showForBranches` as const, enabled);
-		await configuration.updateEffective(`views.${this.configKey}.pullRequests.enabled` as const, enabled);
 	}
 
 	private setShowRemoteBranches(enabled: boolean) {

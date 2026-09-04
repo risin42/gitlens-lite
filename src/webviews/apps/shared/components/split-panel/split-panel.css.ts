@@ -188,7 +188,7 @@ export const splitPanelStyles = css`
 	/*
 	 * Maximize — the end panel floats over the full container instead of redistributing space.
 	 * Unlike a grid-track collapse, the start panel keeps its exact pre-maximize layout underneath,
-	 * so content behind it (e.g. the commit graph) never reflows and restoring is instant. The
+	 * so content behind it never reflows and restoring is instant. The
 	 * divider is hidden since consumers disable it alongside this state anyway.
 	 */
 	:host([maximized]) {

@@ -9,8 +9,6 @@
  */
 
 import { Disposable, FileSystemError, Uri, window, workspace } from 'vscode';
-import type { MessageItem } from 'vscode';
-import { getSquashSequenceEditor } from '@env/git/squashEditor.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFileChange, GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
@@ -28,7 +26,7 @@ import {
 	getConflictIncomingRef,
 	resolveConflictFilePaths,
 } from '@gitlens/git/utils/pausedOperationStatus.utils.js';
-import { createRevisionRange, isSha } from '@gitlens/git/utils/revision.utils.js';
+import { createRevisionRange } from '@gitlens/git/utils/revision.utils.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import { LruMap } from '@gitlens/utils/lruMap.js';
 import { normalizePath } from '@gitlens/utils/path.js';
@@ -36,10 +34,8 @@ import { getSettledValue } from '@gitlens/utils/promise.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import { getAvatarUri } from '../../../avatars.js';
 import type { DiffWithCommandArgs } from '../../../commands/diffWith.js';
-import type { Source } from '../../../constants.telemetry.js';
 import type { Container } from '../../../container.js';
 import { ProviderNotSupportedError } from '../../../errors.js';
-import type { FeatureAccess, PlusFeatures } from '../../../features.js';
 import * as BranchActions from '../../../git/actions/branch.js';
 import * as RepoActions from '../../../git/actions/repository.js';
 import * as StashActions from '../../../git/actions/stash.js';
@@ -48,7 +44,6 @@ import {
 	getCommitAuthorAvatarUri,
 	getCommitCommitterAvatarUri,
 	getCommitSignature,
-	isCommitPushed,
 } from '../../../git/utils/-webview/commit.utils.js';
 import {
 	resolveAllConflicts as resolveAllConflictsHelper,
@@ -58,11 +53,8 @@ import { countConflictMarkers } from '../../../git/utils/-webview/mergeConflicts
 import { getReferenceFromBranch } from '../../../git/utils/-webview/reference.utils.js';
 import { getReachableWorktrees } from '../../../git/utils/-webview/worktree.utils.js';
 import { executeCommand, executeCoreCommand } from '../../../system/-webview/command.js';
-import { serialize } from '../../../system/serialize.js';
 import type { EventRegistration, EventVisibilityBuffer, SubscriptionTracker } from '../eventVisibilityBuffer.js';
 import { bufferEventHandler, toEventNotifier, trackRpcRegistration } from '../eventVisibilityBuffer.js';
-import type { ClassifiedCommitFailure, CommitResult } from './commitFailure.js';
-import { buildCommitOutputPreview, classifyCommitFailure } from './commitFailure.js';
 import { classifyFilesForDiscard, discardOneWith } from './discard.utils.js';
 import { createRepositoryChangeAggregator } from './repositoryChangeAggregator.js';
 import type {
@@ -270,7 +262,7 @@ export class RepositoryService {
 	 * with remotes this hits the remote provider (a network fetch), so the core commit payload ships a
 	 * synchronous cached-or-gravatar avatar and the details panels upgrade to this when it lands.
 	 *
-	 * Resolves from the commit rather than from bare emails so the integration-supplied `avatarUrl` still
+	 * Resolves from the commit rather than from bare emails so the provider-supplied `avatarUrl` still
 	 * wins (`getCommitAuthorAvatarUri` short-circuits on it) — resolving by email alone would downgrade a
 	 * GitHub-provider avatar to a gravatar, since `getAvatarUri` always falls back rather than returning
 	 * nothing.
@@ -328,14 +320,6 @@ export class RepositoryService {
 	}
 
 	private readonly _reachableFromOtherWorktreesCache = new LruMap<string, boolean>(100);
-
-	async getFeatureAccess(feature: PlusFeatures, repoUri?: string): Promise<FeatureAccess> {
-		const access =
-			repoUri != null
-				? await this.container.git.access(feature, Uri.parse(repoUri))
-				: await this.container.git.access(feature);
-		return serialize(access);
-	}
 
 	async hasRemotes(repoPath: string): Promise<boolean> {
 		const remotes = await this.container.git.getRepositoryService(repoPath).remotes.getRemotes();
@@ -457,7 +441,7 @@ export class RepositoryService {
 	}
 
 	/**
-	 * Per-side details for the graph WIP Conflict Details sheet: for each side (current/incoming) the
+	 * Per-side details for the WIP Conflict Details sheet: for each side (current/incoming) the
 	 * ref, a display label, and the commits that changed the file from the merge-base to that side's
 	 * ref. Mirrors the tree-view `MergeConflictChangesNode` log logic. `status` is the file's two-char
 	 * conflict status, used to gate the stage-current/incoming affordances.
@@ -1181,157 +1165,6 @@ export class RepositoryService {
 	}
 
 	/**
-	 * Commit staged changes. Never throws for git failures — returns a discriminated
-	 * {@link CommitResult} so the webview can drive its error UX without depending on
-	 * exception fidelity surviving RPC serialization. On failure, the classified error is
-	 * presented host-side (modal + optional full-output document) as a fire-and-forget effect.
-	 */
-	async commit(
-		repoPath: string,
-		message: string,
-		options?: { all?: boolean; amend?: boolean },
-	): Promise<CommitResult> {
-		try {
-			await this.container.git
-				.getRepositoryService(repoPath)
-				.ops?.commit(message, { ...options, source: { source: 'graph' } satisfies Source });
-			return { status: 'committed' };
-		} catch (ex) {
-			const failure = classifyCommitFailure(ex);
-			// Present asynchronously so the webview spinner stops the instant the commit fails,
-			// rather than spinning while the modal sits open. The captured output is held in the
-			// closure, so no caching/lifecycle is needed.
-			void presentCommitFailure(failure);
-
-			return {
-				status: 'failed',
-				reason: failure.reason,
-				summary: failure.summary,
-				hasOutput: failure.output != null && failure.output.length > 0,
-			};
-		}
-	}
-
-	/**
-	 * Commits staged changes as a `fixup!`-prefixed message, then immediately relocates that fixup
-	 * commit directly under its target via a headless interactive rebase — folding it in right away
-	 * rather than waiting for a later `--autosquash` pass. Never throws; the rebase step degrades to
-	 * a toast on conflict or failure while still reporting the commit itself as succeeded.
-	 */
-	async commitAndSquashFixup(
-		repoPath: string,
-		message: string,
-		options: { targetSha: string; all?: boolean },
-	): Promise<CommitResult> {
-		const svc = this.container.git.getRepositoryService(repoPath);
-		if (svc.ops?.rebase == null) {
-			return {
-				status: 'failed',
-				reason: 'unknown',
-				summary: "Squashing fixups isn't supported in this environment",
-				hasOutput: false,
-			};
-		}
-
-		let published = false;
-		try {
-			published = await isCommitPushed(repoPath, options.targetSha);
-		} catch {
-			// Ignore — fall back to committing without the published warning.
-		}
-		if (published) {
-			const confirm: MessageItem = { title: 'Commit & Squash' };
-			const cancel: MessageItem = { title: 'Cancel', isCloseAffordance: true };
-			let choice: MessageItem | undefined;
-			try {
-				choice = await window.showWarningMessage(
-					'Commit and squash this fixup?',
-					{
-						modal: true,
-						detail: 'The target commit has already been pushed. Squashing the fixup rewrites history and will require a force push.',
-					},
-					confirm,
-					cancel,
-				);
-			} catch {
-				// An unpresentable confirmation counts as a decline — never rewrite unconfirmed.
-			}
-			if (choice !== confirm) return { status: 'cancelled' };
-		}
-
-		try {
-			await svc.ops.commit(message, { all: options.all, source: { source: 'graph' } satisfies Source });
-		} catch (ex) {
-			const failure = classifyCommitFailure(ex);
-			void presentCommitFailure(failure);
-
-			return {
-				status: 'failed',
-				reason: failure.reason,
-				summary: failure.summary,
-				hasOutput: failure.output != null && failure.output.length > 0,
-			};
-		}
-
-		let resolved;
-		try {
-			resolved = await svc.revision.resolveRevision('HEAD');
-		} catch {
-			// Fall through to the committed-without-squash path below.
-		}
-		if (resolved == null || !isSha(resolved.sha)) {
-			void window.showWarningMessage(
-				'The fixup was committed, but GitLens could not locate it to squash automatically.',
-			);
-
-			return { status: 'committed' };
-		}
-
-		try {
-			const sequenceEditor = getSquashSequenceEditor(this.container);
-			const result = await svc.ops.rebase(
-				`${options.targetSha}^`,
-				{
-					interactive: true,
-					// The editor is a script that rewrites the todo by SHA, so force git to emit a plain,
-					// natural-order todo (no autosquash reordering, no abbreviated `p` commands).
-					programmaticEditor: true,
-					editor: sequenceEditor.editor,
-					autoStash: true,
-					updateRefs: true,
-					source: { source: 'graph' } satisfies Source,
-				},
-				{
-					env: {
-						...sequenceEditor.env,
-						GL_FIXUP_SHA: resolved.sha,
-						GL_FIXUP_TARGET: options.targetSha,
-					},
-				},
-			);
-			if (result?.conflicted) {
-				void window.showWarningMessage(
-					'Fixup stopped because of conflicts. Resolve them to continue, or abort the rebase to cancel.',
-				);
-			}
-		} catch (ex) {
-			void window.showErrorMessage(
-				`Committed the fixup, but squashing it failed: ${ex instanceof Error ? ex.message : String(ex)}`,
-			);
-		}
-
-		return { status: 'committed' };
-	}
-
-	/**
-	 * Get the last commit message (for amend mode).
-	 */
-	async getLastCommitMessage(repoPath: string): Promise<string | undefined> {
-		const commit = await this.container.git.getRepositoryService(repoPath).commits.getCommit('HEAD');
-		return commit?.message;
-	}
-
-	/**
 	 * Fetch from remote.
 	 */
 	async fetch(repoPath: string): Promise<void> {
@@ -1406,7 +1239,7 @@ export class RepositoryService {
 
 	/**
 	 * Get full working tree status (file list + branch + summary).
-	 * Used by Commit Details for WIP file display, Timeline for pseudo-commits.
+	 * Used by Commit Details for WIP file display and other synthetic commits.
 	 */
 	async getWipStatus(repoPath: string): Promise<WipStatus | undefined> {
 		const status = await this.container.git.getRepositoryService(repoPath).status.getStatus();
@@ -1514,32 +1347,4 @@ function serializeStatusFile(file: GitStatusFile): SerializedGitFileChange {
 		staged: file.staged,
 		submodule: file.submodule,
 	};
-}
-
-/**
- * Presents a classified commit failure as a modal error dialog. When output is available, the
- * modal previews the first lines and offers a "View Full Output" action that opens the complete
- * output in an untitled `log` document (the lightweight pattern used by patches/changelog viewers).
- */
-async function presentCommitFailure(failure: ClassifiedCommitFailure): Promise<void> {
-	const { summary, output } = failure;
-	const hasOutput = output != null && output.length > 0;
-
-	// Self-contained: this runs as a fire-and-forget effect off the commit RPC, so it must never
-	// escape as an unhandled rejection if a dialog/editor API rejects (e.g. the host refuses dialogs).
-	try {
-		const viewOutput = 'View Full Output';
-		const choice = await window.showErrorMessage(
-			summary,
-			{ modal: true, detail: hasOutput ? buildCommitOutputPreview(output) : undefined },
-			...(hasOutput ? [viewOutput] : []),
-		);
-
-		if (choice === viewOutput && output != null) {
-			const doc = await workspace.openTextDocument({ content: output, language: 'log' });
-			await window.showTextDocument(doc, { preview: false });
-		}
-	} catch (ex) {
-		Logger.error(ex, 'presentCommitFailure');
-	}
 }

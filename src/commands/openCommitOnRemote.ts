@@ -4,7 +4,7 @@ import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
 import { isUncommitted } from '@gitlens/git/utils/revision.utils.js';
 import { Logger } from '@gitlens/utils/logger.js';
-import type { Source } from '../constants.telemetry.js';
+import type { Source } from '../constants.context.js';
 import type { Container } from '../container.js';
 import { GitUri } from '../git/gitUri.js';
 import {
@@ -18,7 +18,7 @@ import { createMarkdownCommandLink } from '../system/commands.js';
 import { ActiveEditorCommand } from './commandBase.js';
 import { getCommandUri } from './commandBase.utils.js';
 import type { CommandContext } from './commandContext.js';
-import { isCommandContextGitTimelineItem, isCommandContextViewNodeHasCommit } from './commandContext.utils.js';
+import { isCommandContextViewNodeHasCommit } from './commandContext.utils.js';
 import type { OpenOnRemoteCommandArgs } from './openOnRemote.js';
 
 export interface OpenCommitOnRemoteCommandArgs {
@@ -54,11 +54,6 @@ export class OpenCommitOnRemoteCommand extends ActiveEditorCommand {
 
 			args = { ...args, sha: context.node.commit.sha };
 			uri = context.node.uri;
-		}
-
-		if (isCommandContextGitTimelineItem(context)) {
-			args = { sha: context.item.ref };
-			uri = context.uri;
 		}
 
 		if (context.command === 'gitlens.copyRemoteCommitUrl') {

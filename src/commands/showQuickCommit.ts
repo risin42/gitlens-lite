@@ -2,7 +2,7 @@ import type { TextEditor, Uri } from 'vscode';
 import type { GitCommit, GitStashCommit } from '@gitlens/git/models/commit.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
 import { Logger } from '@gitlens/utils/logger.js';
-import type { Source } from '../constants.telemetry.js';
+import type { Source } from '../constants.context.js';
 import type { Container } from '../container.js';
 import { executeGitCommand } from '../git/actions.js';
 import { revealCommit } from '../git/actions/commit.js';

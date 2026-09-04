@@ -136,7 +136,6 @@ export class LineHoverController implements Disposable {
 				cancellation: token,
 				dateFormat: configuration.get('defaultDateFormat'),
 				format: cfg.detailsMarkdownFormat,
-				pullRequests: cfg.pullRequests.enabled,
 				timeout: 250,
 				sourceName: 'editor:hover',
 			})) ?? 'Cancelled';

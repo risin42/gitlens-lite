@@ -42,10 +42,13 @@ function generateThirdpartyNotices(packages) {
 			name = key;
 		}
 
-		if (name === 'gitlens' || name.startsWith('@gitkraken') || name.startsWith('@gitlens/')) continue;
+		if (name === 'gitlens-lite' || name.startsWith('@gitkraken') || name.startsWith('@gitlens/')) continue;
 		if (data.licenseFile == null) continue;
 
-		const license = fs.readFileSync(data.licenseFile, 'utf8').replace(/\r\n/g, '\n');
+		const license = fs
+			.readFileSync(data.licenseFile, 'utf8')
+			.replace(/\r\n/g, '\n')
+			.replace(/[ \t]+$/gm, '');
 
 		packageOutputs.push(`${++count}. ${name}${version ? ` version ${version}` : ''} (${data.repository})`);
 		licenseOutputs.push(
@@ -74,8 +77,7 @@ function collectDirectProductionPackages(start) {
 
 async function generate() {
 	// The extension bundles the `@gitlens/*` packages from source, so their runtime dependencies
-	// (e.g. @octokit/* via @gitlens/git-github) ship in dist/ too. Scanning only the root manifest
-	// would omit their notices.
+	// ship in dist/ too. Scanning only the root manifest would omit their notices.
 	const roots = [process.cwd(), ...getBundledPackageDirs()];
 	// Each scan walks node_modules independently, so run them concurrently rather than nine-in-a-row.
 	const results = await Promise.allSettled(roots.map(start => collectDirectProductionPackages(start)));

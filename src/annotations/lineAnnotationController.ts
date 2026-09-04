@@ -1,20 +1,13 @@
 import type { ConfigurationChangeEvent, DecorationOptions, TextEditor, TextEditorDecorationType } from 'vscode';
 import { CancellationTokenSource, Disposable, Range, window } from 'vscode';
 import { GitCommit } from '@gitlens/git/models/commit.js';
-import type { PullRequest } from '@gitlens/git/models/pullRequest.js';
-import { debounce } from '@gitlens/utils/debounce.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import { once } from '@gitlens/utils/event.js';
 import { getScopedLogger } from '@gitlens/utils/logger.scoped.js';
-import type { MaybePausedResult } from '@gitlens/utils/promise.js';
-import { getSettledValue, pauseOnCancelOrTimeoutMap } from '@gitlens/utils/promise.js';
-import { GlyphChars, Schemes } from '../constants.js';
+import { getSettledValue } from '@gitlens/utils/promise.js';
 import type { Container } from '../container.js';
 import { CommitFormatter } from '../git/formatters/commitFormatter.js';
-import { getCommitAssociatedPullRequest } from '../git/utils/-webview/commit.utils.js';
-import { getBestRemoteWithIntegration } from '../git/utils/-webview/remote.utils.js';
 import { detailsMessage } from '../hovers/hovers.js';
-import { toAbortSignal } from '../system/-webview/cancellation.js';
 import { configuration } from '../system/-webview/configuration.js';
 import { isTrackableTextEditor } from '../system/-webview/vscode/editors.js';
 import type { LinesChangeEvent, LineState } from '../trackers/lineTracker.js';
@@ -40,9 +33,6 @@ export class LineAnnotationController implements Disposable {
 			once(container.onReady)(this.onReady, this),
 			configuration.onDidChange(this.onConfigurationChanged, this),
 			container.fileAnnotations.onDidToggleAnnotations(this.onFileAnnotationsToggled, this),
-			container.integrations.onDidChangeConnectionState(
-				debounce(() => void this.refresh(window.activeTextEditor), 250),
-			),
 		);
 	}
 
@@ -183,30 +173,6 @@ export class LineAnnotationController implements Disposable {
 		editor.setDecorations(annotationDecoration, []);
 	}
 
-	private getPullRequestsForLines(
-		repoPath: string,
-		lines: Map<number, LineState>,
-	): Map<string, Promise<PullRequest | undefined>> {
-		const prs = new Map<string, Promise<PullRequest | undefined>>();
-		if (lines.size === 0) return prs;
-
-		const remotePromise = getBestRemoteWithIntegration(repoPath);
-
-		for (const [, state] of lines) {
-			if (state.commit.isUncommitted) continue;
-
-			let pr = prs.get(state.commit.ref);
-			if (pr == null) {
-				pr = remotePromise.then(remote =>
-					getCommitAssociatedPullRequest(state.commit.repoPath, state.commit.sha, remote),
-				);
-				prs.set(state.commit.ref, pr);
-			}
-		}
-
-		return prs;
-	}
-
 	@trace()
 	private async refresh(editor: TextEditor | undefined) {
 		if (editor == null && this._editor == null) return;
@@ -271,22 +237,8 @@ export class LineAnnotationController implements Disposable {
 
 		scope?.addExitInfo(`selection=${selections.map(s => `[${s.anchor}-${s.active}]`).join()}`);
 
-		let uncommittedOnly = true;
-
-		let hoverOptions:
-			| RequireSome<Parameters<typeof detailsMessage>[4], 'autolinks' | 'pullRequests' | 'sourceName'>
-			| undefined;
-		// Live Share (vsls schemes) don't support `languages.registerHoverProvider` so we'll need to add them to the decoration directly
-		if (editor.document.uri.scheme === Schemes.Vsls || editor.document.uri.scheme === Schemes.VslsScc) {
-			const hoverCfg = configuration.get('hovers');
-			hoverOptions = {
-				autolinks: hoverCfg.autolinks.enabled,
-				dateFormat: configuration.get('defaultDateFormat'),
-				format: hoverCfg.detailsMarkdownFormat,
-				pullRequests: hoverCfg.pullRequests.enabled,
-				sourceName: 'editor:hover',
-			};
-		}
+		const hoverOptions: RequireSome<Parameters<typeof detailsMessage>[4], 'autolinks' | 'sourceName'> | undefined =
+			undefined;
 
 		const commitPromises = new Map<string, Promise<void>>();
 		const lines = new Map<number, LineState>();
@@ -297,30 +249,14 @@ export class LineAnnotationController implements Disposable {
 				continue;
 			}
 
-			// Only ensure the full details if we have to add the hover eagerly (Live Share) and we don't have a message
+			// Ensure full details only when the commit does not already include its message.
 			if (hoverOptions != null && state.commit.message == null && !commitPromises.has(state.commit.ref)) {
 				commitPromises.set(state.commit.ref, GitCommit.ensureFullDetails(state.commit));
 			}
 			lines.set(selection.active, state);
-			if (!state.commit.isUncommitted) {
-				uncommittedOnly = false;
-			}
 		}
 
 		const repoPath = trackedDocument.uri.repoPath;
-
-		const getPullRequests =
-			!uncommittedOnly &&
-			repoPath != null &&
-			cfg.pullRequests.enabled &&
-			CommitFormatter.has(
-				cfg.format,
-				'pullRequest',
-				'pullRequestAgo',
-				'pullRequestAgoOrDate',
-				'pullRequestDate',
-				'pullRequestState',
-			);
 
 		this._cancellation?.cancel();
 		this._cancellation = new CancellationTokenSource();
@@ -335,7 +271,6 @@ export class LineAnnotationController implements Disposable {
 			container: Container,
 			editor: TextEditor,
 			getBranchAndTagTips: Awaited<typeof getBranchAndTagTipsPromise> | undefined,
-			prs: Map<string, MaybePausedResult<PullRequest | undefined>> | undefined,
 			timeout?: number,
 		) {
 			const fontOptions: BlameFontOptions = {
@@ -351,8 +286,6 @@ export class LineAnnotationController implements Disposable {
 				const commit = state.commit;
 				if (commit == null || (commit.isUncommitted && cfg.uncommittedChangesFormat === '')) continue;
 
-				const pr = prs?.get(commit.ref);
-
 				const decoration = getInlineDecoration(
 					commit,
 					// await GitUri.fromUri(editor.document.uri),
@@ -361,8 +294,6 @@ export class LineAnnotationController implements Disposable {
 					{
 						dateFormat: cfg.dateFormat ?? configuration.get('defaultDateFormat'),
 						getBranchAndTagTips: getBranchAndTagTips,
-						pullRequest: pr?.value,
-						pullRequestPendingMessage: `PR ${GlyphChars.Ellipsis}`,
 						source: { source: 'editor:hover' },
 					},
 					fontOptions,
@@ -373,7 +304,6 @@ export class LineAnnotationController implements Disposable {
 				if (hoverOptions != null) {
 					decoration.hoverMessage = await detailsMessage(container, commit, trackedDocument.uri, l, {
 						...hoverOptions,
-						pullRequest: pr?.value,
 						timeout: timeout,
 					});
 				}
@@ -383,44 +313,6 @@ export class LineAnnotationController implements Disposable {
 
 			editor.setDecorations(annotationDecoration, decorations);
 		}
-
-		// TODO: Make this configurable?
-		const timeout = 100;
-		const prsResult = getPullRequests
-			? await pauseOnCancelOrTimeoutMap(
-					this.getPullRequestsForLines(repoPath, lines),
-					true,
-					toAbortSignal(cancellation),
-					timeout,
-					async result => {
-						if (
-							result.reason !== 'timedout' ||
-							cancellation.isCancellationRequested ||
-							editor !== this._editor
-						) {
-							return;
-						}
-
-						// If the PRs are taking too long, refresh the decorations once they complete
-
-						scope?.warn(`\u2022 pull request queries took too long (over ${timeout} ms)`);
-
-						const [getBranchAndTagTipsResult, prsResult] = await Promise.allSettled([
-							getBranchAndTagTipsPromise,
-							result.value,
-						]);
-
-						if (cancellation.isCancellationRequested || editor !== this._editor) return;
-
-						const prs = getSettledValue(prsResult);
-						const getBranchAndTagTips = getSettledValue(getBranchAndTagTipsResult);
-
-						scope?.trace(`\u2022 pull request queries completed; updating...`);
-
-						void updateDecorations(this.container, editor, getBranchAndTagTips, prs);
-					},
-				)
-			: undefined;
 
 		const [getBranchAndTagTipsResult] = await Promise.allSettled([
 			getBranchAndTagTipsPromise,
@@ -432,7 +324,7 @@ export class LineAnnotationController implements Disposable {
 			return;
 		}
 
-		await updateDecorations(this.container, editor, getSettledValue(getBranchAndTagTipsResult), prsResult, 100);
+		await updateDecorations(this.container, editor, getSettledValue(getBranchAndTagTipsResult), 100);
 	}
 
 	private setLineTracker(enabled: boolean) {

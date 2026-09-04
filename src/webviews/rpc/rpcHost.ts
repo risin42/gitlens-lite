@@ -36,7 +36,7 @@ export interface RpcHostOptions {
 	/**
 	 * Webview instance identifier appended to the log tag, matching the existing
 	 * `WebviewController(id|instance)` convention. Helpful when multiple instances
-	 * of the same webview (e.g. multiple Timeline panels) are active at once.
+	 * of the same webview are active at once.
 	 */
 	webviewInstanceId?: string;
 
@@ -212,7 +212,7 @@ export class RpcHost<TServices extends object> implements Disposable {
 	private createEndpoint(webview: Webview): ReturnType<typeof createHostEndpoint> {
 		const endpoint = createHostEndpoint(webview);
 		const rawPost = endpoint.postMessage.bind(endpoint);
-		endpoint.postMessage = (message: unknown, transfer?: unknown[]): void => {
+		endpoint.postMessage = (message, transfer): void => {
 			const announce = extractAnnounceMessage(message);
 			if (announce != null) {
 				this._lastAnnounceMessage = announce;

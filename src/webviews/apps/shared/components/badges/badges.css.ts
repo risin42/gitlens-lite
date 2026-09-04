@@ -51,8 +51,8 @@ export const badgeBase = css`
 		border-radius: var(--gl-radius-sm);
 	}
 
-	/* "Experimental" stamp used by features still gated behind a config flag (e.g. Agent Kanban,
-	 * Visualizations treemap). Uses the editor-warning tone with color-mix so the badge reads as
+	/* "Experimental" stamp used by features still gated behind a config flag (e.g. visualizations).
+	 * Uses the editor-warning tone with color-mix so the badge reads as
 	 * a heads-up without overwhelming the surrounding chrome. */
 	:host([appearance='experimental']) {
 		display: inline-flex;

@@ -1,5 +1,4 @@
 import {
-	getBranchAutolinks as _getBranchAutolinks,
 	ensureCachedBranchNameRegexes,
 	ensureCachedRegex,
 	getAutolinks,
@@ -8,7 +7,6 @@ import {
 	numRegex,
 	serializeAutolink,
 } from '@gitlens/git/utils/autolink.utils.js';
-import { IssuesCloudHostIntegrationId } from '@gitlens/integrations/constants.js';
 import type { Autolink, RefSet } from '../../models/autolinks.js';
 
 // Re-export @gitlens/git functions that are identical
@@ -22,25 +20,12 @@ export {
 	getAutolinks,
 };
 
-export const supportedAutolinkIntegrations = [IssuesCloudHostIntegrationId.Jira, IssuesCloudHostIntegrationId.Linear];
-
 export function getBranchAutolinks(branchName: string, refsets: Readonly<RefSet[]>): Map<string, Autolink> {
 	const autolinks = new Map<string, Autolink>();
 
 	let num;
 	let match;
-	// Sort refsets so that issue integrations are checked first for matches
-	const sortedRefSets = refsets.toSorted((a, b) => {
-		if (a[0]?.id && Object.values<string>(IssuesCloudHostIntegrationId).includes(a[0].id)) {
-			return -1;
-		}
-		if (b[0]?.id && Object.values<string>(IssuesCloudHostIntegrationId).includes(b[0].id)) {
-			return 1;
-		}
-		return 0;
-	});
-
-	for (const [provider, refs] of sortedRefSets) {
+	for (const [provider, refs] of refsets) {
 		for (const ref of refs) {
 			if (
 				!isCacheable(ref) ||

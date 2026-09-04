@@ -1,7 +1,6 @@
 import type { CancellationToken, Disposable, TerminalLink, TerminalLinkContext, TerminalLinkProvider } from 'vscode';
 import { commands, window } from 'vscode';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
-import type { GitReference } from '@gitlens/git/models/reference.js';
 import type { GitTag } from '@gitlens/git/models/tag.js';
 import { getBranchNameWithoutRemote } from '@gitlens/git/utils/branch.utils.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
@@ -14,15 +13,11 @@ import type { ShowQuickBranchHistoryCommandArgs } from '../commands/showQuickBra
 import type { ShowQuickCommitCommandArgs } from '../commands/showQuickCommit.js';
 import type { GlCommands } from '../constants.commands.js';
 import type { Container } from '../container.js';
-import type { GlRepository } from '../git/models/repository.js';
-import { getReferenceFromBranch, getReferenceFromTag } from '../git/utils/-webview/reference.utils.js';
 import { toAbortSignal } from '../system/-webview/cancellation.js';
 import { createTerminalLinkCommand } from '../system/-webview/command.js';
 import { configuration } from '../system/-webview/configuration.js';
-import type { GraphCompareSeed } from '../webviews/plus/graph/protocol.js';
-import type { ShowInCommitGraphCommandArgs } from '../webviews/plus/graph/registration.js';
 
-type TerminalLinkShowIn = 'graph' | 'inspect' | 'quickpick';
+type TerminalLinkShowIn = 'inspect' | 'quickpick';
 
 const commandsRegexShared =
 	/\b(g(?:it)?\b\s*)\b(branch|checkout|cherry-pick|fetch|grep|log|merge|pull|push|rebase|reset|revert|show|stash|status|tag)\b/gi;
@@ -51,6 +46,7 @@ interface GitTerminalLink<T = object> extends TerminalLink {
 function createCommitLinkCommand(showIn: TerminalLinkShowIn, repoPath: string, sha: string) {
 	switch (showIn) {
 		case 'inspect':
+		default:
 			return createTerminalLinkCommand<InspectCommandArgs>('gitlens.showInDetailsView', {
 				ref: createReference(sha, repoPath, { refType: 'revision' }),
 			});
@@ -59,27 +55,18 @@ function createCommitLinkCommand(showIn: TerminalLinkShowIn, repoPath: string, s
 				repoPath: repoPath,
 				sha: sha,
 			});
-		case 'graph':
-		default:
-			return createTerminalLinkCommand<ShowInCommitGraphCommandArgs>('gitlens.showInCommitGraph', {
-				ref: createReference(sha, repoPath, { refType: 'revision' }),
-			});
 	}
 }
 
-// Builds the command a clicked branch/tag/HEAD link fires. `graph` reveals the ref; `inspect` shows
+// Builds the command a clicked branch/tag/HEAD link fires. `inspect` shows
 // its tip commit (falling back to the ref's history when the tip sha is unknown); `quickpick` opens
 // the ref's history.
 function createRefLinkCommand(
 	showIn: TerminalLinkShowIn,
 	repoPath: string,
-	graphRef: GitReference,
 	tipSha: string | undefined,
 	historyArgs: ShowQuickBranchHistoryCommandArgs,
 ) {
-	if (showIn === 'graph') {
-		return createTerminalLinkCommand<ShowInCommitGraphCommandArgs>('gitlens.showInCommitGraph', { ref: graphRef });
-	}
 	if (showIn === 'inspect' && tipSha != null) {
 		return createTerminalLinkCommand<InspectCommandArgs>('gitlens.showInDetailsView', {
 			ref: createReference(tipSha, repoPath, { refType: 'revision' }),
@@ -88,33 +75,15 @@ function createRefLinkCommand(
 	return createTerminalLinkCommand<ShowQuickBranchHistoryCommandArgs>('gitlens.showQuickBranchHistory', historyArgs);
 }
 
-// Builds the command a clicked commit range fires. `graph` opens the Commit Graph's compare mode with
-// the two endpoints (falling back to the Search & Compare view when the repository can't be resolved);
-// `inspect` opens a comparison in the Search & Compare view; `quickpick` opens the commit log for the
-// range (preserving the literal `..`/`...` operator). Convention: left = base (older), right = compare.
+// Commit ranges open Search & Compare, or the command palette's commit log.
 function createRangeLinkCommand(
 	showIn: TerminalLinkShowIn,
 	repoPath: string,
 	range: string,
 	left: string,
 	right: string,
-	repository: GlRepository | undefined,
-	leftRefType: 'branch' | 'tag' | 'commit',
-	rightRefType: 'branch' | 'tag' | 'commit',
 ) {
-	if (showIn === 'graph' && repository != null) {
-		const compare: GraphCompareSeed = {
-			leftRef: left,
-			leftRefType: leftRefType,
-			rightRef: right,
-			rightRefType: rightRefType,
-		};
-		return createTerminalLinkCommand<ShowInCommitGraphCommandArgs>('gitlens.showInCommitGraph', {
-			repository: repository,
-			compare: compare,
-		});
-	}
-	if (showIn === 'graph' || showIn === 'inspect') {
+	if (showIn === 'inspect') {
 		return createTerminalLinkCommand<CompareWithCommandArgs>('gitlens.compareWith', {
 			repoPath: repoPath,
 			ref1: right,
@@ -152,7 +121,7 @@ export class GitTerminalLinkProvider implements Disposable, TerminalLinkProvider
 		const repoPath = this.container.git.highlander?.path;
 		if (!repoPath) return [];
 
-		const showIn = configuration.get('terminalLinks.showIn');
+		const showIn = configuration.get('terminalLinks.showIn') === 'quickpick' ? 'quickpick' : 'inspect';
 
 		const key = `${repoPath}|${showIn}|${context.line}`;
 		const cached = this._cache.get(key);
@@ -200,7 +169,6 @@ export class GitTerminalLinkProvider implements Disposable, TerminalLinkProvider
 		// Detect commit ranges first: `refRegex` can't match them (it rejects `..`), and collecting
 		// their spans lets us suppress the trailing-sha ref match inside a range (links can't overlap).
 		const rangeSpans: [number, number][] = [];
-		const repository = showIn === 'graph' ? this.container.git.getRepository(repoPath) : undefined;
 		let rangeMatch;
 		while (true) {
 			if (token.isCancellationRequested) return links;
@@ -220,16 +188,7 @@ export class GitTerminalLinkProvider implements Disposable, TerminalLinkProvider
 				startIndex: rangeMatch.index,
 				length: range.length,
 				tooltip: showIn === 'quickpick' ? 'Show Commits' : 'Show Comparison',
-				command: createRangeLinkCommand(
-					showIn,
-					repoPath,
-					range,
-					left,
-					right,
-					repository,
-					leftRefType,
-					rightRefType,
-				),
+				command: createRangeLinkCommand(showIn, repoPath, range, left, right),
 			});
 			rangeSpans.push([rangeMatch.index, rangeMatch.index + range.length]);
 		}
@@ -267,13 +226,7 @@ export class GitTerminalLinkProvider implements Disposable, TerminalLinkProvider
 					startIndex: index,
 					length: ref.length,
 					tooltip: 'Show HEAD',
-					command: createRefLinkCommand(
-						showIn,
-						repoPath,
-						createReference('HEAD', repoPath, { refType: 'revision' }),
-						'HEAD',
-						{ branch: 'HEAD', repoPath: repoPath },
-					),
+					command: createRefLinkCommand(showIn, repoPath, 'HEAD', { branch: 'HEAD', repoPath: repoPath }),
 				});
 
 				continue;
@@ -290,7 +243,7 @@ export class GitTerminalLinkProvider implements Disposable, TerminalLinkProvider
 					startIndex: index,
 					length: ref.length,
 					tooltip: 'Show Branch',
-					command: createRefLinkCommand(showIn, repoPath, getReferenceFromBranch(branch), branch.sha, {
+					command: createRefLinkCommand(showIn, repoPath, branch.sha, {
 						repoPath: repoPath,
 						branch: branch.name,
 					}),
@@ -309,7 +262,7 @@ export class GitTerminalLinkProvider implements Disposable, TerminalLinkProvider
 					startIndex: index,
 					length: ref.length,
 					tooltip: 'Show Tag',
-					command: createRefLinkCommand(showIn, repoPath, getReferenceFromTag(tag), tag.sha, {
+					command: createRefLinkCommand(showIn, repoPath, tag.sha, {
 						repoPath: repoPath,
 						tag: tag.name,
 					}),

@@ -216,7 +216,7 @@ export interface GitMaintenanceSubProvider {
 	revertOptimization(repoPath: string, id: GitOptimizationId, cancellation?: AbortSignal): Promise<void>;
 	/**
 	 * Enables or disables GitLens's automatic commit-graph maintenance for this repo — a per-repository off
-	 * switch, distinct from the global `gitlens.gitOptimizations.enabled` master switch. Writes the
+	 * switch, distinct from the global `gitlens-lite.gitOptimizations.enabled` master switch. Writes the
 	 * `gk.commitGraphDisabled` marker when disabling; clears it when re-enabling (tolerating an
 	 * already-absent marker). User-clicked, so a genuine write failure THROWS.
 	 */

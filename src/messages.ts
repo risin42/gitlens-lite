@@ -6,11 +6,8 @@ import type { GitCommit } from '@gitlens/git/models/commit.js';
 import { filterMap } from '@gitlens/utils/array.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import type { SuppressedMessages } from './config.js';
-import { urls } from './constants.js';
-import type { Source } from './constants.telemetry.js';
-import type { Container } from './container.js';
 import { formatIdentityDisplayName, getCommitFormattedDate } from './git/utils/-webview/commit.utils.js';
-import { executeCommand, executeCoreCommand } from './system/-webview/command.js';
+import { executeCommand } from './system/-webview/command.js';
 import { configuration } from './system/-webview/configuration.js';
 import { openTerminal } from './system/-webview/terminal.js';
 import { openUrl } from './system/-webview/vscode/uris.js';
@@ -219,29 +216,6 @@ export function showGitVersionUnsupportedErrorMessage(
 	);
 }
 
-export async function showPreReleaseExpiredErrorMessage(version: string): Promise<void> {
-	const upgrade = { title: 'Upgrade' };
-	const switchToRelease = { title: 'Switch to Release Version' };
-	const result = await showMessage(
-		'error',
-		`This pre-release version (${version}) of GitLens has expired. Please upgrade to a more recent pre-release, or switch to the release version.`,
-		undefined,
-		null,
-		upgrade,
-		switchToRelease,
-	);
-
-	if (result === upgrade) {
-		void executeCoreCommand('workbench.extensions.installExtension', 'eamodio.gitlens', {
-			installPreReleaseVersion: true,
-		});
-		void executeCoreCommand('workbench.extensions.action.extensionUpdates');
-	} else if (result === switchToRelease) {
-		void executeCoreCommand('workbench.extensions.action.installExtensions');
-		void executeCoreCommand('workbench.extensions.action.switchToRelease', 'eamodio.gitlens');
-	}
-}
-
 export function showLineUncommittedWarningMessage(message: string): Promise<MessageItem | undefined> {
 	return showMessage('warn', `${message}. The line has uncommitted changes.`, 'suppressLineUncommittedWarning');
 }
@@ -250,163 +224,11 @@ export function showNoRepositoryWarningMessage(message: string): Promise<Message
 	return showMessage('warn', `${message}. No repository could be found.`, 'suppressNoRepositoryWarning');
 }
 
-export function showGkDisconnectedTooManyFailedRequestsWarningMessage(): Promise<MessageItem | undefined> {
-	return showMessage(
-		'error',
-		`Requests to GitKraken have stopped being sent for this session, because of too many failed requests.`,
-		'suppressGkDisconnectedTooManyFailedRequestsWarningMessage',
-		undefined,
-		{
-			title: 'OK',
-		},
-	);
-}
-
-export function showGkRequestFailed500WarningMessage(message: string): Promise<MessageItem | undefined> {
-	return showMessage('error', message, 'suppressGkRequestFailed500Warning', undefined, {
-		title: 'OK',
-	});
-}
-
-export function showGkRequestTimedOutWarningMessage(): Promise<MessageItem | undefined> {
-	return showMessage('error', `GitKraken request timed out.`, 'suppressGkRequestTimedOutWarning', undefined, {
-		title: 'OK',
-	});
-}
-
-export function showIntegrationDisconnectedTooManyFailedRequestsWarningMessage(
-	providerName: string,
-): Promise<MessageItem | undefined> {
-	return showMessage(
-		'error',
-		`Rich integration with ${providerName} has been disconnected for this session, because of too many failed requests.`,
-		'suppressIntegrationDisconnectedTooManyFailedRequestsWarning',
-		undefined,
-		{
-			title: 'OK',
-		},
-	);
-}
-
-export function showIntegrationRequestFailed500WarningMessage(message: string): Promise<MessageItem | undefined> {
-	return showMessage('error', message, 'suppressIntegrationRequestFailed500Warning', undefined, {
-		title: 'OK',
-	});
-}
-
-export function showIntegrationRequestTimedOutWarningMessage(providerName: string): Promise<MessageItem | undefined> {
-	return showMessage(
-		'error',
-		`${providerName} request timed out.`,
-		'suppressIntegrationRequestTimedOutWarning',
-		undefined,
-		{
-			title: 'OK',
-		},
-	);
-}
-
 export async function showWhatsNewMessage(majorVersion: string): Promise<void> {
-	const confirm = { title: 'OK', isCloseAffordance: true };
-	const releaseNotes = { title: 'View Release Notes' };
-	const openWalkthrough = { title: 'Open Walkthrough' };
-	const openGraph = { title: 'Show Commit Graph' };
-
-	let message: string;
-	switch (majorVersion) {
-		case '19':
-			message =
-				'GitLens 19 is here — the Commit Graph has been rebuilt from the ground up: dramatically faster, lighter, now the heart of GitLens, with new and enhanced workflows from code to merge.';
-			break;
-		case '18':
-			message =
-				'GitLens upgraded to 18 — the Commit Graph is all new with agent integration, multi-worktree WIP rows, AI-powered Review and Compose modes, and more.';
-			break;
-		case '17':
-			message =
-				'GitLens upgraded to 17 with the all new [GitKraken AI](https://gitkraken.com/solutions/gitkraken-ai?source=gitlens&product=gitlens&utm_source=gitlens-extension&utm_medium=in-app-links) access included in GitLens Pro, AI changelog and pull request creation, and Bitbucket integration.';
-			break;
-		default:
-			message = `GitLens upgraded to ${majorVersion} — see what's new.`;
-			break;
-	}
-
-	const actions: MessageItem[] = majorVersion === '19' ? [openGraph, releaseNotes] : [releaseNotes];
-	if (majorVersion === '18') {
-		actions.push(openWalkthrough);
-	}
-	actions.push(confirm);
-
-	const result = await showMessage('info', message, undefined, null, ...actions);
-
-	if (result === releaseNotes) {
-		void openUrl(urls.releaseNotes);
-	} else if (result === openWalkthrough) {
-		void executeCommand('gitlens.showWelcomeView', { mode: 'graph' });
-	} else if (result === openGraph) {
-		void executeCommand('gitlens.showGraphView');
-	}
-}
-
-export async function showMcpMessage(container: Container, _current: string): Promise<void> {
-	const isAutoInstallable = container.gkMcp?.isRegistrationAllowed ?? false;
-	const confirm = { title: 'OK', isCloseAffordance: true };
-	const learnMore = { title: 'Learn More' };
-	const connectMore = { title: 'Connect More Agents' };
-	const install = { title: 'Install GitKraken MCP' };
-
-	let result: MessageItem | undefined;
-	if (isAutoInstallable) {
-		result = await showMessage(
-			'info',
-			`GitLens adds the GitKraken MCP into your AI chat, leveraging Git and your integrations to provide context and perform actions. You can also connect MCP to other agents on your machine.`,
-			undefined,
-			null,
-			connectMore,
-			learnMore,
-			confirm,
-		);
-	} else {
-		result = await showMessage(
-			'info',
-			`Allow GitLens to add the GitKraken MCP into your AI chat, leveraging Git and your integrations (issues, PRs, etc) to provide context and perform actions. Saving you time and context switching.`,
-			undefined,
-			null,
-			install,
-			learnMore,
-			confirm,
-		);
-	}
-
-	if (result === install) {
-		void executeCommand<Source>('gitlens.ai.mcp.install', { source: 'mcp-welcome-message' });
-	}
-
-	if (result === connectMore) {
-		void executeCommand<Source>('gitlens.ai.mcp.installForAllAgents', { source: 'mcp-welcome-message' });
-	}
-
-	if (result === learnMore) {
-		void openUrl(urls.helpCenterMCP);
-	}
-}
-
-export async function showCursorMcpCleanupMessage(): Promise<void> {
-	const learnMore = { title: 'Learn More' };
-	const confirm = { title: 'OK', isCloseAffordance: true };
-
-	const result = await showMessage(
-		'info',
-		`GitLens now registers the GitKraken MCP automatically in Cursor. You may have a duplicate entry in your Cursor \`mcp.json\` — remove \`mcpServers.GitKraken\` to clean it up.`,
-		undefined,
-		null,
-		learnMore,
-		confirm,
-	);
-
-	if (result === learnMore) {
-		void openUrl(urls.helpCenterMCP);
-	}
+	await showMessage('info', `GitLens upgraded to ${majorVersion}.`, undefined, null, {
+		title: 'OK',
+		isCloseAffordance: true,
+	});
 }
 
 export async function showMessage(

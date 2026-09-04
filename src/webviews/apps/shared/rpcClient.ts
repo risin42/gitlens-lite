@@ -27,8 +27,7 @@ export interface RpcClientOptions {
 	 * Example: `gitlens.views.home`. Falls back to `?` when not provided.
 	 *
 	 * Accepts a function to defer resolution for cases where the id isn't known
-	 * at `RpcController` construction time (e.g. Timeline serves both panel and
-	 * view modes and resolves its id during `connectedCallback`).
+	 * at `RpcController` construction time and resolves during `connectedCallback`.
 	 */
 	webviewId?: WebviewIds | (() => WebviewIds | undefined);
 
@@ -43,7 +42,7 @@ export interface RpcClientOptions {
 	 * The default handlers (Date, Map, Set, RegExp) and SignalHandler are always included.
 	 *
 	 * Handlers are constructed once per client, not per session — pass instances the app owns for
-	 * its whole lifetime (e.g. the Graph's rows `SequencedChannel`).
+	 * its whole lifetime (for example, a long-lived streamed-data channel).
 	 */
 	handlers?: Handler[];
 
@@ -162,7 +161,7 @@ export function createRpcClient<TServices extends object>(options?: RpcClientOpt
 		debug: options?.debug,
 		// Coalesce synchronous calls into a single postMessage
 		batching: true,
-		// Resolved per line, not per connection — Timeline learns its webview id after the first mount.
+		// Resolved per line, not per connection — a surface may learn its id after the first mount.
 		logger: createSupertalkLogger(() => `client(${resolveTag()})`),
 	};
 

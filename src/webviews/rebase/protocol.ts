@@ -5,7 +5,6 @@ import type {
 	RebaseTodoCommitAction,
 } from '@gitlens/git/models/rebase.js';
 import type { Config } from '../../config.js';
-import type { Subscription } from '../../plus/gk/models/subscription.js';
 import type { WebviewItemContext } from '../../system/webview.js';
 import type { WebviewState } from '../protocol.js';
 
@@ -43,17 +42,11 @@ export interface State extends WebviewState<'gitlens.rebase'> {
 	/** Repository path for the rebase */
 	repoPath: string;
 
-	/** Subscription state for Pro feature gating */
-	subscription?: Subscription;
-
 	/** Conflicted files when rebase is paused due to conflicts */
 	conflictFiles?: ConflictFileInfo[];
 
 	/** Whether the close-warning banner has been dismissed */
 	closeWarningDismissed?: boolean;
-
-	/** Whether AI features are allowed (user-enabled and org-permitted) — gates the Resolve Conflicts action */
-	aiAllowed?: boolean;
 }
 
 export interface ConflictFileInfo {
@@ -198,17 +191,4 @@ export interface StageConflictParams {
 
 export interface ResolveAllConflictsParams {
 	resolution: 'current' | 'incoming';
-}
-
-export interface GetConflictsParams {
-	/** Distinguishes initial (on-load / upgrade) checks from dynamic (plan-modification / rebase-advance) checks */
-	trigger: 'initial' | 'todo';
-	/** The onto target SHA */
-	onto: string;
-	/** Commit SHAs to check for conflicts, in plan order */
-	commits: string[];
-	/** Optional base override (e.g. 'HEAD' during an active rebase). Defaults to `onto`. */
-	base?: string;
-	/** Only honored when `trigger === 'initial'`. */
-	stopOnFirstConflict?: boolean;
 }

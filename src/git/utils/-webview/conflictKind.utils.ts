@@ -31,9 +31,9 @@ export interface ConflictFileInfo {
  * files from `git status` don't carry `originalPath`).
  *
  * Binary sniffing is intentionally NOT done here (it would cost a working-tree read per file). A
- * conflicted file that would otherwise classify as `text` but was skipped by the AI resolver (no
- * markers) is binary/unsupported by inference — callers labeling skipped rows should treat a
- * `text` kind as `binary`.
+ * conflicted file that would otherwise classify as `text` but has no merge markers is
+ * binary/unsupported by inference — callers labeling skipped rows should treat a `text` kind as
+ * `binary`.
  */
 export async function getConflictFileInfos(
 	svc: GitRepositoryService,

@@ -1,4 +1,4 @@
-import type { Source } from '../../constants.telemetry.js';
+import type { Source } from '../../constants.context.js';
 import type { OpenWorkspaceLocation } from '../../system/-webview/vscode/workspaces.js';
 
 export interface BranchRef {
@@ -23,6 +23,5 @@ export interface OpenWorktreeCommandArgs extends BranchRef {
 
 export interface CreatePullRequestCommandArgs {
 	ref: BranchRef;
-	describeWithAI?: boolean;
 	source?: Source;
 }

@@ -2,11 +2,9 @@ import { window } from 'vscode';
 import type { CreatePullRequestRemoteResource } from '@gitlens/git/models/remoteResource.js';
 import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import { getBranchNameWithoutRemote, getRemoteNameFromBranchName } from '@gitlens/git/utils/branch.utils.js';
-import { take } from '@gitlens/utils/event.js';
-import { getRepositoryKey } from '@gitlens/utils/uri.js';
-import type { Source } from '../constants.telemetry.js';
+import type { Source } from '../constants.context.js';
 import type { Container } from '../container.js';
-import { getBranchAssociatedPullRequest, getBranchMergeTargetName } from '../git/utils/-webview/branch.utils.js';
+import { getBranchMergeTargetName } from '../git/utils/-webview/branch.utils.js';
 import { getRepositoryOrShowPicker } from '../quickpicks/repositoryPicker.js';
 import { command, executeCommand } from '../system/-webview/command.js';
 import { GlCommandBase } from './commandBase.js';
@@ -19,7 +17,6 @@ export interface CreatePullRequestOnRemoteCommandArgs {
 	repoPath: string;
 
 	clipboard?: boolean;
-	describeWithAI?: boolean;
 	source?: Source;
 }
 
@@ -89,31 +86,11 @@ export class CreatePullRequestOnRemoteCommand extends GlCommandBase {
 				branch: args.compare,
 				remote: { path: compareRemote.path, url: compareRemote.url, name: compareRemote.name },
 			},
-			details: args.describeWithAI ? { describeWithAI: true } : undefined,
 		};
 
 		void (await executeCommand<OpenOnRemoteCommandArgs>('gitlens.openOnRemote', {
 			resource: resource,
 			remotes: remotes,
 		}));
-
-		const compareBranchName = args.compare;
-		const repoPath = repo.path;
-		take(
-			window.onDidChangeWindowState,
-			2,
-		)(async e => {
-			if (!e.focused) return;
-
-			const branch = await repo.git.branches.getBranch(compareBranchName);
-			if (branch == null) return;
-
-			await getBranchAssociatedPullRequest(this.container, branch, { expiryOverride: true });
-
-			this.container.events.fire('git:repo:change', {
-				repoPath: getRepositoryKey(repoPath),
-				changes: ['remoteProviders'],
-			});
-		});
 	}
 }

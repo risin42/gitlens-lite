@@ -7,7 +7,6 @@ import type { GitBranchReference, GitRevisionReference } from '@gitlens/git/mode
 import type { GitCommitSearchContext } from '@gitlens/git/models/search.js';
 import type { CustomEditorIds, ViewIds, WebviewIds } from './constants.views.js';
 import type { RepositoryChange } from './git/models/repository.js';
-import type { Draft, LocalDraft } from './plus/drafts/models/drafts.js';
 
 export type CommitSelectedEvent = EventBusEvent<'commit:selected'>;
 interface CommitSelectedEventArgs {
@@ -16,14 +15,6 @@ interface CommitSelectedEventArgs {
 	readonly preserveFocus?: boolean;
 	readonly preserveVisibility?: boolean;
 	readonly searchContext?: GitCommitSearchContext;
-}
-
-export type DraftSelectedEvent = EventBusEvent<'draft:selected'>;
-interface DraftSelectedEventArgs {
-	readonly draft: LocalDraft | Draft;
-	readonly interaction: 'active' | 'passive';
-	readonly preserveFocus?: boolean;
-	readonly preserveVisibility?: boolean;
 }
 
 export type FileSelectedEvent = EventBusEvent<'file:selected'>;
@@ -74,7 +65,6 @@ interface GitRepoChangeEventArgs {
 
 type EventsMapping = {
 	'commit:selected': CommitSelectedEventArgs;
-	'draft:selected': DraftSelectedEventArgs;
 	'file:selected': FileSelectedEventArgs;
 
 	'git:cache:reset': GitCacheResetEventArgs;
@@ -101,15 +91,10 @@ export type EventBusOptions = {
 
 type CacheableEventsMapping = {
 	'commit:selected': CommitSelectedEventArgs;
-	'draft:selected': DraftSelectedEventArgs;
 	'file:selected': FileSelectedEventArgs;
 };
 
-const _cacheableEventNames = new Set<keyof CacheableEventsMapping>([
-	'commit:selected',
-	'draft:selected',
-	'file:selected',
-]);
+const _cacheableEventNames = new Set<keyof CacheableEventsMapping>(['commit:selected', 'file:selected']);
 const _cachedEventArgs = new Map<keyof CacheableEventsMapping, CacheableEventsMapping[keyof CacheableEventsMapping]>();
 // Cache events by source to avoid stale data from different contexts (e.g., graph vs commitDetails)
 const _cachedEventArgsBySource = new Map<

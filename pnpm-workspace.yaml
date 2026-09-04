@@ -1,12 +1,9 @@
 packages:
     - '.'
     - 'packages/*'
-    - 'packages/plus/*'
-    - 'tests/fixtures/*'
 
 allowBuilds:
     '@parcel/watcher': false
-    '@playwright/browser-chromium': false
     '@swc/core': false
     '@vscode/vsce-sign': false
     es5-ext: false
@@ -20,38 +17,20 @@ allowBuilds:
 blockExoticSubdeps: true
 
 catalog:
-    '@gitkraken/provider-apis': 0.57.0
-    # The @octokit/* packages depend on each other; version them as a family so a lone bump can't
-    # split them. @octokit/graphql wants `@octokit/request: ^10.0.6` — see the overrides entry.
-    '@octokit/graphql': 9.0.4
-    '@octokit/request': 10.0.14
-    '@octokit/request-error': 7.1.1
-    '@octokit/types': 17.0.0
-    '@types/mocha': 10.0.10
-    '@types/sinon': 22.0.0
     esbuild: 0.28.2
     # Only @gitlens/utils depends on this, but it flows into the published @gitkraken/core-gitlens
     # manifest, which must never carry a version of its own to drift from.
     fast-string-truncated-width: 3.0.3
     ignore: 7.0.6
-    mocha: 11.8.0
-    sinon: 22.1.0
-    tinybench: 6.1.3
-    tsx: 4.23.12
     # 7.x is the native port: it ships `tsc` only — no `typescript.js` API and no `tsserver.js`. The
     # editor therefore uses VS Code's bundled TypeScript (hence no `js/ts.tsdk.path` in
     # .vscode/settings.json), and @custom-elements-manifest/analyzer keeps its own 5.4.x for the
     # compiler API it needs.
     typescript: 7.0.2
-    # scripts/generateTelemetryDocs.mjs drives the compiler API (createProgram/getTypeChecker) to expand
-    # the telemetry types into docs/telemetry-events.md, so it needs the JS compiler that 7.x dropped.
-    # Pinned to 6.0.3 — the last version the generator ran under — so its output stays byte-identical.
-    # Aliased rather than catalogued as `typescript` so the extension's own compiler is unaffected.
-    typescript-6: npm:typescript@6.0.3
     vscode-uri: 3.2.0
     yaml: 2.9.0
 
-enableGlobalVirtualStore: true
+enableGlobalVirtualStore: false
 
 minimumReleaseAge: 7200
 
@@ -104,10 +83,6 @@ minimumReleaseAgeExclude:
     - webpack@5.110.2
 
 overrides:
-    '@opentelemetry/core@<2.8.0': ^2.8.0
-    # @octokit/graphql's own `^10.0.6` range otherwise resolves to a second copy alongside
-    # @gitlens/git-github's direct pin, and github.ts imports both.
-    '@octokit/request': 'catalog:'
     '@types/vscode': '1.101.0'
     '@xmldom/xmldom@<0.8.13': ^0.8.13
     # Three overlapping DoS advisories (CVE-2026-13149 / -14257 / -69152) patch on different
@@ -122,9 +97,6 @@ overrides:
     # the advisory also covers 2.x (<2.4.4), and an unbounded selector would force a major jump.
     'fast-uri@>=3.0.0 <3.1.5': ^3.1.5
     handlebars: '4.7.9'
-    # Four advisories (CVE-2026-71848/-71849/-71850/-69207) all land on 4.12.34. Only reached via
-    # @modelcontextprotocol/sdk, whose stdio transport never loads hono — fixed for hygiene.
-    'hono@<4.12.34': ^4.12.34
     ip-address@<=10.1.0: ^10.1.1
     # GHSA-5p4m-2wfm-xmqj: quadratic CPU in !!omap resolution, never backported to 4.x. Bounded
     # below at 4.0.0 so the selector can't drag a 3.x copy across js-yaml's breaking v4 API change.

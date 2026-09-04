@@ -65,10 +65,7 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 		s.loading.set(metadata.loading);
 		s.progress.set(metadata.progress);
 		s.signers.set(metadata.signers);
-		s.verifying.set(metadata.verifying);
 		s.error.set(metadata.error);
-		s.integrationConnected.set(metadata.integrationConnected);
-		s.provider.set(metadata.provider);
 
 		s.repoName.set(metadata.repoName);
 		s.hasNodeHost.set(metadata.hasNodeHost);
@@ -93,8 +90,6 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 	private async _onRpcReady(services: Remote<AllowedSignersServices>): Promise<void> {
 		const allowedSigners = await services.allowedSigners;
 		this._allowedSigners = allowedSigners;
-
-		this._promos.connect(this._rpc.connection!);
 
 		const s = this._state;
 
@@ -130,9 +125,6 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 
 	private applyResults(s: AllowedSignersState, results: AllowedSignersResultsChangedEvent): void {
 		s.signers.set(results.signers);
-		s.integrationConnected.set(results.integrationConnected);
-		s.provider.set(results.provider);
-		s.verifying.set(results.verifying);
 		s.error.set(results.error);
 		s.progress.set(undefined);
 		s.loading.set(false);
@@ -146,14 +138,8 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 		return this._state.presentKeys.get()?.has(s.id) ?? s.alreadyPresent;
 	}
 
-	/**
-	 * Whether a signer is pre-checked before the user touches anything: API-verified signers (provenance
-	 * `provider`/`both` — a key the git host confirms belongs to the identity, unlike a commit's self-asserted signer),
-	 * plus the one signer whose key signed the commit the editor was opened from (`preselectFingerprint`).
-	 */
+	/** Pre-check only the signer explicitly selected by the action that opened this editor. */
 	private defaultIncluded(s: CandidateSigner): boolean {
-		if (s.provenance === 'provider' || s.provenance === 'both') return true;
-
 		const fp = this._state.preselectFingerprint.get();
 		return fp != null && fp.length > 0 && s.fingerprint === fp;
 	}
@@ -295,9 +281,6 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 		const s = this._state;
 		const signers = s.signers.get();
 		const hasNodeHost = s.hasNodeHost.get();
-		const integrationConnected = s.integrationConnected.get();
-		const provider = s.provider.get();
-		const verifying = s.verifying.get();
 		const error = s.error.get();
 		const newSigners = this.newSigners;
 		const inFileSigners = signers.filter(signer => this.isInFile(signer));
@@ -309,14 +292,6 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 					? html`<div class="notice notice--error" role="alert">
 							<code-icon icon="error"></code-icon>
 							<span>Couldn't finish discovering signers: ${error}</span>
-						</div>`
-					: nothing
-			}
-			${
-				verifying
-					? html`<div class="verifying" aria-busy="true">
-							<code-icon icon="loading" modifier="spin"></code-icon>
-							<span>Checking your connected integration for verified keys…</span>
 						</div>`
 					: nothing
 			}
@@ -361,21 +336,13 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 			${
 				signers.length === 0
 					? html`<div class="empty">
-							No SSH signers were found.
-							${
-								integrationConnected
-									? html`No SSH-signed commits were found in this repository.`
-									: html`Connect a GitHub or GitLab integration, or sign commits with SSH, to discover
-										signers.`
-							}
+							No SSH signers were found. No SSH-signed commits were found in this repository.
 						</div>`
 					: html`<div class="list" @gl-toggle-signer=${this.onToggleSigner}>
 							${newSigners.map(
 								signer => html`<gl-signer-row
 									.signer=${signer}
 									.included=${this.isIncluded(signer)}
-									.provider=${provider}
-									.integrationConnected=${integrationConnected}
 								></gl-signer-row>`,
 							)}
 							${
@@ -385,8 +352,6 @@ export class GlAllowedSignersApp extends SignalWatcherWebviewApp {
 												signer => html`<gl-signer-row
 													.signer=${signer}
 													?present=${true}
-													.provider=${provider}
-													.integrationConnected=${integrationConnected}
 												></gl-signer-row>`,
 											)}`
 									: nothing

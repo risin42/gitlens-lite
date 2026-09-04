@@ -1,10 +1,8 @@
 import { Disposable } from 'vscode';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { weakEvent } from '@gitlens/utils/event.js';
-import { szudzikPairing } from '@gitlens/utils/function.js';
 import type { RepositoriesChangeEvent } from '../../../git/gitProviderService.js';
 import { unknownGitUri } from '../../../git/gitUri.js';
-import type { SubscriptionChangeEvent } from '../../../plus/gk/subscriptionService.js';
 import type { View } from '../../viewBase.js';
 import { SubscribeableViewNode } from './subscribeableViewNode.js';
 import type { ViewNode } from './viewNode.js';
@@ -26,26 +24,19 @@ export abstract class RepositoriesSubscribeableNode<
 	}
 
 	protected override etag(): number {
-		return szudzikPairing(this.view.container.git.etag, this.view.container.subscription.etag);
+		return this.view.container.git.etag;
 	}
 
 	@trace()
 	protected subscribe(): Disposable | Promise<Disposable> {
 		return Disposable.from(
 			weakEvent(this.view.container.git.onDidChangeRepositories, this.onRepositoriesChanged, this),
-			weakEvent(this.view.container.subscription.onDidChange, this.onSubscriptionChanged, this),
 			weakEvent(this.view.onDidChangeRepositoryFilter, this.onViewRepositoryFilterChanged, this),
 		);
 	}
 
 	private onRepositoriesChanged(_e: RepositoriesChangeEvent) {
 		void this.triggerChange(true);
-	}
-
-	private onSubscriptionChanged(e: SubscriptionChangeEvent) {
-		if (e.current.plan !== e.previous.plan) {
-			void this.triggerChange(true);
-		}
 	}
 
 	private onViewRepositoryFilterChanged() {

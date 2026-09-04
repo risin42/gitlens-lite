@@ -1,7 +1,7 @@
 import type { Disposable, Event } from 'vscode';
 import { EventEmitter } from 'vscode';
 import { updateRecordValue } from '@gitlens/utils/object.js';
-import type { TrackedUsage, TrackedUsageKeys } from '../constants.telemetry.js';
+import type { TrackedUsage, TrackedUsageKeys } from '../constants.context.js';
 import type { Container } from '../container.js';
 import type { Storage } from '../system/-webview/storage.js';
 
@@ -73,8 +73,6 @@ export class UsageTracker implements Disposable {
 			}
 			usage.lastUsedAt = usedAt;
 		}
-
-		this.container.telemetry.sendEvent('usage/track', { 'usage.key': key, 'usage.count': usage.count });
 
 		await this.storage.store('usages', usages);
 

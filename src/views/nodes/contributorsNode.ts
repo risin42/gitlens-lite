@@ -1,6 +1,4 @@
 import { ThemeColor, ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'vscode';
-import type { GitContributor } from '@gitlens/git/models/contributor.js';
-import { trace } from '@gitlens/utils/decorators/log.js';
 import type { CoreColors } from '../../constants.colors.js';
 import type { GitUri } from '../../git/gitUri.js';
 import type { GlRepository } from '../../git/models/repository.js';
@@ -86,15 +84,6 @@ export class ContributorsNode extends CacheableChildrenViewNode<
 		}
 	}
 
-	@trace({ args: false })
-	private async getPresenceMap(contributors: GitContributor[]) {
-		// Only get presence for the current user, because it is far too slow otherwise
-		const email = contributors.find(c => c.current)?.email;
-		if (email == null) return undefined;
-
-		return this.view.container.vsls.getContactsPresence([email]);
-	}
-
 	private async getContributors(
 		stats?: boolean,
 		deferStats?: boolean,
@@ -171,16 +160,11 @@ export class ContributorsNode extends CacheableChildrenViewNode<
 		}
 
 		sortContributors(result.contributors);
-		const presenceMap = this.view.container.vsls.active
-			? await this.getPresenceMap(result.contributors)
-			: undefined;
-
 		for (const c of result.contributors) {
 			children.push(
 				new ContributorNode(this.uri, this.view, this, c, {
 					all: all,
 					ref: rev,
-					presence: presenceMap,
 					showMergeCommits: this.options?.showMergeCommits,
 				}),
 			);

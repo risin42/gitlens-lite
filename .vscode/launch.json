@@ -17,7 +17,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}/src/webviews/apps"
 			},
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -55,7 +55,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}"
 			},
 			"outFiles": ["${workspaceFolder}/dist/browser/**/*.js"],
@@ -87,7 +87,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}/src/webviews/apps"
 			},
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -105,22 +105,6 @@
 			"trace": true
 		},
 		{
-			"name": "Run Tests",
-			"type": "extensionHost",
-			"request": "launch",
-			"testConfiguration": "${workspaceFolder}/.vscode-test.mjs",
-			"outFiles": ["${workspaceFolder}/out/tests/**/*.test.js"],
-			"preLaunchTask": "npm: build:tests",
-			"presentation": {
-				"group": "4_tests",
-				"order": 2
-			},
-			"skipFiles": ["<node_internals>/**", "**/node_modules/**", "**/resources/app/out/vs/**"],
-			"smartStep": true,
-			"sourceMapRenames": true,
-			"sourceMaps": true
-		},
-		{
 			"name": "Build & Run",
 			"type": "extensionHost",
 			"request": "launch",
@@ -135,7 +119,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}/src/webviews/apps"
 			},
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -174,7 +158,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}"
 			},
 			"outFiles": ["${workspaceFolder}/dist/browser/**/*.js"],
@@ -206,7 +190,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}/src/webviews/apps"
 			},
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -239,7 +223,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}/src/webviews/apps"
 			},
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -278,7 +262,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}"
 			},
 			"outFiles": ["${workspaceFolder}/dist/browser/**/*.js"],
@@ -310,7 +294,7 @@
 				"sourceMapRenames": true,
 				"sourceMaps": true,
 				"trace": true,
-				"urlFilter": "*eamodio.gitlens*",
+				"urlFilter": "*local.gitlens-lite*",
 				"webRoot": "${workspaceFolder}/src/webviews/apps"
 			},
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
@@ -327,22 +311,6 @@
 			"sourceMapRenames": true,
 			"sourceMaps": true,
 			"trace": true
-		},
-		{
-			"name": "Watch & Run Tests",
-			"type": "extensionHost",
-			"request": "launch",
-			"testConfiguration": "${workspaceFolder}/.vscode-test.mjs",
-			"outFiles": ["${workspaceFolder}/out/tests/**/*.test.js"],
-			"preLaunchTask": "npm: watch:tests",
-			"presentation": {
-				"group": "4_tests",
-				"order": 2
-			},
-			"skipFiles": ["<node_internals>/**", "**/node_modules/**", "**/resources/app/out/vs/**"],
-			"smartStep": true,
-			"sourceMapRenames": true,
-			"sourceMaps": true
 		}
 	]
 }

@@ -1,19 +1,16 @@
 import type { Event, ExtensionContext, SecretStorageChangeEvent } from 'vscode';
-import { Disposable, env, EventEmitter } from 'vscode';
-import { getPlatform, getRemoteInstanceIdentifier } from '@env/platform.js';
+import { Disposable, EventEmitter } from 'vscode';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { extensionPrefix } from '../../constants.js';
 import type {
 	DeprecatedGlobalStorage,
 	DeprecatedWorkspaceStorage,
-	GlobalScopedStorage,
 	GlobalStorage,
 	SecretKeys,
 	WorkspaceStorage,
 } from '../../constants.storage.js';
 
 type GlobalStorageKeys = keyof (GlobalStorage & DeprecatedGlobalStorage);
-type GlobalScopedStorageKeys = keyof GlobalScopedStorage;
 type WorkspaceStorageKeys = keyof (WorkspaceStorage & DeprecatedWorkspaceStorage);
 
 export type StorageChangeEvent =
@@ -23,13 +20,6 @@ export type StorageChangeEvent =
 			 */
 			readonly keys: GlobalStorageKeys[];
 			readonly type: 'global';
-	  }
-	| {
-			/**
-			 * The key of the stored value that has changed (environment-scoped global storage).
-			 */
-			readonly keys: GlobalScopedStorageKeys[];
-			readonly type: 'scoped';
 	  }
 	| {
 			/**
@@ -109,77 +99,13 @@ export class Storage implements Disposable {
 
 	@trace({ onlyExit: { after: 250 } })
 	async reset(): Promise<void> {
-		return this.deleteWithPrefixCore(undefined, /^(premium:subscription|plus:preview:.*|plus:trialReset:.*)$/);
+		return this.deleteWithPrefixCore();
 	}
 
 	@trace({ args: (key: keyof GlobalStorage) => ({ key: key }), onlyExit: { after: 250 } })
 	async store<T extends keyof GlobalStorage>(key: T, value: GlobalStorage[T] | undefined): Promise<void> {
 		await this.context.globalState.update(`${extensionPrefix}:${key}`, value);
 		this._onDidChange.fire({ keys: [key], type: 'global' });
-	}
-
-	/**
-	 * Returns a unique key for the current environment based on platform and remote authority.
-	 * Used to scope storage keys that contain environment-specific data (like file paths)
-	 * to avoid conflicts when globalState is shared across local/remote environments.
-	 *
-	 * The remote authority includes specific instance info (e.g., WSL distro, SSH host),
-	 * derived from environment variables or hostname.
-	 *
-	 * @returns e.g., "windows", "linux", "wsl+ubuntu:linux", "ssh-remote+myserver:linux"
-	 */
-	private getEnvironmentScopeKey(): string {
-		const platform = getPlatform();
-		const remote = env.remoteName;
-		if (remote == null) return platform;
-
-		// Get instance identifier (e.g., WSL distro name, SSH hostname) to differentiate
-		// between multiple instances of the same remote type
-		const instance = getRemoteInstanceIdentifier();
-		const key = instance ? `${remote}+${instance}:${platform}` : `${remote}:${platform}`;
-		return key.toLowerCase();
-	}
-
-	getScoped<T extends keyof GlobalScopedStorage>(key: T): GlobalScopedStorage[T] | undefined;
-	getScoped<T extends keyof GlobalScopedStorage>(
-		key: T,
-		defaultValue: GlobalScopedStorage[T],
-	): GlobalScopedStorage[T];
-	@trace({ onlyExit: { after: 50 } })
-	getScoped<T extends keyof GlobalScopedStorage>(
-		key: T,
-		defaultValue?: GlobalScopedStorage[T],
-	): GlobalScopedStorage[T] | undefined {
-		const scopeKey = this.getEnvironmentScopeKey();
-		const value = this.context.globalState.get<GlobalScopedStorage[T]>(`${extensionPrefix}:${scopeKey}:${key}`);
-		if (value !== undefined) return value;
-
-		// Fallback to legacy unscoped key for backward compatibility.
-		// The consuming code should validate the data (e.g., check if paths exist)
-		// since legacy data may be from a different environment.
-		return this.context.globalState.get(`${extensionPrefix}:${key}`, defaultValue);
-	}
-
-	@trace({ onlyExit: { after: 250 } })
-	async deleteScoped(key: keyof GlobalScopedStorage, options?: { includeLegacy?: boolean }): Promise<void> {
-		const scopeKey = this.getEnvironmentScopeKey();
-		await this.context.globalState.update(`${extensionPrefix}:${scopeKey}:${key}`, undefined);
-		// `getScoped` falls back to the legacy unscoped key, so deleting only the scoped one lets the old
-		// value resurrect on the next read — resets need both gone.
-		if (options?.includeLegacy) {
-			await this.context.globalState.update(`${extensionPrefix}:${key}`, undefined);
-		}
-		this._onDidChange.fire({ keys: [key], type: 'scoped' });
-	}
-
-	@trace({ args: (key: keyof GlobalScopedStorage) => ({ key: key }), onlyExit: { after: 250 } })
-	async storeScoped<T extends keyof GlobalScopedStorage>(
-		key: T,
-		value: GlobalScopedStorage[T] | undefined,
-	): Promise<void> {
-		const scopeKey = this.getEnvironmentScopeKey();
-		await this.context.globalState.update(`${extensionPrefix}:${scopeKey}:${key}`, value);
-		this._onDidChange.fire({ keys: [key], type: 'scoped' });
 	}
 
 	@trace({ args: false, onlyExit: { after: 250 } })

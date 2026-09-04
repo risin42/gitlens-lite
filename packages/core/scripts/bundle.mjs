@@ -1,4 +1,4 @@
-// Bundle the five internal @gitlens/* workspace packages into this core package.
+// Bundle the internal @gitlens/* workspace packages into this core package.
 //
 // Steps:
 //   1. Clean dist/ and src/ (regenerated from the sub-packages)
@@ -8,7 +8,7 @@
 //   5. Merge runtime dependencies from the sub-package.json files (stripping workspace refs; `catalog:`
 //      specifiers are kept as-is, since `pnpm publish` rewrites them to concrete versions at pack time)
 //   6. Generate the `exports` map from each sub-package's `exports` patterns
-//   7. Copy root LICENSE and LICENSE.plus into the package for shipping
+//   7. Copy the root LICENSE into the package for shipping
 //   8. Write the updated package.json back in place
 //
 // Source packages keep `private: true` and their existing shape; only this core
@@ -30,17 +30,6 @@ const packages = [
 	{ name: '@gitlens/ipc', srcDir: 'packages/ipc', dest: 'ipc' },
 	{ name: '@gitlens/git', srcDir: 'packages/git', dest: 'git' },
 	{ name: '@gitlens/git-cli', srcDir: 'packages/git-cli', dest: 'git-cli' },
-	{ name: '@gitlens/git-github', srcDir: 'packages/plus/git-github', dest: 'plus/git-github' },
-	{ name: '@gitlens/ai', srcDir: 'packages/plus/ai', dest: 'plus/ai' },
-	{ name: '@gitlens/agents', srcDir: 'packages/plus/agents', dest: 'plus/agents' },
-	{
-		name: '@gitlens/integrations',
-		srcDir: 'packages/plus/integrations',
-		dest: 'plus/integrations',
-		// The private workspace package exposes internal subpaths for GitLens itself. Core's published facade is
-		// deliberately narrower: external consumers get only the two entry points documented as semver-stable.
-		publicExports: ['./index.js', './lite.js'],
-	},
 ];
 
 const nameToDest = Object.fromEntries(packages.map(p => [p.name, p.dest]));
@@ -104,7 +93,6 @@ async function clean() {
 	await rm(join(coreRoot, distName), { recursive: true, force: true });
 	await rm(join(coreRoot, srcName), { recursive: true, force: true });
 	await rm(join(coreRoot, 'LICENSE'), { force: true });
-	await rm(join(coreRoot, 'LICENSE.plus'), { force: true });
 }
 
 async function copyPackageTree(pkg) {
@@ -120,25 +108,12 @@ async function copyPackageTree(pkg) {
 	}
 
 	await mkdir(destDist, { recursive: true });
-	await cp(srcDist, destDist, { recursive: true, filter: distFilter });
+	await cp(srcDist, destDist, { recursive: true });
 
 	if (existsSync(srcSrc)) {
 		await mkdir(destSrc, { recursive: true });
-		await cp(srcSrc, destSrc, { recursive: true, filter: srcFilter });
+		await cp(srcSrc, destSrc, { recursive: true });
 	}
-}
-
-function distFilter(path) {
-	const base = path.split(sep).pop();
-	if (base === '__tests__') return false;
-	if (base.endsWith('.tsbuildinfo')) return false;
-	return true;
-}
-
-function srcFilter(path) {
-	const parts = path.split(sep);
-	if (parts.includes('__tests__')) return false;
-	return true;
 }
 
 async function* walk(dir) {
@@ -153,11 +128,11 @@ async function* walk(dir) {
 	}
 }
 
-const specifierRegex = /(['"])@gitlens\/(utils|ipc|git|git-cli|ai|agents|git-github|integrations)\/([^'"]+)\1/g;
+const specifierRegex = /(['"])@gitlens\/(utils|ipc|git|git-cli)\/([^'"]+)\1/g;
 // Also rewrite backtick-wrapped package mentions (typical in JSDoc) so the published tarball never
 // references the internal `@gitlens/*` names. Backticks are required to avoid false positives on
 // URLs or other incidental occurrences of the substring.
-const docMentionRegex = /`@gitlens\/(utils|ipc|git|git-cli|ai|agents|git-github|integrations)`/g;
+const docMentionRegex = /`@gitlens\/(utils|ipc|git|git-cli)`/g;
 const publishedName = '@gitkraken/core-gitlens';
 
 async function rewriteSpecifiers() {
@@ -250,11 +225,6 @@ async function rewriteSourceMaps() {
 
 function packageDestForFile(distRoot, file) {
 	const rel = relative(distRoot, file).split(sep).join('/');
-	// Plus packages live under `plus/<name>/...`
-	if (rel.startsWith('plus/')) {
-		const second = rel.split('/')[1];
-		return `plus/${second}`;
-	}
 	const first = rel.split('/')[0];
 	return first;
 }
@@ -302,7 +272,6 @@ function remapExportTargetPath(path, destSubpath) {
 
 async function copyLicenses() {
 	await cp(join(repoRoot, 'LICENSE'), join(coreRoot, 'LICENSE'));
-	await cp(join(repoRoot, 'LICENSE.plus'), join(coreRoot, 'LICENSE.plus'));
 }
 
 async function writeUpdatedPackageJson() {

@@ -10,8 +10,8 @@ import {
 	decodeRpcPayload,
 	encodeRpcPayload,
 	inflateRpcPayload,
-	isBinaryRpcPayload,
 	isRpcMessage,
+	rehydrateBinaryRpcPayload,
 	RPC_NAMESPACE,
 } from '../../rpc/constants.js';
 import { getHostApi } from './hostApi.js';
@@ -49,8 +49,9 @@ function teardown(entry: ListenerEntry): void {
  * Decodes an RPC wrapper's payload without decompressing — binary payloads are handled,
  * everything else passes through unchanged.
  */
-function decodeSync(payload: unknown): unknown {
-	return isBinaryRpcPayload(payload) ? decodeRpcPayload(payload) : payload;
+function decodeSync(payload: unknown, byteLength: number | undefined): unknown {
+	const binary = rehydrateBinaryRpcPayload(payload, byteLength);
+	return binary != null ? decodeRpcPayload(binary) : payload;
 }
 
 /**
@@ -74,7 +75,7 @@ export function createOrderedDispatcher(deliver: (data: unknown, event: MessageE
 			if (disposed) return;
 
 			if (message.compressed == null && queued === 0) {
-				deliver(decodeSync(message.payload), event);
+				deliver(decodeSync(message.payload, message.byteLength), event);
 
 				return;
 			}
@@ -85,7 +86,7 @@ export function createOrderedDispatcher(deliver: (data: unknown, event: MessageE
 					try {
 						if (disposed) return;
 
-						const { payload, compressed } = message;
+						const { payload, compressed, byteLength } = message;
 						let data: unknown;
 						try {
 							if (compressed != null) {
@@ -93,7 +94,8 @@ export function createOrderedDispatcher(deliver: (data: unknown, event: MessageE
 								// payload it just deflated — an unknown scheme or a non-binary payload is a
 								// foreign/malformed frame, not a decode failure, so name it as such instead of
 								// letting it fall through to a misattributed "decompression failed" below.
-								if (compressed !== 'deflate-raw' || !isBinaryRpcPayload(payload)) {
+								const binary = rehydrateBinaryRpcPayload(payload, byteLength);
+								if (compressed !== 'deflate-raw' || binary == null) {
 									console.error(
 										`RPC message with unsupported compression (${compressed}) or a non-binary payload; dropping message`,
 									);
@@ -101,9 +103,9 @@ export function createOrderedDispatcher(deliver: (data: unknown, event: MessageE
 									return;
 								}
 
-								data = await inflateRpcPayload(payload);
+								data = await inflateRpcPayload(binary);
 							} else {
-								data = decodeSync(payload);
+								data = decodeSync(payload, byteLength);
 							}
 						} catch (ex) {
 							debugger;

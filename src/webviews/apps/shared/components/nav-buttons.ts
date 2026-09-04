@@ -4,8 +4,8 @@ import type { NavigationState } from '../controllers/navigationStack.js';
 import './chips/action-chip.js';
 
 /**
- * Shared back/forward buttons for commit history navigation, used by both the Inspect panel and the
- * Graph details panel. Driven by {@link NavigationState} (from the shared `NavigationStack`) and
+ * Shared back/forward buttons for commit history navigation in the Inspect panel. Driven by
+ * {@link NavigationState} (from the shared `NavigationStack`) and
  * emits `gl-nav-back` / `gl-nav-forward`.
  */
 @customElement('gl-nav-buttons')

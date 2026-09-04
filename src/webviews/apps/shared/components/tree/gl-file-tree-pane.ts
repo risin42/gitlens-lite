@@ -3,7 +3,6 @@ import { html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { getAltKeySymbol } from '@env/platform.js';
-import type { AgentSessionPhase } from '@gitlens/agents/types.js';
 import type { GitFileChangeShape, GitFileChangeStats } from '@gitlens/git/models/fileChange.js';
 import type { GitFileConflictStatus } from '@gitlens/git/models/fileStatus.js';
 import type { GitCommitSearchContext } from '@gitlens/git/models/search.js';
@@ -20,7 +19,7 @@ import {
 } from '../../../../../system/webview.js';
 import type { FileShowOptions, WorkingFileSorting } from '../../../../commitDetails/protocol.js';
 import { ModifierKeysController } from '../../controllers/modifier-keys.js';
-import { elementBase } from '../styles/lit/base.css.js';
+import { boxSizingBase } from '../styles/lit/base.css.js';
 import type {
 	TreeItemAction,
 	TreeItemActionDetail,
@@ -75,7 +74,7 @@ export interface FileChangeListItemDetail extends FileItem {
 
 @customElement('gl-file-tree-pane')
 export class GlFileTreePane extends LitElement {
-	static override styles = [elementBase, fileTreeStyles];
+	static override styles = [boxSizingBase, fileTreeStyles];
 
 	@property({ type: Array })
 	files?: readonly FileItem[];
@@ -151,7 +150,7 @@ export class GlFileTreePane extends LitElement {
 	orderBy?: WorkingFileSorting;
 
 	/**
-	 * When set (the WIP `gitlens.sortWorkingChangesBy: stage` mode), the list-layout sort floats files
+	 * When set (the WIP `gitlens-lite.sortWorkingChangesBy: stage` mode), the list-layout sort floats files
 	 * staged → mixed → unstaged ahead of `orderBy`. List layout only, like `orderBy`.
 	 */
 	@property({ type: Boolean, attribute: 'sort-by-stage' })
@@ -204,7 +203,7 @@ export class GlFileTreePane extends LitElement {
 	 * Per-file checkbox state. Files absent from map fall back to checkableStateDefault.
 	 * state and disabled are orthogonal — a file can be checked+disabled.
 	 * `disabledReason` overrides the default include/exclude tooltip when the row is disabled
-	 * (e.g. "Excluded by AI ignore rules") so users understand WHY they can't toggle it.
+	 * (e.g. "Excluded by ignore rules") so users understand WHY they can't toggle it.
 	 */
 	@property({
 		attribute: false,
@@ -273,14 +272,6 @@ export class GlFileTreePane extends LitElement {
 	@property({ attribute: 'selection-action' })
 	selectionAction: 'file-open' | 'file-compare-previous' | 'file-compare-wip' | 'file-compare-range' =
 		'file-compare-previous';
-
-	/**
-	 * Repo-relative normalized file paths the connected agent(s) are actively editing right now,
-	 * mapped to the agent's phase. When set, matching file rows get an agent decoration in
-	 * `getFileDecorations`. Map (not Set) so the phase can drive icon + color.
-	 */
-	@property({ attribute: false })
-	agentTouchedFiles?: ReadonlyMap<string, AgentSessionPhase>;
 
 	@state() private _contextMatchVisibility: 'off' | 'mixed' | 'matched' = 'mixed';
 	@state() private _showSearchBox = false;
@@ -414,7 +405,6 @@ export class GlFileTreePane extends LitElement {
 			changedProperties.has('checkableStates') ||
 			changedProperties.has('checkableStateDefault') ||
 			changedProperties.has('searchContext') ||
-			changedProperties.has('agentTouchedFiles') ||
 			changedProperties.has('_contextMatchVisibility')
 		) {
 			const files = (this.files as Files) ?? [];
@@ -866,23 +856,6 @@ export class GlFileTreePane extends LitElement {
 			}
 		}
 
-		// Agent "currently editing" decoration — transient, follows the agent's in-flight
-		// file-mutating tool call. Rendered before the status letter so the agent cue isn't lost
-		// in the right-edge action gutter.
-		const agentPhase = this.agentTouchedFiles?.get(file.path);
-		if (agentPhase != null) {
-			decorations.push({
-				type: 'agent' as const,
-				label: 'Editing',
-				// Agent-agnostic on purpose: `agentTouchedFiles` carries the phase only, no provider
-				// identity, and a file can be touched by more than one agent at once — so there is no
-				// single agent to name here.
-				tooltip: 'An agent is editing this file',
-				phase: agentPhase,
-				position: 'before' as const,
-			});
-		}
-
 		return decorations;
 	}
 
@@ -1089,9 +1062,10 @@ export class GlFileTreePane extends LitElement {
 	}
 
 	private onTreeItemSelected(e: CustomEvent<TreeItemSelectionDetail>): void {
-		if (!e.detail.context) return;
+		const file = e.detail.context?.[0] as FileItem | undefined;
+		if (file == null) return;
 
-		this.dispatchFileEvent(this.selectionAction, e.detail.context[0], e.detail);
+		this.dispatchFileEvent(this.selectionAction, file, e.detail);
 	}
 
 	private onSelectionChanged(e: CustomEvent<TreeSelectionChangedDetail>): void {

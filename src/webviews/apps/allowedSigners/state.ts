@@ -1,4 +1,4 @@
-import type { CandidateSigner, LoadingProgress, SignerProvider } from '../../allowedSigners/protocol.js';
+import type { CandidateSigner, LoadingProgress } from '../../allowedSigners/protocol.js';
 import { createSignalGroup } from '../shared/state/signals.js';
 
 /**
@@ -17,10 +17,6 @@ export function createAllowedSignersState() {
 	/** The current discovery step, shown on the loading page */
 	const progress = signal<LoadingProgress | undefined>(undefined);
 	const signers = signal<CandidateSigner[]>([]);
-	const integrationConnected = signal(false);
-	const provider = signal<SignerProvider | undefined>(undefined);
-	/** Whether provider verification is still running after the commit-derived signers are shown */
-	const verifying = signal(false);
 	const error = signal<string | undefined>(undefined);
 
 	// Static bootstrap metadata — fixed for this iframe load
@@ -49,9 +45,6 @@ export function createAllowedSignersState() {
 		loading: loading,
 		progress: progress,
 		signers: signers,
-		integrationConnected: integrationConnected,
-		provider: provider,
-		verifying: verifying,
 		error: error,
 
 		repoName: repoName,

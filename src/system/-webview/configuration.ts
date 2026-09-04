@@ -2,7 +2,7 @@ import type { ConfigurationChangeEvent, ConfigurationScope, Disposable, Event, E
 import { ConfigurationTarget, EventEmitter, workspace } from 'vscode';
 import { areEqual } from '@gitlens/utils/object.js';
 import type { Config, CoreConfig } from '../../config.js';
-import { extensionPrefix } from '../../constants.js';
+import { configurationPrefix } from '../../constants.js';
 
 interface ConfigurationOverrides {
 	get<T extends ConfigPath>(section: T, value: ConfigPathValue<T>): ConfigPathValue<T>;
@@ -30,7 +30,7 @@ export class Configuration implements Disposable {
 
 	private onConfigurationChanged(e: ConfigurationChangeEvent) {
 		this._onDidChangeAny.fire(e);
-		if (!e.affectsConfiguration(extensionPrefix)) return;
+		if (!e.affectsConfiguration(configurationPrefix)) return;
 
 		if (this._overrides?.onDidChange != null) {
 			e = this._overrides.onDidChange(e);
@@ -74,13 +74,15 @@ export class Configuration implements Disposable {
 	): ConfigPathValue<S> {
 		const value =
 			defaultValue === undefined
-				? workspace.getConfiguration(extensionPrefix, scope).get<ConfigPathValue<S>>(section)!
-				: workspace.getConfiguration(extensionPrefix, scope).get<ConfigPathValue<S>>(section, defaultValue)!;
+				? workspace.getConfiguration(configurationPrefix, scope).get<ConfigPathValue<S>>(section)!
+				: workspace
+						.getConfiguration(configurationPrefix, scope)
+						.get<ConfigPathValue<S>>(section, defaultValue)!;
 		return skipOverrides || this._overrides?.get == null ? value : this._overrides.get<S>(section, value);
 	}
 
 	getAll(skipOverrides?: boolean): Config {
-		const config = workspace.getConfiguration().get<Config>(extensionPrefix)!;
+		const config = workspace.getConfiguration().get<Config>(configurationPrefix)!;
 		return skipOverrides || this._overrides?.getAll == null ? config : this._overrides.getAll(config);
 	}
 
@@ -119,8 +121,8 @@ export class Configuration implements Disposable {
 		if (e == null) return true;
 
 		return Array.isArray(section)
-			? section.some(s => e.affectsConfiguration(`${extensionPrefix}.${s}`, scope!))
-			: e.affectsConfiguration(`${extensionPrefix}.${section}`, scope!);
+			? section.some(s => e.affectsConfiguration(`${configurationPrefix}.${s}`, scope!))
+			: e.affectsConfiguration(`${configurationPrefix}.${section}`, scope!);
 	}
 
 	changedAny<S extends string>(
@@ -153,10 +155,10 @@ export class Configuration implements Disposable {
 	): InspectWorkspaceConfiguration<V> | undefined {
 		return (
 			workspace
-				.getConfiguration(extensionPrefix, scope)
+				.getConfiguration(configurationPrefix, scope)
 				// `section` is typed as required but can be undefined at runtime via untyped callers; don't broaden to null
 				// oxlint-disable-next-line typescript/prefer-nullish-coalescing
-				.inspect<V>(section === undefined ? extensionPrefix : section)
+				.inspect<V>(section === undefined ? configurationPrefix : section)
 		);
 	}
 
@@ -332,7 +334,7 @@ export class Configuration implements Disposable {
 		value: ConfigPathValue<S> | undefined,
 		target: ConfigurationTarget,
 	): Thenable<void> {
-		return workspace.getConfiguration(extensionPrefix).update(section, value, target);
+		return workspace.getConfiguration(configurationPrefix).update(section, value, target);
 	}
 
 	updateAny<S extends string, T>(

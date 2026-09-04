@@ -154,7 +154,7 @@ export abstract class QuickCommand<State = any> implements QuickPickItem {
 	/**
 	 * Whether this command's confirm offers the in-list Don't Ask Again toggle. Opt-in, because
 	 * `skipConfirmKey` is scoped per command, not per step — a toggle shown on an incidental confirm
-	 * (e.g. Launchpad's connect-integration prompt) would silently skip the command's real one. Only
+	 * (for example, a confirmation prompt) would silently skip the command's real one. Only
 	 * commands listed in the `gitCommands.skipConfirmations` setting enum should opt in.
 	 */
 	protected get supportsSkipConfirmToggle(): boolean {
@@ -217,7 +217,10 @@ export abstract class QuickCommand<State = any> implements QuickPickItem {
 		const onDidClickItemButton = step.onDidClickItemButton;
 		step.onDidClickItemButton = (quickpick, button, item) => {
 			if (button === SkipConfirmationsSettingsQuickInputButton) {
-				void executeCoreCommand('workbench.action.openSettings', '@id:gitlens.gitCommands.skipConfirmations');
+				void executeCoreCommand(
+					'workbench.action.openSettings',
+					'@id:gitlens-lite.gitCommands.skipConfirmations',
+				);
 				return false;
 			}
 

@@ -3,14 +3,9 @@ import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { getRemoteUpstreamDescription } from '@gitlens/git/utils/remote.utils.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { debug } from '@gitlens/utils/decorators/log.js';
-import { GlyphChars } from '../../constants.js';
 import { GitUri } from '../../git/gitUri.js';
 import type { GlRepository } from '../../git/models/repository.js';
-import {
-	getRemoteIntegration,
-	remoteSupportsIntegration,
-	setRemoteAsDefault,
-} from '../../git/utils/-webview/remote.utils.js';
+import { setRemoteAsDefault } from '../../git/utils/-webview/remote.utils.js';
 import { configuration } from '../../system/-webview/configuration.js';
 import type { ViewsWithRemotes } from '../viewBase.js';
 import { createViewDecorationUri } from '../viewDecorationProvider.js';
@@ -89,7 +84,7 @@ export class RemoteNode extends ViewNode<'remote', ViewsWithRemotes> {
 		return children;
 	}
 
-	async getTreeItem(): Promise<TreeItem> {
+	getTreeItem(): TreeItem {
 		const item = new TreeItem(
 			this.remote.name,
 			this._options?.expand ? TreeItemCollapsibleState.Expanded : TreeItemCollapsibleState.Collapsed,
@@ -118,20 +113,10 @@ export class RemoteNode extends ViewNode<'remote', ViewsWithRemotes> {
 								),
 							};
 
-			if (remoteSupportsIntegration(this.remote)) {
-				const integration = await getRemoteIntegration(this.remote);
-				const connected = integration?.maybeConnected ?? (await integration?.isConnected());
-
-				item.contextValue = `${ContextValues.Remote}${connected ? '+connected' : '+disconnected'}`;
-				tooltip = `\`${this.remote.name}\` \u00a0(${provider.name} ${GlyphChars.Dash} _${
-					connected ? 'connected' : 'not connected'
-				}${this.remote.default ? ', default' : ''}_) \n\n${provider.displayPath}`;
-			} else {
-				item.contextValue = ContextValues.Remote;
-				tooltip = `\`${this.remote.name}\` \u00a0(${provider.name}${
-					this.remote.default ? ', default' : ''
-				}) \n\n${provider.displayPath}`;
-			}
+			item.contextValue = ContextValues.Remote;
+			tooltip = `\`${this.remote.name}\` \u00a0(${provider.name}${
+				this.remote.default ? ', default' : ''
+			}) \n\n${provider.displayPath}`;
 		} else {
 			item.contextValue = ContextValues.Remote;
 			item.iconPath = new ThemeIcon('cloud');

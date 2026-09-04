@@ -39,7 +39,6 @@ const descriptor: CustomEditorDescriptor = {
 	contextKeyPrefix: 'gitlens:webview:rebase',
 	trackingFeature: 'rebaseEditor',
 	type: 'rebase',
-	plusFeature: false,
 	webviewOptions: { enableCommandUris: true, enableScripts: true },
 	webviewHostOptions: { enableFindWidget: true, retainContextWhenHidden: true },
 };
@@ -134,18 +133,6 @@ export class RebaseEditorProvider implements CustomTextEditorProvider, Disposabl
 		const openOnPausedRebase = configuration.get('rebaseEditor.openOnPausedRebase');
 		if (!openOnPausedRebase || !isRebaseTodoEditorEnabled()) return;
 
-		// While an automatic rebase is running it resolves/continues each pause itself (escalating
-		// when it can't), so auto-opening on the intermediate pauses would fight its UX. Terminal
-		// phases (escalated/failed/…) don't suppress — those pauses are the user's to handle.
-		const autoRebasePhase = this.container.autoRebase.getSession(repoPath)?.phase;
-		switch (autoRebasePhase) {
-			case 'starting':
-			case 'resolving':
-			case 'applying':
-			case 'continuing':
-				return;
-		}
-
 		// Only open if the rebase is actually paused (waiting for user action), not just running
 		const svc = this.container.git.getRepositoryService(repoPath);
 		const status = await svc.pausedOps?.getPausedOperationStatus?.();
@@ -153,7 +140,7 @@ export class RebaseEditorProvider implements CustomTextEditorProvider, Disposabl
 		if (openOnPausedRebase === 'interactive' && !status.isInteractive) return;
 
 		// 'auto' only opens for operations started from (or adopted by) GitLens — external
-		// rebases (terminals, agents, other tools) surface via the paused-operation UI instead
+		// rebases (terminals or other tools) surface via the paused-operation UI instead
 		if (openOnPausedRebase === 'auto' && !this.container.operationOrigins.isGitLensInitiated(repoPath)) return;
 
 		// `isPaused` is true while REBASE_HEAD exists — but that file lingers briefly while
@@ -163,7 +150,7 @@ export class RebaseEditorProvider implements CustomTextEditorProvider, Disposabl
 		const { actionable, hasConflicts } = await getActionableRebaseState(svc);
 		if (!actionable) return;
 
-		// A conflict pause follows the unified paused-operation surfacing rule (Graph WIP details
+		// A conflict pause follows the unified paused-operation surfacing rule (working-tree details
 		// when accessible, rebase editor otherwise); only interactive pauses (todo editing /
 		// edit / reword / break) always open the rebase editor below.
 		if (hasConflicts) {

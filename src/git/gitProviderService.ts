@@ -32,18 +32,15 @@ import type {
 import type { ValidateRepoResult } from '@gitlens/git/service.js';
 import { GitService } from '@gitlens/git/service.js';
 import { getBlameRange } from '@gitlens/git/utils/blame.utils.js';
-import { calculateDistribution } from '@gitlens/git/utils/contributor.utils.js';
 import { getVisibilityCacheKey } from '@gitlens/git/utils/remote.utils.js';
 import { RepositoryInitWatcher } from '@gitlens/git/watching/initWatcher.js';
 import type { FileWatcher, FileWatchEvent, FileWatchingProvider } from '@gitlens/git/watching/provider.js';
 import type { RepositoryWatchService } from '@gitlens/git/watching/watchService.js';
-import { joinUnique } from '@gitlens/utils/array.js';
-import type { Deferrable } from '@gitlens/utils/debounce.js';
-import { debounce } from '@gitlens/utils/debounce.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import type { UnifiedDisposable } from '@gitlens/utils/disposable.js';
 import { createDisposable, fromDisposables } from '@gitlens/utils/disposable.js';
-import { count, filter, first, flatMap, groupByMap, join, map, some, sum } from '@gitlens/utils/iterable.js';
+import { count, filter, first, flatMap, groupByMap, map, some } from '@gitlens/utils/iterable.js';
 import { getLoggableName, Logger } from '@gitlens/utils/logger.js';
 import { getScopedLogger, maybeStartScopedLogger } from '@gitlens/utils/logger.scoped.js';
 import { getScheme, isAbsolute, maybeUri, normalizePath } from '@gitlens/utils/path.js';
@@ -53,43 +50,29 @@ import { PromiseCache } from '@gitlens/utils/promiseCache.js';
 import type { ResourceUsage } from '@gitlens/utils/resourceUsage.js';
 import { VisitedPathsTrie } from '@gitlens/utils/trie.js';
 import { areUrisEqual, coerceUri, getRepositoryKey } from '@gitlens/utils/uri.js';
-import { resetAvatarCache } from '../avatars.js';
 import { Schemes } from '../constants.js';
 import type { Container } from '../container.js';
-import { AccessDeniedError, ProviderNotFoundError, ProviderNotSupportedError } from '../errors.js';
+import { ProviderNotFoundError, ProviderNotSupportedError } from '../errors.js';
 import { isUriScopedGitCacheReset } from '../eventBus.js';
-import type { FeatureAccess, PlusFeatures, RepoFeatureAccess } from '../features.js';
-import { isAdvancedFeature, isProFeatureOnAllRepos } from '../features.js';
 import { showBlameInvalidIgnoreRevsFileWarningMessage } from '../messages.js';
-import type { Subscription } from '../plus/gk/models/subscription.js';
-import type { SubscriptionChangeEvent } from '../plus/gk/subscriptionService.js';
-import { isSubscriptionPaidPlan } from '../plus/gk/utils/subscription.utils.js';
 import type { RepoComparisonKey } from '../repositories.js';
 import { asRepoComparisonKey, Repositories } from '../repositories.js';
-import { registerCommand } from '../system/-webview/command.js';
 import { configuration } from '../system/-webview/configuration.js';
 import { setContext } from '../system/-webview/context.js';
 import { getBestPath, splitPath } from '../system/-webview/path.js';
 import { rangeToLineRange } from '../system/-webview/vscode/range.js';
-import { gate } from '../system/decorators/gate.js';
 import type { TrackedGitDocument } from '../trackers/trackedDocument.js';
 import type { GlGitProvider, ScmRepository } from './gitProvider.js';
 import { GitRepositoryService } from './gitRepositoryService.js';
 import type { GitUri } from './gitUri.js';
 import type { GlRepository, RepositoryChangeEvent } from './models/repository.js';
 import type { LocalInfoFromRemoteUriResult } from './utils/-webview/remote.utils.js';
-import {
-	getRemoteIntegration,
-	isRemoteMaybeIntegrationConnected,
-	remoteSupportsIntegration,
-	resolveLocalInfoFromRemoteUri,
-} from './utils/-webview/remote.utils.js';
+import { resolveLocalInfoFromRemoteUri } from './utils/-webview/remote.utils.js';
 import { sortRepositories } from './utils/-webview/sorting.js';
 import { BlameSnapshot } from './utils/blameSnapshot.js';
 
 const emptyArray: readonly any[] = Object.freeze([]);
 const emptyDisposable: Disposable = Object.freeze({ dispose: () => {} });
-
 export type GitProvidersChangeEvent = {
 	readonly added: readonly GlGitProvider[];
 	readonly removed: readonly GlGitProvider[];
@@ -122,13 +105,6 @@ export class GitProviderService implements UnifiedDisposable {
 		}),
 	})
 	private fireProvidersChanged(added?: GlGitProvider[], removed?: GlGitProvider[]) {
-		if (this.container.telemetry.enabled) {
-			this.container.telemetry.setGlobalAttributes({
-				'providers.count': this._providers.size,
-				'providers.ids': join(this._providers.keys(), ','),
-			});
-		}
-
 		this._onDidChangeProviders.fire({ added: added ?? [], removed: removed ?? [], etag: this._etag });
 	}
 
@@ -144,19 +120,6 @@ export class GitProviderService implements UnifiedDisposable {
 		}),
 	})
 	private fireRepositoriesChanged(added?: GlRepository[], removed?: GlRepository[]) {
-		if (this.container.telemetry.enabled) {
-			const openSchemes = this.openRepositories.map(r => r.uri.scheme);
-
-			this.container.telemetry.setGlobalAttributes({
-				'repositories.count': openSchemes.length,
-				'repositories.schemes': joinUnique(openSchemes, ','),
-			});
-			this.container.telemetry.sendEvent('repositories/changed', {
-				'repositories.added': added?.length ?? 0,
-				'repositories.removed': removed?.length ?? 0,
-			});
-		}
-
 		// Pure-add of worktrees whose common repo is already known can't change aggregate visibility
 		// or access (shared remotes), so the cache wipe would be wasted work. See `hasKnownCommonRepo`.
 		let needsInvalidation = false;
@@ -171,19 +134,11 @@ export class GitProviderService implements UnifiedDisposable {
 		}
 
 		this._onDidChangeRepositories.fire({ added: added ?? [], removed: removed ?? [], etag: this._etag });
-
-		// Queue repositories for deferred processing (location storage + telemetry)
-		if (added?.length) {
-			for (const repo of added) {
-				this._pendingRepositoryOperations.set(repo.path, repo);
-			}
-			this.processPendingRepositoryOperations();
-		}
 	}
 
 	// True when `repo` is a worktree whose common repository is registered with the service (open
 	// or closed). A registered common repo guarantees the repo-family's identity/remotes are known
-	// to GitLens — either the common repo's own add event processed storage/telemetry when it was
+	// to GitLens — either the common repo's own add event processed storage when it was
 	// first opened, or a sibling entry (e.g. the opened URI form for a canonical-URI closed
 	// duplicate) did. Since the worktree inherits the common repo's remotes and initial-commit
 	// sha, the worktree's add can safely skip visibility invalidation and the remote-context
@@ -196,103 +151,6 @@ export class GitProviderService implements UnifiedDisposable {
 
 	private allHaveKnownCommonRepo(added: GlRepository[]): boolean {
 		return added.length > 0 && added.every(r => this.hasKnownCommonRepo(r));
-	}
-
-	private processPendingRepositoryOperations = debounce(() => {
-		if (!this._pendingRepositoryOperations.size) return;
-
-		// If user is active, wait for idle (up to 30s) before processing
-		if (window.state.active) {
-			let disposable: Disposable | undefined;
-			const maxWaitTimeout = setTimeout(() => {
-				disposable?.dispose();
-				this.executePendingRepositoryOperations();
-			}, 30000);
-
-			disposable = window.onDidChangeWindowState(e => {
-				if (!e.active) {
-					clearTimeout(maxWaitTimeout);
-					disposable?.dispose();
-					this.executePendingRepositoryOperations();
-				}
-			});
-			return;
-		}
-
-		this.executePendingRepositoryOperations();
-	}, 5000);
-
-	private executePendingRepositoryOperations(): void {
-		if (!this._pendingRepositoryOperations.size) return;
-
-		const repos = [...this._pendingRepositoryOperations.values()];
-		this._pendingRepositoryOperations.clear();
-
-		// Store locations (deferred to allow discovery to settle)
-		void this.container.repositoryIdentity.storeRepositoryLocations(repos);
-
-		// Send telemetry (if enabled)
-		if (this.container.telemetry.enabled) {
-			this.sendRepositoryOpenedTelemetry(repos);
-		}
-	}
-
-	private sendRepositoryOpenedTelemetry(repos: GlRepository[]): void {
-		// Group by commonPath and pick one repo per group (prefer main repo over worktrees)
-		const grouped = groupByMap(repos, r => r.commonUri?.path ?? r.path);
-
-		const reposAndCounts = Array.from(grouped.values(), group => {
-			const repo = group.find(r => !r.isWorktree) ?? group[0];
-			return {
-				repo: repo,
-				submoduleCount: group.filter(r => r.isSubmodule && r !== repo).length,
-				worktreeCount: group.filter(r => r.isWorktree && r !== repo).length,
-			};
-		});
-		if (!reposAndCounts.length) return;
-
-		void Promise.allSettled(
-			reposAndCounts.map(async ({ repo, worktreeCount, submoduleCount }) => {
-				const since = '1.year.ago';
-				const [remotesResult, contributorsStatsResult] = await Promise.allSettled([
-					repo.git.remotes.getRemotes(),
-					repo.git.contributors.getContributorsStats({ since: since }, undefined, 2000),
-				]);
-
-				const remotes = getSettledValue(remotesResult) ?? [];
-
-				const remoteProviders = new Set<string>();
-				for (const remote of remotes) {
-					remoteProviders.add(remote.provider?.id ?? 'unknown');
-				}
-
-				const stats = getSettledValue(contributorsStatsResult);
-
-				let commits;
-				let avgPerContributor;
-				if (stats != null) {
-					commits = sum(stats.contributions);
-					avgPerContributor = Math.round(commits / stats.count);
-				}
-				const distribution = calculateDistribution(stats, 'repository.contributors.distribution.');
-
-				this.container.telemetry.sendEvent('repository/opened', {
-					'repository.id': repo.idHash,
-					'repository.scheme': repo.uri.scheme,
-					'repository.closed': !repo.opened,
-					'repository.folder.scheme': repo.folder?.uri.scheme,
-					'repository.provider.id': repo.provider.id,
-					'repository.remoteProviders': join(remoteProviders, ','),
-					'repository.submodules.openedCount': submoduleCount,
-					'repository.worktrees.openedCount': worktreeCount,
-					'repository.contributors.commits.count': commits,
-					'repository.contributors.commits.avgPerContributor': avgPerContributor,
-					'repository.contributors.count': stats?.count,
-					'repository.contributors.since': since,
-					...distribution,
-				});
-			}),
-		);
 	}
 
 	private readonly _onDidChangeRepository = new EventEmitter<RepositoryChangeEvent>();
@@ -308,7 +166,6 @@ export class GitProviderService implements UnifiedDisposable {
 	private _initializing: Deferred<number> | undefined;
 	private readonly _initWatchHandles = new Map<string, { dispose(): void }>();
 	private readonly _pendingRepositories = new Map<RepoComparisonKey, Promise<GlRepository | undefined>>();
-	private readonly _pendingRepositoryOperations = new Map<string, GlRepository>();
 	private readonly _providerDisposables: UnifiedDisposable[] = [];
 	private readonly _providers = new Map<GitProviderId, GlGitProvider>();
 	private readonly _repositoryInitWatcher: RepositoryInitWatcher;
@@ -344,7 +201,6 @@ export class GitProviderService implements UnifiedDisposable {
 			}),
 			this._onDidChangeProviders,
 			this._onDidChangeRepositories,
-			container.subscription.onDidChange(this.onSubscriptionChanged, this),
 			window.onDidChangeWindowState(this.onWindowStateChanged, this),
 			workspace.onDidChangeWorkspaceFolders(this.onWorkspaceFoldersChanged, this),
 			configuration.onDidChange(this.onConfigurationChanged, this),
@@ -354,14 +210,6 @@ export class GitProviderService implements UnifiedDisposable {
 				} else {
 					this._cache.clearCaches(e.data.repoPath, ...(e.data.types ?? []));
 				}
-			}),
-			container.integrations.onDidChangeConnectionState(e => {
-				if (e.reason === 'connected') {
-					resetAvatarCache('failed');
-				}
-
-				this.resetCaches('providers');
-				this.updateContext();
 			}),
 			!workspace.isTrusted
 				? workspace.onDidGrantWorkspaceTrust(() => {
@@ -452,20 +300,10 @@ export class GitProviderService implements UnifiedDisposable {
 		if (configuration.changed(e, 'remotes')) {
 			this.resetCaches('remotes');
 		}
-
-		if (e != null && configuration.changed(e, 'integrations.enabled')) {
-			this.updateContext();
-		}
 	}
 
 	private registerCommands(): Disposable[] {
-		return [registerCommand('gitlens.plus.refreshRepositoryAccess', () => this.clearAllOpenRepoVisibilityCaches())];
-	}
-
-	@trace()
-	private onSubscriptionChanged(e: SubscriptionChangeEvent) {
-		this.clearAccessCache();
-		this._subscription = e.current;
+		return [];
 	}
 
 	@trace({ args: e => ({ e: `focused=${e.focused}` }) })
@@ -502,14 +340,6 @@ export class GitProviderService implements UnifiedDisposable {
 		onlyExit: true,
 	})
 	private onWorkspaceFoldersChanged(e: WorkspaceFoldersChangeEvent) {
-		if (this.container.telemetry.enabled) {
-			const schemes = workspace.workspaceFolders?.map(f => f.uri.scheme);
-			this.container.telemetry.setGlobalAttributes({
-				'folders.count': schemes?.length ?? 0,
-				'folders.schemes': schemes != null ? joinUnique(schemes, ', ') : '',
-			});
-		}
-
 		if (e.added.length) {
 			this._etag = Date.now();
 			void this.discoverRepositories(e.added);
@@ -606,11 +436,6 @@ export class GitProviderService implements UnifiedDisposable {
 			? first(this._repositories.values())
 			: undefined;
 	}
-
-	// get readonly() {
-	// 	return true;
-	// 	// return this.container.vsls.readonly;
-	// }
 
 	@debug()
 	async registerProviders(): Promise<void> {
@@ -833,16 +658,6 @@ export class GitProviderService implements UnifiedDisposable {
 
 		const autoRepositoryDetection = configuration.getCore('git.autoRepositoryDetection');
 
-		if (this.container.telemetry.enabled) {
-			setTimeout(
-				() =>
-					this.container.telemetry.sendEvent('providers/registrationComplete', {
-						'config.git.autoRepositoryDetection': autoRepositoryDetection,
-					}),
-				0,
-			);
-		}
-
 		scope?.addExitInfo(
 			`repositories=${this.repositoryCount}, workspaceFolders=${workspaceFolders?.length}, git.autoRepositoryDetection=${autoRepositoryDetection}`,
 		);
@@ -963,147 +778,11 @@ export class GitProviderService implements UnifiedDisposable {
 		return provider.discoverRepositories(uri, options);
 	}
 
-	private _subscription: Subscription | undefined;
-	private async getSubscription(): Promise<Subscription> {
-		return this._subscription ?? (this._subscription = await this.container.subscription.getSubscription());
-	}
-
-	private _accessCache = new Map<PlusFeatures | undefined, Promise<FeatureAccess>>();
-	private _accessCacheByRepo = new Map<string /* path */, Promise<RepoFeatureAccess>>();
-	private clearAccessCache(): void {
-		this._accessCache.clear();
-		this._accessCacheByRepo.clear();
-	}
-
-	async access(feature: PlusFeatures | undefined, repoPath: string | Uri): Promise<RepoFeatureAccess>;
-	async access(feature?: PlusFeatures, repoPath?: string | Uri): Promise<FeatureAccess | RepoFeatureAccess>;
-	@trace({ exit: r => `returned allowed=${r.allowed}, plan=${r.subscription.current.plan.effective.id}` })
-	async access(feature?: PlusFeatures, repoPath?: string | Uri): Promise<FeatureAccess | RepoFeatureAccess> {
-		if (repoPath == null) {
-			let access = this._accessCache.get(feature);
-			if (access == null) {
-				access = this.accessCore(feature);
-				this._accessCache.set(feature, access);
-			}
-			return access;
-		}
-
-		const { path } = this.getProvider(repoPath);
-		const cacheKey = path;
-
-		let access = this._accessCacheByRepo.get(cacheKey);
-		if (access == null) {
-			access = this.accessCore(feature, repoPath);
-			this._accessCacheByRepo.set(cacheKey, access);
-		}
-
-		return access;
-	}
-
-	private async accessCore(feature: PlusFeatures | undefined, repoPath: string | Uri): Promise<RepoFeatureAccess>;
-	private async accessCore(
-		feature?: PlusFeatures,
-		repoPath?: string | Uri,
-	): Promise<FeatureAccess | RepoFeatureAccess>;
-	@trace({ exit: r => `returned allowed=${r.allowed}, plan=${r.subscription.current.plan.effective.id}` })
-	private async accessCore(
-		feature?: PlusFeatures,
-		repoPath?: string | Uri,
-	): Promise<FeatureAccess | RepoFeatureAccess> {
-		const subscription = await this.getSubscription();
-
-		if (this.container.telemetry.enabled) {
-			queueMicrotask(() => void this.visibility());
-		}
-
-		const plan = subscription.plan.effective.id;
-		if (isSubscriptionPaidPlan(plan)) {
-			return { allowed: subscription.account?.verified !== false, subscription: { current: subscription } };
-		}
-
-		if (feature != null && (isProFeatureOnAllRepos(feature) || isAdvancedFeature(feature))) {
-			return { allowed: false, subscription: { current: subscription, required: 'pro' } };
-		}
-
-		function getRepoAccess(
-			this: GitProviderService,
-			repoPath: string | Uri,
-			force: boolean = false,
-		): Promise<RepoFeatureAccess> {
-			const { path: cacheKey } = this.getProvider(repoPath);
-
-			let access = force ? undefined : this._accessCacheByRepo.get(cacheKey);
-			if (access == null) {
-				access = this.visibility(repoPath).then(
-					visibility => {
-						if (visibility === 'private') {
-							return {
-								allowed: false,
-								subscription: { current: subscription, required: 'pro' },
-								visibility: visibility,
-							};
-						}
-
-						return {
-							allowed: true,
-							subscription: { current: subscription },
-							visibility: visibility,
-						};
-					},
-					// If there is a failure assume access is allowed
-					() => ({ allowed: true, subscription: { current: subscription } }),
-				);
-
-				this._accessCacheByRepo.set(cacheKey, access);
-			}
-
-			return access;
-		}
-
-		if (repoPath == null) {
-			const repositories = this.openRepositories;
-			if (repositories.length === 0) {
-				return { allowed: false, subscription: { current: subscription } };
-			}
-
-			if (repositories.length === 1) {
-				return getRepoAccess.call(this, repositories[0].path);
-			}
-
-			const visibility = await this.visibility();
-			switch (visibility) {
-				case 'private':
-					return {
-						allowed: false,
-						subscription: { current: subscription, required: 'pro' },
-						visibility: 'private',
-					};
-				case 'mixed':
-					return {
-						allowed: 'mixed',
-						subscription: { current: subscription, required: 'pro' },
-					};
-				default:
-					return {
-						allowed: true,
-						subscription: { current: subscription },
-						visibility: 'public',
-					};
-			}
-		}
-
-		// Pass force = true to bypass the cache and avoid a promise loop (where we used the cached promise we just created to try to resolve itself 🤦)
-		return getRepoAccess.call(this, repoPath, true);
-	}
-
-	async ensureAccess(feature: PlusFeatures, repoPath?: string): Promise<void> {
-		const { allowed, subscription } = await this.access(feature, repoPath);
-		if (allowed === false) throw new AccessDeniedError(subscription.current, subscription.required);
-	}
+	private clearAccessCache(): void {}
 
 	/** Single-value cache for the aggregate `visibility()` result. Handles coalescing, soft-
 	 * invalidation (in-flight callers ride the same promise; entry self-evicts on settle), and
-	 * stale-compute detection via `CacheController.invalidated` — the factory skips telemetry + the
+	 * stale-compute detection via `CacheController.invalidated` — the factory skips stale
 	 * final cache write when an invalidation happened mid-flight. Uses a `'visibility'` sentinel
 	 * key to make the single-value intent explicit (pattern: `composerWebview.ts`). */
 	private readonly _reposVisibilityCache = new PromiseCache<'visibility', RepositoriesVisibility>();
@@ -1204,17 +883,11 @@ export class GitProviderService implements UnifiedDisposable {
 		if (repoPath == null) {
 			// Coalescing, soft-invalidation, and stale-compute detection are handled by PromiseCache:
 			// - concurrent callers share one in-flight promise (no parallel `visibilityCore` runs)
-			// - a mid-flight invalidation flips `controller.invalidated`; the factory skips telemetry
+			// - a mid-flight invalidation flips `controller.invalidated`; the factory skips stale
 			//   for the stale value (callers still receive it, matching prior semantics) and the
 			//   entry self-evicts on settle so the next call starts fresh
-			return this._reposVisibilityCache.getOrCreate('visibility', async controller => {
+			return this._reposVisibilityCache.getOrCreate('visibility', async () => {
 				const visibility = await this.visibilityCore();
-				if (!controller.invalidated && this.container.telemetry.enabled) {
-					this.container.telemetry.setGlobalAttribute('repositories.visibility', visibility);
-					this.container.telemetry.sendEvent('repositories/visibility', {
-						'repositories.visibility': visibility,
-					});
-				}
 				return visibility;
 			});
 		}
@@ -1222,22 +895,7 @@ export class GitProviderService implements UnifiedDisposable {
 		const { path: cacheKey } = this.getProvider(repoPath);
 
 		let visibility = this.getVisibilityInfoFromCache(cacheKey)?.visibility;
-		if (visibility == null) {
-			visibility = await this.visibilityCore(repoPath);
-			if (this.container.telemetry.enabled) {
-				setTimeout(() => {
-					const repo = this.getRepository(repoPath);
-					this.container.telemetry.sendEvent('repository/visibility', {
-						'repository.visibility': visibility,
-						'repository.id': repo?.idHash,
-						'repository.scheme': repo?.uri.scheme,
-						'repository.closed': repo != null ? !repo.opened : undefined,
-						'repository.folder.scheme': repo?.folder?.uri.scheme,
-						'repository.provider.id': repo?.provider.id,
-					});
-				}, 0);
-			}
-		}
+		visibility ??= await this.visibilityCore(repoPath);
 		return visibility;
 	}
 
@@ -1323,8 +981,6 @@ export class GitProviderService implements UnifiedDisposable {
 			disabled = !(this.container.storage.getWorkspace('assumeRepositoriesOnStartup') ?? false);
 		}
 
-		this.container.telemetry.setGlobalAttribute('enabled', enabled);
-
 		if (this._context.enabled === enabled && this._context.disabled === disabled) return;
 
 		const promises = [];
@@ -1346,8 +1002,6 @@ export class GitProviderService implements UnifiedDisposable {
 		}
 	}
 
-	private _sendProviderContextTelemetryDebounced: Deferrable<() => void> | undefined;
-
 	private updateContext(options?: { skipRemotes?: boolean }) {
 		if (this.container.deactivating) return;
 
@@ -1359,14 +1013,9 @@ export class GitProviderService implements UnifiedDisposable {
 		// Don't bother trying to set the values if we're still starting up
 		if (this._initializing != null) return;
 
-		this.container.telemetry.setGlobalAttributes({
-			enabled: hasRepositories,
-			'repositories.count': openRepositoryCount,
-		});
-
 		if (!hasRepositories) return;
 
-		// The remote/integration scan iterates every open repo and fetches their remotes. Callers
+		// The remote scan iterates every open repo and fetches their remotes. Callers
 		// that know no remote-affecting change occurred (e.g. a pure-worktree add whose primary is
 		// already tracked — the worktree shares the primary's remotes) can pass `skipRemotes: true`
 		// to avoid the cascade while still keeping the cheap per-repo-count attributes fresh.
@@ -1377,45 +1026,13 @@ export class GitProviderService implements UnifiedDisposable {
 
 		// Don't block for the remote context updates (because it can block other downstream requests during initialization)
 		async function updateRemoteContext(this: GitProviderService) {
-			const integrations = configuration.get('integrations.enabled');
-
-			const remoteProviders = new Set<string>();
 			const reposWithRemotes = new Set<string>();
-			const reposWithHostingIntegrations = new Set<string>();
-			const reposWithHostingIntegrationsConnected = new Set<string>();
 
 			async function scanRemotes(repo: GlRepository) {
-				let hasSupportedIntegration = false;
-				let hasConnectedIntegration = false;
-
 				const remotes = await repo.git.remotes.getRemotes();
-				for (const remote of remotes) {
-					remoteProviders.add(remote.provider?.id ?? 'unknown');
+				if (remotes.length !== 0) {
 					reposWithRemotes.add(repo.uri.toString());
 					reposWithRemotes.add(repo.path);
-
-					// Skip if integrations are disabled or if we've already found a connected integration
-					if (!integrations || (hasSupportedIntegration && hasConnectedIntegration)) continue;
-
-					if (remoteSupportsIntegration(remote)) {
-						hasSupportedIntegration = true;
-						reposWithHostingIntegrations.add(repo.uri.toString());
-						reposWithHostingIntegrations.add(repo.path);
-
-						let connected = isRemoteMaybeIntegrationConnected(remote);
-						// If we don't know if we are connected, only check if the remote is the default or there is only one
-						// TODO@eamodio is the above still a valid requirement?
-						if (connected == null && (remote.default || remotes.length === 1)) {
-							const integration = await getRemoteIntegration(remote);
-							connected = await integration?.isConnected();
-						}
-
-						if (connected) {
-							hasConnectedIntegration = true;
-							reposWithHostingIntegrationsConnected.add(repo.uri.toString());
-							reposWithHostingIntegrationsConnected.add(repo.path);
-						}
-					}
 				}
 			}
 
@@ -1423,35 +1040,8 @@ export class GitProviderService implements UnifiedDisposable {
 				void (await Promise.allSettled(map(this._repositories.values(), scanRemotes)));
 			}
 
-			if (this.container.telemetry.enabled) {
-				this.container.telemetry.setGlobalAttributes({
-					'repositories.hasRemotes': reposWithRemotes.size !== 0,
-					'repositories.hasRichRemotes': reposWithHostingIntegrations.size !== 0,
-					'repositories.hasConnectedRemotes': reposWithHostingIntegrationsConnected.size !== 0,
-
-					'repositories.withRemotes': reposWithRemotes.size / 2,
-					'repositories.withHostingIntegrations': reposWithHostingIntegrations.size / 2,
-					'repositories.withHostingIntegrationsConnected': reposWithHostingIntegrationsConnected.size / 2,
-
-					'repositories.remoteProviders': join(remoteProviders, ','),
-				});
-				this._sendProviderContextTelemetryDebounced ??= debounce(
-					() => this.container.telemetry.sendEvent('providers/context'),
-					2500,
-				);
-				this._sendProviderContextTelemetryDebounced();
-			}
-
 			await Promise.allSettled([
 				setContext('gitlens:repos:withRemotes', reposWithRemotes.size ? [...reposWithRemotes] : undefined),
-				setContext(
-					'gitlens:repos:withHostingIntegrations',
-					reposWithHostingIntegrations.size ? [...reposWithHostingIntegrations] : undefined,
-				),
-				setContext(
-					'gitlens:repos:withHostingIntegrationsConnected',
-					reposWithHostingIntegrationsConnected.size ? [...reposWithHostingIntegrationsConnected] : undefined,
-				),
 			]);
 		}
 
@@ -1481,13 +1071,11 @@ export class GitProviderService implements UnifiedDisposable {
 		const resolved = this._gitService.getProvider(pathKey);
 		if (resolved != null) {
 			// Map the package-level provider back to the extension-level GlGitProvider.
-			// Multiple GlGitProviders may share the same backing provider (e.g. Local and VSLS
-			// both use CliGitProvider with id='git'). Pick the one whose supported schemes
-			// include the current scheme so extension-level operations use the right provider.
+			// Pick the provider whose supported schemes include the current scheme so
+			// extension-level operations use the right provider.
 			let provider = this._providers.get(resolved.provider.descriptor.id);
 			if (provider != null && !provider.supportedSchemes.has(scheme)) {
-				// The direct id match doesn't support this scheme — scan for one that does
-				// (e.g. VSLS path routed to 'git' CliGitProvider, but we need VslsGitProvider)
+				// The direct id match doesn't support this scheme — scan for one that does.
 				for (const p of this._providers.values()) {
 					if (p.supportedSchemes.has(scheme)) {
 						provider = p;
@@ -2521,18 +2109,6 @@ export class GitProviderService implements UnifiedDisposable {
 
 		const { provider } = this.getProvider(uri);
 		return provider.isTracked(uri);
-	}
-
-	@gate(repos => repos.map(r => r.id).join(','))
-	@debug()
-	async storeRepositoriesLocation(repos: GlRepository[]): Promise<void> {
-		const scope = getScopedLogger();
-
-		try {
-			await this.container.repositoryIdentity.storeRepositoryLocations(repos);
-		} catch (ex) {
-			scope?.error(ex);
-		}
 	}
 }
 

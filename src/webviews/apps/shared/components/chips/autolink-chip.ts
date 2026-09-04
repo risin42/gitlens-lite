@@ -14,15 +14,15 @@ export class GlAutolinkChip extends LitElement {
 		}
 
 		.chip--pr-opened::part(icon) {
-			color: var(--vscode-gitlens-openPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-openPullRequestIconColor);
 		}
 
 		.chip--pr-closed::part(icon) {
-			color: var(--vscode-gitlens-closedPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-closedPullRequestIconColor);
 		}
 
 		.chip--pr-merged::part(icon) {
-			color: var(--vscode-gitlens-mergedPullRequestIconColor);
+			color: var(--vscode-gitlens-lite-mergedPullRequestIconColor);
 		}
 
 		.chip--pr-draft::part(icon) {
@@ -30,11 +30,11 @@ export class GlAutolinkChip extends LitElement {
 		}
 
 		.chip--issue-opened::part(icon) {
-			color: var(--vscode-gitlens-openAutolinkedIssueIconColor);
+			color: var(--vscode-gitlens-lite-openAutolinkedIssueIconColor);
 		}
 
 		.chip--issue-closed::part(icon) {
-			color: var(--vscode-gitlens-closedAutolinkedIssueIconColor);
+			color: var(--vscode-gitlens-lite-closedAutolinkedIssueIconColor);
 		}
 
 		.stack-badge {

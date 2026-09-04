@@ -20,7 +20,6 @@ function rewriteSourceExtToJs(node) {
 
 export default {
 	globs: ['src/webviews/apps/**/*.ts'],
-	exclude: ['src/webviews/apps/**/*.test.ts'],
 	litelement: true,
 	packagejson: false,
 	plugins: [

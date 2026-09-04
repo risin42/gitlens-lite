@@ -2,35 +2,23 @@ import type { CancellationToken, Command } from 'vscode';
 import { MarkdownString, ThemeColor, ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'vscode';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
-import type { PullRequest } from '@gitlens/git/models/pullRequest.js';
 import type { GitRevisionReference } from '@gitlens/git/models/reference.js';
-import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { joinPaths, normalizePath } from '@gitlens/utils/path.js';
-import type { Deferred } from '@gitlens/utils/promise.js';
-import {
-	defer,
-	getSettledValue,
-	pauseOnCancelOrTimeout,
-	pauseOnCancelOrTimeoutMapTuplePromise,
-} from '@gitlens/utils/promise.js';
+import { getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
 import { sortCompare } from '@gitlens/utils/string.js';
 import type { DiffWithPreviousCommandArgs } from '../../commands/diffWithPrevious.js';
 import type { Colors } from '../../constants.colors.js';
 import { CommitFormatter } from '../../git/formatters/commitFormatter.js';
 import {
-	getCommitAssociatedPullRequest,
 	getCommitAuthorAvatarUri,
-	getCommitEnrichedAutolinks,
 	getCommitGitUri,
 	getCommitsForFiles,
 	isCommitSigned,
 } from '../../git/utils/-webview/commit.utils.js';
-import { remoteSupportsIntegration } from '../../git/utils/-webview/remote.utils.js';
 import { toAbortSignal } from '../../system/-webview/cancellation.js';
 import { createCommand } from '../../system/-webview/command.js';
 import { configuration } from '../../system/-webview/configuration.js';
-import { getContext } from '../../system/-webview/context.js';
 import type { FileHistoryView } from '../fileHistoryView.js';
 import type { ViewsWithCommits } from '../viewBase.js';
 import { disposeChildren } from '../viewBase.js';
@@ -40,14 +28,8 @@ import { ViewRefNode } from './abstract/viewRefNode.js';
 import { CommitFileNode } from './commitFileNode.js';
 import type { FileNode } from './folderNode.js';
 import { FolderNode } from './folderNode.js';
-import { PullRequestNode } from './pullRequestNode.js';
 
-type State = {
-	pullRequest: PullRequest | null | undefined;
-	pendingPullRequest: Promise<PullRequest | undefined> | undefined;
-};
-
-export class CommitNode extends ViewRefNode<'commit', ViewsWithCommits | FileHistoryView, GitRevisionReference, State> {
+export class CommitNode extends ViewRefNode<'commit', ViewsWithCommits | FileHistoryView, GitRevisionReference> {
 	constructor(
 		view: ViewsWithCommits | FileHistoryView,
 		parent: ViewNode,
@@ -100,81 +82,29 @@ export class CommitNode extends ViewRefNode<'commit', ViewsWithCommits | FileHis
 			const commit = this.commit;
 
 			let children: ViewNode[] = [];
-			let onCompleted: Deferred<void> | undefined;
-			let pullRequest;
-
-			if (
-				this.view.type !== 'tags' &&
-				!this.unpublished &&
-				this.view.config.pullRequests?.enabled &&
-				this.view.config.pullRequests?.showForCommits &&
-				// If we are in the context of a PR node, don't show the pull request node again
-				this.context.pullRequest == null &&
-				getContext('gitlens:repos:withHostingIntegrationsConnected')?.includes(commit.repoPath)
-			) {
-				pullRequest = this.getState('pullRequest');
-				if (pullRequest === undefined && this.getState('pendingPullRequest') === undefined) {
-					onCompleted = defer<void>();
-					const prPromise = this.getAssociatedPullRequest(commit);
-
-					queueMicrotask(async () => {
-						await onCompleted?.promise;
-
-						// If we are waiting too long, refresh this node to show a spinner while the pull request is loading
-						let spinner = false;
-						const timeout = setTimeout(() => {
-							spinner = true;
-							this.view.triggerNodeChange(this);
-						}, 250);
-
-						const pr = await prPromise;
-						clearTimeout(timeout);
-
-						// If we found a pull request, insert it into the children cache (if loaded) and refresh the node
-						if (pr != null && this.children != null) {
-							this.children.unshift(new PullRequestNode(this.view, this, pr, commit));
-						}
-
-						// Refresh this node to add the pull request node or remove the spinner
-						if (spinner || pr != null) {
-							this.view.triggerNodeChange(this);
-						}
-					});
-				}
+			const commits = await getCommitsForFiles(commit, {
+				allowFilteredFiles: this._options.allowFilteredFiles,
+				include: { stats: true },
+			});
+			for (const c of commits) {
+				children.push(new CommitFileNode(this.view, this, c.file!, c));
 			}
 
-			try {
-				const commits = await getCommitsForFiles(commit, {
-					allowFilteredFiles: this._options.allowFilteredFiles,
-					include: { stats: true },
-				});
-				for (const c of commits) {
-					children.push(new CommitFileNode(this.view, this, c.file!, c));
-				}
+			if (this.view.config.files.layout !== 'list') {
+				const hierarchy = makeHierarchical(
+					children as FileNode[],
+					n => n.uri.relativePath.split('/'),
+					(...parts: string[]) => normalizePath(joinPaths(...parts)),
+					this.view.config.files.compact,
+				);
 
-				if (this.view.config.files.layout !== 'list') {
-					const hierarchy = makeHierarchical(
-						children as FileNode[],
-						n => n.uri.relativePath.split('/'),
-						(...parts: string[]) => normalizePath(joinPaths(...parts)),
-						this.view.config.files.compact,
-					);
-
-					const root = new FolderNode(this.view, this, hierarchy, this.repoPath, '', undefined);
-					children = root.getChildren() as FileNode[];
-				} else {
-					(children as FileNode[]).sort((a, b) => sortCompare(a.label!, b.label!));
-				}
-
-				if (pullRequest != null) {
-					children.unshift(new PullRequestNode(this.view, this, pullRequest, commit));
-				}
-
-				this.children = children;
-			} finally {
-				// Always fulfill the deferred to prevent orphaned microtasks
-				setTimeout(() => onCompleted?.fulfill(), 1);
+				const root = new FolderNode(this.view, this, hierarchy, this.repoPath, '', undefined);
+				children = root.getChildren() as FileNode[];
+			} else {
+				(children as FileNode[]).sort((a, b) => sortCompare(a.label!, b.label!));
 			}
+
+			this.children = children;
 		}
 
 		return this.children;
@@ -202,18 +132,13 @@ export class CommitNode extends ViewRefNode<'commit', ViewsWithCommits | FileHis
 			messageTruncateAtNewLine: true,
 		});
 
-		const pendingPullRequest = this.getState('pendingPullRequest');
-
-		item.iconPath =
-			pendingPullRequest != null
-				? new ThemeIcon('loading~spin')
-				: this.unpublished
-					? new ThemeIcon('arrow-up', new ThemeColor('gitlens.unpublishedCommitIconColor' satisfies Colors))
-					: this.view.config.avatars
-						? await getCommitAuthorAvatarUri(this.commit, {
-								defaultStyle: configuration.get('defaultGravatarsStyle'),
-							})
-						: undefined;
+		item.iconPath = this.unpublished
+			? new ThemeIcon('arrow-up', new ThemeColor('gitlens-lite.unpublishedCommitIconColor' satisfies Colors))
+			: this.view.config.avatars
+				? await getCommitAuthorAvatarUri(this.commit, {
+						defaultStyle: configuration.get('defaultGravatarsStyle'),
+					})
+				: undefined;
 		// item.tooltip = this.tooltip;
 
 		return item;
@@ -247,25 +172,6 @@ export class CommitNode extends ViewRefNode<'commit', ViewsWithCommits | FileHis
 		return item;
 	}
 
-	private async getAssociatedPullRequest(commit: GitCommit, remote?: GitRemote): Promise<PullRequest | undefined> {
-		let pullRequest = this.getState('pullRequest');
-		if (pullRequest !== undefined) return Promise.resolve(pullRequest ?? undefined);
-
-		let pendingPullRequest = this.getState('pendingPullRequest');
-		if (pendingPullRequest == null) {
-			pendingPullRequest = getCommitAssociatedPullRequest(commit.repoPath, commit.sha, remote);
-			this.storeState('pendingPullRequest', pendingPullRequest);
-
-			pullRequest = await pendingPullRequest;
-			this.storeState('pullRequest', pullRequest ?? null);
-			this.deleteState('pendingPullRequest');
-
-			return pullRequest;
-		}
-
-		return pendingPullRequest;
-	}
-
 	private async getTooltip(cancellation: CancellationToken) {
 		const template = this.getTooltipTemplate();
 
@@ -293,41 +199,17 @@ export class CommitNode extends ViewRefNode<'commit', ViewsWithCommits | FileHis
 		if (cancellation.isCancellationRequested) return undefined;
 
 		const remotes = getSettledValue(remotesResult, []);
-		const [remote] = remotes;
 		const signature = getSettledValue(signatureResult);
-
-		let enrichedAutolinks;
-		let pr;
-
-		if (!remote || remoteSupportsIntegration(remote)) {
-			const [enrichedAutolinksResult, prResult] = await Promise.allSettled([
-				pauseOnCancelOrTimeoutMapTuplePromise(
-					getCommitEnrichedAutolinks(this.commit.repoPath, this.commit.message, this.commit.summary, remote),
-					toAbortSignal(cancellation),
-				),
-				this.getAssociatedPullRequest(this.commit, remote),
-			]);
-
-			if (cancellation.isCancellationRequested) return undefined;
-
-			const enrichedAutolinksMaybeResult = getSettledValue(enrichedAutolinksResult);
-			if (!enrichedAutolinksMaybeResult?.paused) {
-				enrichedAutolinks = enrichedAutolinksMaybeResult?.value;
-			}
-			pr = getSettledValue(prResult);
-		}
 
 		const tooltip = await CommitFormatter.fromTemplateAsync(
 			template,
 			this.commit,
 			{ source: 'view:hover' },
 			{
-				enrichedAutolinks: enrichedAutolinks,
 				dateFormat: configuration.get('defaultDateFormat'),
 				getBranchAndTagTips: this.getBranchAndTagTips,
 				messageAutolinks: true,
 				messageIndent: 4,
-				pullRequest: pr,
 				outputFormat: 'markdown',
 				remotes: remotes,
 				unpublished: this.unpublished,

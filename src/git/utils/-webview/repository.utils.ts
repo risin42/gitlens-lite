@@ -1,7 +1,6 @@
 import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import { millisecondsPerDay } from '@gitlens/git/utils/fetch.utils.js';
-import { getIntegrationIdForRemote } from '@gitlens/integrations/utils/integration.utils.js';
 import { formatDate, fromNow } from '@gitlens/utils/date.js';
 import { map } from '@gitlens/utils/iterable.js';
 import { areUrisEqual } from '@gitlens/utils/uri.js';
@@ -9,7 +8,7 @@ import { configuration } from '../../../system/-webview/configuration.js';
 import { UriMap } from '../../../system/-webview/uriMap.js';
 import type { GlRepository } from '../../models/repository.js';
 import type { RepositoryShape } from '../../models/repositoryShape.js';
-import { getRemoteProviderUrl, isRemoteMaybeIntegrationConnected, remoteSupportsIntegration } from './remote.utils.js';
+import { getRemoteProviderUrl } from './remote.utils.js';
 
 export function formatLastFetched(lastFetched: number, short: boolean = true): string {
 	const date = new Date(lastFetched);
@@ -121,19 +120,10 @@ export async function toRepositoryShapeWithProvider(
 		provider = {
 			name: remote.provider.name,
 			icon: remote.provider.icon === 'remote' ? 'cloud' : remote.provider.icon,
-			integration: remoteSupportsIntegration(remote)
-				? {
-						id: getIntegrationIdForRemote(remote.provider)!,
-						connected: isRemoteMaybeIntegrationConnected(remote) ?? false,
-					}
-				: undefined,
 			supportedFeatures: remote.provider.supportedFeatures,
 			url: await getRemoteProviderUrl(remote.provider, { type: RemoteResourceType.Repo }),
 			bestRemoteName: remote.name,
 		};
-		if (provider.integration?.id == null) {
-			provider.integration = undefined;
-		}
 	}
 
 	return { ...toRepositoryShape(repo), provider: provider };

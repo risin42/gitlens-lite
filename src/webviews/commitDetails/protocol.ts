@@ -1,9 +1,7 @@
 import type { GitCommitIdentityShape, GitCommitStats } from '@gitlens/git/models/commit.js';
 import type { GitFileChangeShape, GitFileChangeStats } from '@gitlens/git/models/fileChange.js';
 import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
-import type { IssueOrPullRequest } from '@gitlens/git/models/issueOrPullRequest.js';
 import type { GitPausedOperationStatus } from '@gitlens/git/models/pausedOperationStatus.js';
-import type { PullRequestShape } from '@gitlens/git/models/pullRequest.js';
 import type { GitBranchReference } from '@gitlens/git/models/reference.js';
 import type { GitCommitSearchContext } from '@gitlens/git/models/search.js';
 import type { SigningFormat } from '@gitlens/git/models/signature.js';
@@ -56,7 +54,6 @@ export interface CompareDiff {
 export type WorkingFileSorting = 'name' | 'path' | 'status';
 
 export interface Preferences {
-	pullRequestExpanded: boolean;
 	avatars: boolean;
 	currentUserNameStyle: CurrentUserNameStyle;
 	dateFormat: DateTimeFormat | string;
@@ -67,9 +64,8 @@ export interface Preferences {
 	/** Working (WIP) file list sort, honoring VS Code's `scm.defaultViewSortKey` (list layout only). */
 	workingFilesOrderBy: WorkingFileSorting;
 	/** Whether the working (WIP) file list orders by stage (staged → mixed → unstaged) before the
-	 *  `scm.defaultViewSortKey` order, or sorts flat by the key alone. Mirrors `gitlens.sortWorkingChangesBy`. */
+	 *  `scm.defaultViewSortKey` order, or sorts flat by the key alone. Mirrors `gitlens-lite.sortWorkingChangesBy`. */
 	workingChangesSortBy: Config['sortWorkingChangesBy'];
-	aiEnabled: boolean;
 	enableSmartCommit: boolean;
 	showSignatureBadges: boolean;
 	/** Whether the file-tree search box is visible. Persisted per workspace; defaults to `true`. */
@@ -77,7 +73,7 @@ export interface Preferences {
 	/** Search-box presentation: `true` filters (hides) non-matches, `false` dims them. */
 	searchBoxFilter: boolean;
 }
-export type UpdateablePreferences = Partial<Pick<Preferences, 'pullRequestExpanded' | 'files'>>;
+export type UpdateablePreferences = Partial<Pick<Preferences, 'files'>>;
 
 /** Fallback file-list layout when the persisted `views.commitDetails.files` preference is unavailable. */
 export const defaultViewFilesConfig: Preferences['files'] = {
@@ -102,9 +98,8 @@ export interface GitBranchShape {
 /**
  * Git-authoritative working-tree counts, computed host-side from `status.diffStatus` and embedded
  * IN the {@link Wip} so the file list and its summary counts travel as one atomic object — they
- * can never drift. Header / row badges read these (via the graph's row-keyed `wipStateById` plane,
- * which projects them with `toWipState`); the panel reads them directly. `context` is the serialized
- * `GraphItemContext` string for the WIP row's right-click menu.
+ * can never drift. The panel reads them directly. `context` is the serialized view-item context
+ * string for the WIP row's right-click menu.
  */
 export interface WipStats {
 	added: number;
@@ -132,8 +127,7 @@ export interface Wip {
 	/**
 	 * Host-stamped, per-repo monotonic freshness marker, assigned when the producing `git status` read STARTS (so a
 	 * slow read of older state can't outrank a later read of newer state). Lets a consumer order payloads that can
-	 * arrive out of order — a delayed push vs. a newer push or forced refresh — and discard any that reflect an
-	 * older working tree than one already applied. Optional: only the Graph's `getWipForRepoAndStats` stamps it.
+	 * arrive out of order and discard any that reflect an older working tree than one already applied.
 	 */
 	revision?: number;
 	branch?: GitBranchShape;
@@ -143,21 +137,15 @@ export interface Wip {
 		path: string;
 		/** True when this repo is a linked worktree (`git worktree`), false for the primary/main worktree. */
 		isWorktree: boolean;
-		provider?: {
-			supportedFeatures: { createPullRequestWithDetails?: boolean };
-		};
 	};
 	/**
 	 * Git-authoritative counts for this wip's working tree — see {@link WipStats}. Optional at the
-	 * type level because the standalone commitDetails webview constructs `Wip` without computing
-	 * diffStatus; the Graph's `getWipForRepoAndStats` ALWAYS populates it, so Graph consumers can
-	 * rely on it in practice (guard with `?.` for the shared-type contract).
+	 * type level because a standalone Inspect view may construct `Wip` without computing diffStatus.
 	 */
 	stats?: WipStats;
 	/**
 	 * Commit-signing status for this wip's repo — drives the "will be signed" indicator in the
-	 * Graph's commit box. Optional for the same reason as {@link Wip.stats}: only the Graph's
-	 * `getWipForRepoAndStats` populates it.
+	 * commit box. Optional for the same reason as {@link Wip.stats}.
 	 */
 	signing?: WipSigning;
 }
@@ -165,17 +153,9 @@ export interface Wip {
 export interface State extends WebviewState<'gitlens.views.commitDetails'> {
 	pinned: boolean;
 	preferences: Preferences;
-	orgSettings: {
-		ai: boolean;
-		drafts: boolean;
-	};
 
 	commit?: CommitDetails;
 	autolinksEnabled: boolean;
-	autolinkedIssues?: IssueOrPullRequest[];
-	pullRequest?: PullRequestShape;
-	hasAccount: boolean;
-	hasIntegrationsConnected: boolean;
 	searchContext?: GitCommitSearchContext;
 }
 
@@ -186,7 +166,7 @@ export type ShowCommitDetailsViewCommandArgs = string[];
 // Param types for RPC methods (kept for backwards compatibility)
 
 export interface ExecuteCommitActionsParams {
-	action: 'graph' | 'more' | 'scm' | 'sha';
+	action: 'more' | 'scm' | 'sha';
 	alt?: boolean;
 }
 

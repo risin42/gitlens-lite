@@ -1278,8 +1278,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			repoPath,
 			cacheKey,
 			async (_cacheable, signal) => {
-				// Requires Git v2.33+
-				if (!(await this.git.supports('git:merge-tree'))) {
+				if (!(await this.git.supports('git:merge-tree:write-tree'))) {
 					return createConflictDetectionError('unsupported');
 				}
 
@@ -1342,15 +1341,15 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		);
 	}
 
-	/** Detects conflicts when an autostash is reapplied onto the tree an integration produced */
+	/** Detects conflicts when an autostash is reapplied onto the tree the operation produced */
 	@debug()
 	async getPotentialStashReapplyConflicts(
 		repoPath: string,
 		ontoTreeOid: string,
 		cancellation?: AbortSignal,
 	): Promise<ConflictDetectionResult> {
-		// Requires Git v2.38+ for --write-tree with 3-arg form
-		if (!(await this.git.supports('git:merge-tree:write-tree'))) {
+		// `runMergeTreeStep` relies on `--merge-base`, which requires Git v2.40+
+		if (!(await this.git.supports('git:merge-tree:merge-base'))) {
 			return createConflictDetectionError('unsupported');
 		}
 
@@ -1397,7 +1396,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			cacheKey,
 			async (_cacheable, signal) => {
 				// The stash commit's first parent is the HEAD it was taken against, which is the correct merge
-				// base for a reapply — ours is the post-integration tree, theirs is the stash
+				// base for a reapply — ours is the post-operation tree, theirs is the stash
 				const step = await this.runMergeTreeStep(repoPath, `${stashSha}^`, ontoTreeOid, stashSha, signal);
 				if (!step.ok) return createConflictDetectionError(step.reason);
 
@@ -1475,8 +1474,8 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	): Promise<ConflictDetectionResult> {
 		const scope = getScopedLogger();
 
-		// Requires Git v2.38+ for --write-tree with 3-arg form
-		if (!(await this.git.supports('git:merge-tree:write-tree'))) {
+		// `runMergeTreeStep` relies on `--merge-base`, which requires Git v2.40+
+		if (!(await this.git.supports('git:merge-tree:merge-base'))) {
 			return createConflictDetectionError('unsupported');
 		}
 
@@ -1756,16 +1755,6 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		await this.storeBranchMetadata(repoPath, 'gk-last-modified', branch.name, now);
 	}
 
-	/** Updates the agent last activity timestamp for the current branch */
-	@debounce(2.5 * 60 * 1000)
-	@debug()
-	async onCurrentBranchAgentActivity(repoPath: string): Promise<void> {
-		const branch = await this.getBranch(repoPath);
-		if (branch == null || branch.remote || branch.detached) return;
-
-		await this.storeBranchMetadata(repoPath, 'gk-agent-last-activity', branch.name, new Date());
-	}
-
 	@debug()
 	async renameBranch(repoPath: string, oldName: string, newName: string): Promise<void> {
 		const args = ['branch', '-m', oldName, newName];
@@ -1862,7 +1851,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				// Use git config --get-regexp to load all gk-* branch metadata in one call
 				const configMap = await this.provider.config.getGkConfigRegex(
 					commonPath,
-					'^branch\\..*\\.gk-(last-(accessed|modified)|disposition|agent-last-activity)$',
+					'^branch\\..*\\.gk-(last-(accessed|modified)|disposition)$',
 				);
 				if (!configMap.size) return metadataMap;
 
@@ -1887,8 +1876,6 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 						metadata.lastAccessedAt = value;
 					} else if (metaKey === 'gk-last-modified') {
 						metadata.lastModifiedAt = value;
-					} else if (metaKey === 'gk-agent-last-activity') {
-						metadata.agentLastActivityAt = value;
 					} else if (metaKey === 'gk-disposition') {
 						if (value === 'starred' || value === 'archived') {
 							metadata.disposition = value;
@@ -1906,7 +1893,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 
 	private async storeBranchMetadata(
 		repoPath: string,
-		key: 'gk-last-accessed' | 'gk-last-modified' | 'gk-agent-last-activity',
+		key: 'gk-last-accessed' | 'gk-last-modified',
 		ref: string,
 		date: Date,
 	): Promise<void> {

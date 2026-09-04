@@ -18,7 +18,6 @@ export function registerAllowedSignersWebviewPanel(
 			contextKeyPrefix: `gitlens:webview:allowedSigners`,
 			trackingFeature: 'allowedSignersWebview',
 			type: 'allowedSigners',
-			plusFeature: false,
 			column: ViewColumn.Active,
 			webviewHostOptions: {
 				retainContextWhenHidden: false,

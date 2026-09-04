@@ -1,5 +1,5 @@
 import type { TextDocumentShowOptions } from 'vscode';
-import { Disposable, EventEmitter, window } from 'vscode';
+import { Disposable, env, EventEmitter, window } from 'vscode';
 import type { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFileChange } from '@gitlens/git/models/fileChange.js';
 import type { GitRevisionReference } from '@gitlens/git/models/reference.js';
@@ -8,9 +8,6 @@ import { isUncommitted } from '@gitlens/git/utils/revision.utils.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import type { CopyMessageToClipboardCommandArgs } from '../../commands/copyMessageToClipboard.js';
 import type { CopyShaToClipboardCommandArgs } from '../../commands/copyShaToClipboard.js';
-import type { ExplainCommitCommandArgs } from '../../commands/explainCommit.js';
-import type { ExplainStashCommandArgs } from '../../commands/explainStash.js';
-import type { InspectTelemetryContext, InspectWebviewTelemetryContext, Sources } from '../../constants.telemetry.js';
 import type { Container } from '../../container.js';
 import type { CommitSelectedEvent } from '../../eventBus.js';
 import { executeGitCommand } from '../../git/actions.js';
@@ -20,15 +17,21 @@ import { getReferenceFromRevision } from '../../git/utils/-webview/reference.uti
 import { executeCommand, executeCoreCommand, registerWebviewCommand } from '../../system/-webview/command.js';
 import { getWebviewCommand } from '../../system/decorators/command.js';
 import type { LinesChangeEvent } from '../../trackers/lineTracker.js';
-import type { ShowInCommitGraphCommandArgs } from '../plus/graph/registration.js';
 import type { EventRegistration, EventVisibilityBuffer, SubscriptionTracker } from '../rpc/eventVisibilityBuffer.js';
 import { bufferEventHandler, trackRpcRegistration } from '../rpc/eventVisibilityBuffer.js';
-import { createSharedServices } from '../rpc/services/common.js';
+import { AutolinksService } from '../rpc/services/autolinks.js';
+import { CommandsService } from '../rpc/services/commands.js';
+import { ConfigService } from '../rpc/services/config.js';
+import { FilesService } from '../rpc/services/files.js';
 import { proxyServices } from '../rpc/services/proxy.js';
+import { RepositoriesService } from '../rpc/services/repositories.js';
+import { RepositoryService } from '../rpc/services/repository.js';
+import { StorageService } from '../rpc/services/storage.js';
+import { WebviewViewService } from '../rpc/webviewViewService.js';
 import type { WebviewHost, WebviewProvider, WebviewShowingArgs } from '../webviewProvider.js';
 import type { WebviewShowOptions } from '../webviewsController.js';
 import { isSerializedState } from '../webviewsController.js';
-import type { CommitDetailsServices, CommitSelectionEvent, ExplainResult } from './commitDetailsService.js';
+import type { CommitDetailsServices, CommitSelectionEvent } from './commitDetailsService.js';
 import type { ComparisonContext } from './commitDetailsWebview.utils.js';
 import {
 	getCoreCommitDetails,
@@ -88,9 +91,6 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 	// This is NOT cached domain data - just the request parameters.
 	private _showingCommitRef: { repoPath: string; sha: string; refType?: GitRevisionReference['refType'] } | undefined;
 
-	// --- Telemetry context pushed from the webview via RPC ---
-	private _telemetryContext: InspectWebviewTelemetryContext | undefined;
-
 	// View-specific event emitters — support multiple subscribers
 	private readonly _onCommitSelected = new EventEmitter<CommitSelectionEvent>();
 	private readonly _commitSelectedRegistrations = new Set<EventRegistration>();
@@ -109,35 +109,15 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		this._onCommitSelected.dispose();
 	}
 
-	getTelemetrySource(): Sources {
-		return 'inspect';
-	}
-
-	getTelemetryContext(): InspectTelemetryContext {
-		const context: InspectTelemetryContext = {
-			...this.host.getTelemetryContext(),
-			'context.mode': 'commit',
-			'context.autolinks': 0,
-			'context.pinned': this._pinned,
-			'context.type': undefined,
-			'context.uncommitted': false,
-			...this._telemetryContext,
-		};
-		return context;
-	}
-
 	private _skipNextRefreshOnVisibilityChange = false;
 
 	onShowing(
 		loading: boolean,
 		options?: WebviewShowOptions,
 		...args: WebviewShowingArgs<CommitDetailsWebviewShowingArgs, State>
-	): [boolean, InspectTelemetryContext] {
+	): boolean {
 		const [arg] = args;
-		return [
-			this.onShowingCommit(arg as Partial<CommitSelectedEvent['data']> | undefined, loading, options),
-			this.getTelemetryContext(),
-		];
+		return this.onShowingCommit(arg as Partial<CommitSelectedEvent['data']> | undefined, loading, options);
 	}
 
 	onShowingCommit(
@@ -378,11 +358,6 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		}
 	}
 
-	/** Computes hasAccount fresh (no caching) */
-	async getHasAccount(): Promise<boolean> {
-		return (await this.container.subscription.getSubscription())?.account != null;
-	}
-
 	private onCommitSelected(e: CommitSelectedEvent) {
 		if (e.data == null) return;
 
@@ -454,38 +429,6 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		}
 	}
 
-	private async onExplainRequest(
-		repoPath: string,
-		sha: string,
-		prompt?: string,
-		signal?: AbortSignal,
-	): Promise<ExplainResult> {
-		try {
-			signal?.throwIfAborted();
-			if (this._showingCommitRef?.refType === 'stash') {
-				await executeCommand<ExplainStashCommandArgs>('gitlens.ai.explainStash', {
-					repoPath: repoPath,
-					rev: sha,
-					prompt: prompt || undefined,
-					source: { source: this.getTelemetrySource(), context: { type: 'stash' } },
-				});
-			} else {
-				await executeCommand<ExplainCommitCommandArgs>('gitlens.ai.explainCommit', {
-					repoPath: repoPath,
-					rev: sha,
-					prompt: prompt || undefined,
-					source: { source: this.getTelemetrySource(), context: { type: 'commit' } },
-				});
-			}
-			signal?.throwIfAborted();
-
-			return { result: { summary: '', body: '' } };
-		} catch (ex) {
-			debugger;
-			return { error: { message: ex.message } };
-		}
-	}
-
 	private onUpdatePinned(params: { pin: boolean }) {
 		if (params.pin === this._pinned) return;
 
@@ -535,18 +478,10 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 	private onExecuteCommitAction(params: {
 		repoPath: string;
 		sha: string;
-		action: 'graph' | 'more' | 'scm' | 'sha';
+		action: 'more' | 'scm' | 'sha';
 		alt?: boolean;
 	}) {
 		switch (params.action) {
-			case 'graph': {
-				const ref = createReference(params.sha, params.repoPath, { refType: 'revision' });
-				void executeCommand<ShowInCommitGraphCommandArgs>('gitlens.showInCommitGraph', {
-					ref: ref,
-					source: { source: this.getTelemetrySource() },
-				});
-				break;
-			}
 			case 'more':
 				void this.showCommitActions(params.repoPath, params.sha);
 				break;
@@ -589,6 +524,22 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		void showDetailsQuickPick(commit);
 	}
 
+	private async copyCommitPatchToClipboard(repoPath: string, to: string, from?: string): Promise<void> {
+		try {
+			const diff = await this.container.git.getRepositoryService(repoPath).diff.getDiff?.(to, from ?? `${to}^`);
+			if (!diff?.contents) {
+				void window.showWarningMessage('No changes found to copy');
+				return;
+			}
+
+			await env.clipboard.writeText(diff.contents);
+			void window.showInformationMessage('Copied patch to clipboard');
+		} catch (ex) {
+			Logger.error(ex, 'Failed to copy commit patch to clipboard');
+			void window.showErrorMessage(`Unable to copy patch: ${ex instanceof Error ? ex.message : String(ex)}`);
+		}
+	}
+
 	private async onShowFileActions(params: ExecuteFileActionParams) {
 		const [commit, file] = await this.getFileCommitFromParams(params);
 		if (commit == null) return;
@@ -608,15 +559,18 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 	 * service-oriented interface for the webview to call.
 	 */
 	getRpcServices(buffer?: EventVisibilityBuffer, tracker?: SubscriptionTracker): CommitDetailsServices {
-		const shared = createSharedServices(this.container, this.host, buffer, tracker, context => {
-			this._telemetryContext = context as InspectWebviewTelemetryContext;
-		});
-
 		return proxyServices({
-			...shared,
+			webview: new WebviewViewService(this.host, buffer, tracker),
+			repositories: new RepositoriesService(this.container, buffer, tracker),
+			repository: new RepositoryService(this.container, buffer, tracker),
+			config: new ConfigService(buffer, tracker),
+			storage: new StorageService(this.container),
+			autolinks: new AutolinksService(this.container),
+			commands: new CommandsService(this.container, this.host),
+			files: new FilesService(this.container),
 
 			// ============================================================
-			// Inspect: view-specific commit/WIP queries, navigation, actions, AI
+			// Inspect: view-specific commit/WIP queries, navigation, and actions
 			// ============================================================
 			inspect: {
 				// ── Events ──
@@ -691,6 +645,9 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 					return Promise.resolve();
 				},
 
+				copyCommitPatchToClipboard: (repoPath, to, from?) =>
+					this.copyCommitPatchToClipboard(repoPath, to, from),
+
 				pickCommit: () => {
 					this.onShowCommitPicker();
 					return Promise.resolve();
@@ -700,15 +657,6 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 					this.onShowCommitSearch();
 					return Promise.resolve();
 				},
-
-				openAutolinkSettings: async () => {
-					await executeCommand('gitlens.showSettingsPage!autolinks');
-				},
-
-				// ── AI Operations ──
-
-				explainCommit: (repoPath: string, sha: string, prompt?: string, signal?: AbortSignal) =>
-					this.onExplainRequest(repoPath, sha, prompt, signal),
 			},
 		} satisfies CommitDetailsServices);
 	}

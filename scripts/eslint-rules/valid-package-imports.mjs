@@ -132,7 +132,7 @@ function loadPackageExports() {
 	/** @type {Map<string, Record<string, unknown>>} */
 	const out = new Map();
 
-	for (const searchRoot of [path.join(repoRoot, 'packages'), path.join(repoRoot, 'packages', 'plus')]) {
+	for (const searchRoot of [path.join(repoRoot, 'packages')]) {
 		if (!existsSync(searchRoot)) continue;
 
 		let entries;

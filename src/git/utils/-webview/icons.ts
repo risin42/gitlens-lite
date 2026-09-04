@@ -124,7 +124,7 @@ export function getIssueOrPullRequestMarkdownIcon(issue?: IssueOrPullRequest): s
 
 export function getIssueOrPullRequestThemeIcon(issue?: IssueOrPullRequest): ThemeIcon {
 	if (issue == null) {
-		return new ThemeIcon('link', new ThemeColor('gitlens.closedAutolinkedIssueIconColor' satisfies Colors));
+		return new ThemeIcon('link', new ThemeColor('gitlens-lite.closedAutolinkedIssueIconColor' satisfies Colors));
 	}
 
 	if (issue.type === 'pullrequest') {
@@ -132,26 +132,29 @@ export function getIssueOrPullRequestThemeIcon(issue?: IssueOrPullRequest): Them
 			case 'merged':
 				return new ThemeIcon(
 					'git-merge',
-					new ThemeColor('gitlens.mergedPullRequestIconColor' satisfies Colors),
+					new ThemeColor('gitlens-lite.mergedPullRequestIconColor' satisfies Colors),
 				);
 			case 'closed':
 				return new ThemeIcon(
 					'git-pull-request-closed',
-					new ThemeColor('gitlens.closedPullRequestIconColor' satisfies Colors),
+					new ThemeColor('gitlens-lite.closedPullRequestIconColor' satisfies Colors),
 				);
 			case 'opened':
 				return new ThemeIcon(
 					'git-pull-request',
-					new ThemeColor('gitlens.openPullRequestIconColor' satisfies Colors),
+					new ThemeColor('gitlens-lite.openPullRequestIconColor' satisfies Colors),
 				);
 			default:
 				return new ThemeIcon('git-pull-request');
 		}
 	} else {
 		if (issue.closed) {
-			return new ThemeIcon('pass', new ThemeColor('gitlens.closedAutolinkedIssueIconColor' satisfies Colors));
+			return new ThemeIcon(
+				'pass',
+				new ThemeColor('gitlens-lite.closedAutolinkedIssueIconColor' satisfies Colors),
+			);
 		}
-		return new ThemeIcon('issues', new ThemeColor('gitlens.openAutolinkedIssueIconColor' satisfies Colors));
+		return new ThemeIcon('issues', new ThemeColor('gitlens-lite.openAutolinkedIssueIconColor' satisfies Colors));
 	}
 }
 

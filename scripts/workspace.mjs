@@ -17,7 +17,7 @@ export function getBundledPackageDirs() {
 		.map(([name]) => name);
 
 	const dirs = [];
-	for (const parent of [join(repoRoot, 'packages'), join(repoRoot, 'packages', 'plus')]) {
+	for (const parent of [join(repoRoot, 'packages')]) {
 		if (!existsSync(parent)) continue;
 
 		for (const entry of readdirSync(parent)) {

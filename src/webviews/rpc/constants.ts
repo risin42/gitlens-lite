@@ -14,6 +14,11 @@ export interface RpcMessageWrapper {
 	payload: unknown;
 	/** Compression applied to `payload`, if any. Absent means the payload is uncompressed. */
 	compressed?: 'deflate-raw';
+	/**
+	 * Byte length stamped by the host so a third-party postMessage patch that JSON-round-trips a
+	 * Uint8Array can be rebuilt by the webview receiver.
+	 */
+	byteLength?: number;
 }
 
 /** Type guard to check if a message is a Supertalk RPC message */
@@ -29,6 +34,29 @@ export function isRpcMessage(message: unknown): message is RpcMessageWrapper {
 /** Type guard for a binary RPC payload as delivered by VS Code's message channel */
 export function isBinaryRpcPayload(payload: unknown): payload is Uint8Array | ArrayBuffer {
 	return payload instanceof Uint8Array || payload instanceof ArrayBuffer;
+}
+
+/**
+ * Rehydrates a payload that a third-party postMessage patch may have JSON-round-tripped into a
+ * numeric-keyed plain object. The normal binary path returns without allocating.
+ */
+export function rehydrateBinaryRpcPayload(
+	payload: unknown,
+	byteLength: number | undefined,
+): Uint8Array | ArrayBuffer | undefined {
+	if (isBinaryRpcPayload(payload)) return payload;
+	if (byteLength == null || !Number.isInteger(byteLength) || byteLength < 0) return undefined;
+	if (typeof payload !== 'object' || payload === null) return undefined;
+
+	const indexed = payload as Record<number, unknown>;
+	if (byteLength > 0 && typeof indexed[0] !== 'number') return undefined;
+
+	const bytes = new Uint8Array(byteLength);
+	for (let i = 0; i < byteLength; i++) {
+		bytes[i] = indexed[i] as number;
+	}
+
+	return bytes;
 }
 
 // Cached encoder/decoder instances for binary payload encoding
@@ -66,6 +94,8 @@ export const rpcCompressionMinBytes = 1024;
  */
 export async function inflateRpcPayload(data: Uint8Array | ArrayBuffer): Promise<unknown> {
 	// `body` is only null for a Response with no body (e.g. a 204/205); `data` always provides one.
-	const stream = new Response(data).body!.pipeThrough(new DecompressionStream('deflate-raw'));
+	const stream = new Response(data instanceof Uint8Array ? new Uint8Array(data) : data).body!.pipeThrough(
+		new DecompressionStream('deflate-raw'),
+	);
 	return JSON.parse(await new Response(stream).text());
 }

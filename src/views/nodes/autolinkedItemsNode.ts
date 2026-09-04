@@ -1,20 +1,14 @@
-import { Disposable, TreeItem, TreeItemCollapsibleState } from 'vscode';
+import { TreeItem, TreeItemCollapsibleState } from 'vscode';
 import type { GitLog } from '@gitlens/git/models/log.js';
-import { PullRequest } from '@gitlens/git/models/pullRequest.js';
-import { debounce } from '@gitlens/utils/debounce.js';
-import { trace } from '@gitlens/utils/decorators/log.js';
-import { weakEvent } from '@gitlens/utils/event.js';
-import { getSettledValue, pauseOnCancelOrTimeoutMapTuple } from '@gitlens/utils/promise.js';
 import { GitUri } from '../../git/gitUri.js';
 import type { ViewsWithCommits } from '../viewBase.js';
-import { SubscribeableViewNode } from './abstract/subscribeableViewNode.js';
+import { CacheableChildrenViewNode } from './abstract/cacheableChildrenViewNode.js';
 import type { PageableViewNode, ViewNode } from './abstract/viewNode.js';
 import { ContextValues, getViewNodeId } from './abstract/viewNode.js';
 import { AutolinkedItemNode } from './autolinkedItemNode.js';
 import { LoadMoreNode, MessageNode } from './common.js';
-import { PullRequestNode } from './pullRequestNode.js';
 
-export class AutolinkedItemsNode extends SubscribeableViewNode<'autolinks', ViewsWithCommits> {
+export class AutolinkedItemsNode extends CacheableChildrenViewNode<'autolinks', ViewsWithCommits> {
 	constructor(
 		view: ViewsWithCommits,
 		protected override readonly parent: PageableViewNode,
@@ -27,27 +21,8 @@ export class AutolinkedItemsNode extends SubscribeableViewNode<'autolinks', View
 		this._uniqueId = getViewNodeId(this.type, this.context);
 	}
 
-	protected override etag(): number {
-		return 0;
-	}
-
 	override get id(): string {
 		return this._uniqueId;
-	}
-
-	@trace()
-	protected override subscribe(): Disposable | Promise<Disposable | undefined> | undefined {
-		return Disposable.from(
-			weakEvent(
-				this.view.container.integrations.onDidChangeConnectionState,
-				debounce(this.onIntegrationsChanged, 500),
-				this,
-			),
-		);
-	}
-
-	private onIntegrationsChanged() {
-		this.view.triggerNodeChange(this.parent);
 	}
 
 	async getChildren(): Promise<ViewNode[]> {
@@ -61,37 +36,11 @@ export class AutolinkedItemsNode extends SubscribeableViewNode<'autolinks', View
 					.remotes.getBestRemoteWithProvider();
 				const combineMessages = commits.map(c => c.message).join('\n');
 
-				const [enrichedAutolinksResult /*, ...prsResults*/] = await Promise.allSettled([
-					this.view.container.autolinks
-						.getEnrichedAutolinks(combineMessages, remote)
-						.then(enriched =>
-							enriched != null ? pauseOnCancelOrTimeoutMapTuple(enriched, undefined, 250) : undefined,
-						),
-					// Only get PRs from the first 100 commits to attempt to avoid hitting the api limits
-					// ...commits.slice(0, 100).map(c => this.remote.provider.getPullRequestForCommit(c.sha)),
-				]);
-
-				const enrichedAutolinks = getSettledValue(enrichedAutolinksResult);
-
-				// for (const result of prsResults) {
-				// 	if (result.status !== 'fulfilled' || result.value == null) continue;
-
-				// 	items.set(result.value.id, result.value);
-				// }
-
-				if (enrichedAutolinks?.size) {
-					children = Array.from(enrichedAutolinks.values(), ([issueOrPullRequest, autolink]) =>
-						issueOrPullRequest != null && PullRequest.is(issueOrPullRequest?.value)
-							? new PullRequestNode(this.view, this, issueOrPullRequest.value, this.log.repoPath)
-							: new AutolinkedItemNode(
-									this.view,
-									this,
-									this.repoPath,
-									autolink,
-									issueOrPullRequest?.value,
-								),
-					);
-				}
+				const autolinks = await this.view.container.autolinks.getAutolinks(combineMessages, remote);
+				children = Array.from(
+					autolinks.values(),
+					autolink => new AutolinkedItemNode(this.view, this, this.repoPath, autolink, undefined),
+				);
 			}
 
 			if (!children?.length) {

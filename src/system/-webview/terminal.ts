@@ -3,7 +3,7 @@ import { ConfigurationTarget, TerminalLocation, ViewColumn, window } from 'vscod
 import { Container } from '../../container.js';
 import { configuration } from './configuration.js';
 
-/** Creates a terminal honoring the `gitlens.openInTerminalLocation` setting. The returned terminal
+/** Creates a terminal honoring the `gitlens-lite.openInTerminalLocation` setting. The returned terminal
  *  is never shown — callers keep control of focus by calling `show()` themselves. */
 export function openTerminal(options: TerminalOptions): Terminal {
 	const terminal = window.createTerminal({

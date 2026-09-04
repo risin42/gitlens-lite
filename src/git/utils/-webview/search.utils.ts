@@ -9,12 +9,6 @@ export function getSearchQuery(search: StoredSearchQuery): SearchQuery {
 		matchCase: search.matchCase,
 		matchRegex: search.matchRegex,
 		matchWholeWord: search.matchWholeWord,
-		naturalLanguage:
-			typeof search.naturalLanguage === 'object'
-				? { ...search.naturalLanguage }
-				: typeof search.naturalLanguage === 'boolean'
-					? search.naturalLanguage
-					: undefined,
 	};
 }
 
@@ -25,12 +19,6 @@ export function getStoredSearchQuery(search: SearchQuery): StoredSearchQuery {
 		matchCase: search.matchCase,
 		matchRegex: search.matchRegex,
 		matchWholeWord: search.matchWholeWord,
-		naturalLanguage:
-			typeof search.naturalLanguage === 'object'
-				? { query: search.naturalLanguage.query, processedQuery: search.naturalLanguage.processedQuery }
-				: typeof search.naturalLanguage === 'boolean'
-					? search.naturalLanguage
-					: undefined,
 	};
 }
 
@@ -39,5 +27,5 @@ export function getSearchQueryComparisonKey(search: SearchQuery | StoredSearchQu
 
 	return `${search.pattern}|${search.matchAll ? 'A' : ''}${search.matchCase ? 'C' : ''}${
 		search.matchRegex ? 'R' : ''
-	}${search.matchWholeWord ? 'W' : ''}${search.naturalLanguage ? 'NL' : ''}`;
+	}${search.matchWholeWord ? 'W' : ''}`;
 }

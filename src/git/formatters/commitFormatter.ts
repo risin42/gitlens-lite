@@ -21,29 +21,22 @@ import type {
 	OpenPullRequestActionContext,
 } from '../../api/gitlens.d.js';
 import type { MaybeEnrichedAutolink } from '../../autolinks/models/autolinks.js';
-import { getPresenceDataUri } from '../../avatars.js';
 import { CopyShaToClipboardCommand } from '../../commands/copyShaToClipboard.js';
 import { DiffWithCommand } from '../../commands/diffWith.js';
-import { ExplainCommitCommand } from '../../commands/explainCommit.js';
-import { ExplainWipCommand } from '../../commands/explainWip.js';
 import { InspectCommand } from '../../commands/inspect.js';
 import { OpenCommitOnRemoteCommand } from '../../commands/openCommitOnRemote.js';
 import { OpenFileAtRevisionCommand } from '../../commands/openFileAtRevision.js';
-import { ConnectRemoteProviderCommand } from '../../commands/remoteProviders.js';
 import type { ShowQuickCommitCommandArgs } from '../../commands/showQuickCommit.js';
 import { ShowQuickCommitFileCommand } from '../../commands/showQuickCommitFile.js';
 import type { DateSource, DateStyle } from '../../config.js';
 import { actionCommandPrefix } from '../../constants.commands.js';
+import type { Source } from '../../constants.context.js';
 import { GlyphChars } from '../../constants.js';
-import type { Source } from '../../constants.telemetry.js';
 import { Container } from '../../container.js';
 import { emojify } from '../../emojis.js';
-import { arePlusFeaturesEnabled } from '../../plus/gk/utils/-webview/plus.utils.js';
 import { configuration } from '../../system/-webview/configuration.js';
 import { editorLineToDiffRange } from '../../system/-webview/vscode/range.js';
 import { createMarkdownCommandLink } from '../../system/commands.js';
-import type { ContactPresence } from '../../vsls/vsls.js';
-import type { ShowInCommitGraphCommandArgs } from '../../webviews/plus/graph/registration.js';
 import {
 	formatCommitDate,
 	formatCommitDateFromNow,
@@ -54,14 +47,12 @@ import {
 } from '../utils/-webview/commit.utils.js';
 import { getIssueOrPullRequestMarkdownIcon } from '../utils/-webview/icons.js';
 import { getReferenceFromRevision } from '../utils/-webview/reference.utils.js';
-import { isRemoteMaybeIntegrationConnected, remoteSupportsIntegration } from '../utils/-webview/remote.utils.js';
 
 const quoteRegex = /"/g;
 const newlineRegex = /\r?\n/g;
 const lineStartRegex = /^/gm;
 
 export interface CommitFormatOptions extends FormatOptions {
-	ai?: { allowed: boolean };
 	avatarSize?: number;
 	dateSource?: DateSource;
 	dateStyle?: DateStyle;
@@ -75,7 +66,6 @@ export interface CommitFormatOptions extends FormatOptions {
 		classes?: {
 			author?: string;
 			avatar?: string;
-			avatarPresence?: string;
 			footnote?: string;
 			id?: string;
 			link?: string;
@@ -89,7 +79,6 @@ export interface CommitFormatOptions extends FormatOptions {
 	messageTruncateAtNewLine?: boolean;
 	pullRequest?: PullRequest | Promise<PullRequest | undefined>;
 	pullRequestPendingMessage?: string;
-	presence?: ContactPresence | Promise<ContactPresence | undefined>;
 	previousLineComparisonUris?: PreviousRangeComparisonUrisResult;
 	outputFormat?: 'html' | 'markdown' | 'plaintext';
 	remotes?: GitRemote[];
@@ -376,32 +365,6 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 			? formatCurrentUserDisplayName(this._item.author.name)
 			: this._item.author.name;
 
-		let presence = this._options.presence;
-		// If we are still waiting for the presence, pretend it is offline
-		if (isPromise(presence)) {
-			presence = {
-				status: 'offline',
-				statusText: 'Offline',
-			};
-		}
-		if (presence != null) {
-			let title = `${name} ${this._item.author.current ? 'are' : 'is'} ${
-				presence.status === 'dnd' ? 'in ' : ''
-			}${presence.statusText.toLocaleLowerCase()}`;
-
-			if (outputFormat === 'html') {
-				title = encodeHtmlWeak(title);
-			}
-
-			const avatarPromise = this._getAvatar(outputFormat, title, this._options.avatarSize);
-			return avatarPromise.then(data =>
-				this._padOrTruncate(
-					`${data}${this._getPresence(outputFormat, presence, title)}`,
-					this._options.tokenOptions.avatar,
-				),
-			);
-		}
-
 		if (outputFormat === 'html') {
 			name = encodeHtmlWeak(name);
 		}
@@ -418,7 +381,7 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 		const src = (await avatarPromise).toString(true);
 		return this._padOrTruncate(
 			outputFormat === 'html'
-				? /*html*/ `<img src="${src}" alt="title)" title="${title}" width="${size}" height="${size}"${
+				? /*html*/ `<img src="${src}" alt="${title}" title="${title}" width="${size}" height="${size}"${
 						this._options.htmlFormat?.classes?.avatar
 							? ` class="${this._options.htmlFormat.classes.avatar}"`
 							: ''
@@ -426,16 +389,6 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 				: `![${title}](${src}|width=${size},height=${size} "${title}")`,
 			this._options.tokenOptions.avatar,
 		);
-	}
-
-	private _getPresence(outputFormat: 'html' | 'markdown', presence: ContactPresence, title: string) {
-		return outputFormat === 'html'
-			? /*html*/ `<img src="${getPresenceDataUri(presence.status)}" alt="${title}" title="${title}"${
-					this._options.htmlFormat?.classes?.avatarPresence
-						? ` class="${this._options.htmlFormat.classes.avatarPresence}"`
-						: ''
-				}/>`
-			: `![${title}](${getPresenceDataUri(presence.status)} "${title}")`;
 	}
 
 	get changes(): string {
@@ -490,17 +443,12 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 
 		const separator = ' &nbsp;&nbsp;|&nbsp;&nbsp; ';
 		const editorHoverSource = { source: this._options.source.source, detail: 'actions-row' };
-		const isGraphSource = this._options.source.source === 'graph';
-
-		// When displayed inside the graph, render the sha as plain text — otherwise link to Inspect.
 		const shaOrInspectLink = (shaText: string) =>
-			isGraphSource
-				? shaText
-				: `[${shaText}](${InspectCommand.createMarkdownCommandLink(
-						this._item.sha,
-						this._item.repoPath,
-						editorHoverSource,
-					)} "Inspect Commit Details")`;
+			`[${shaText}](${InspectCommand.createMarkdownCommandLink(
+				this._item.sha,
+				this._item.repoPath,
+				editorHoverSource,
+			)} "Inspect Commit Details")`;
 
 		let commands;
 		if (this._item.isUncommitted) {
@@ -532,14 +480,6 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 					this._options.tokenOptions.commands,
 				)}\``;
 				commands = shaOrInspectLink(shaText);
-			}
-
-			if (this._options.ai?.allowed) {
-				commands += `${separator}[$(sparkle) Explain](${ExplainWipCommand.createMarkdownCommandLink({
-					repoPath: this._item.repoPath,
-					staged: undefined,
-					source: { source: this._options.source.source, context: { type: 'wip' } },
-				})} "Explain Changes")`;
 			}
 
 			return commands;
@@ -579,14 +519,6 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 			{ repoPath: this._item.repoPath, sha: this._item.sha, revealInView: true, source: editorHoverSource },
 		)} "Reveal in Side Bar")`;
 
-		if (arePlusFeaturesEnabled()) {
-			commands += ` &nbsp;[$(gitlens-graph)](${createMarkdownCommandLink<ShowInCommitGraphCommandArgs>(
-				'gitlens.showInCommitGraph',
-				// Avoid including the message here, it just bloats the command url
-				{ ref: getReferenceFromRevision(this._item, { excludeMessage: true }), source: editorHoverSource },
-			)} "Open in Commit Graph")`;
-		}
-
 		const { pullRequest: pr, remotes } = this._options;
 
 		if (remotes?.length) {
@@ -596,17 +528,6 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 				this._item.sha,
 				editorHoverSource,
 			)} "Open Commit on ${providers?.length ? providers[0].name : 'Remote'}")`;
-		}
-
-		if (this._options.ai?.allowed) {
-			commands += `${separator}[$(sparkle) Explain](${ExplainCommitCommand.createMarkdownCommandLink({
-				repoPath: this._item.repoPath,
-				rev: this._item.sha,
-				source: {
-					source: 'editor:hover',
-					context: { type: GitCommit.isStash(this._item) ? 'stash' : 'commit' },
-				},
-			})} "Explain Changes")`;
 		}
 
 		if (pr != null) {
@@ -629,20 +550,6 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 					editorHoverSource,
 				)} "Searching for a Pull Request (if any) that introduced this commit...")`;
 			}
-		} else if (remotes != null) {
-			const [remote] = remotes;
-			if (
-				remote != null &&
-				remoteSupportsIntegration(remote) &&
-				!isRemoteMaybeIntegrationConnected(remote) &&
-				configuration.get('integrations.enabled')
-			) {
-				commands += `${separator}[$(plug) Connect to ${remote?.provider.name}${
-					GlyphChars.Ellipsis
-				}](${ConnectRemoteProviderCommand.createMarkdownCommandLink(remote, editorHoverSource)} "Connect to ${
-					remote.provider.name
-				} to enable the display of the Pull Request (if any) that introduced this commit")`;
-			}
 		}
 
 		if (Container.instance.actionRunners.count('hover.commands') > 0) {
@@ -654,7 +561,7 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 					repoPath: this._item.repoPath,
 					commit: {
 						sha: this._item.sha,
-						author: { name: name, email: email, presence: this._options.presence },
+						author: { name: name, email: email },
 					},
 					file:
 						this._options.editor != null
@@ -779,13 +686,10 @@ export class CommitFormatter extends Formatter<GitCommit, CommitFormatOptions> {
 		switch (this._options.outputFormat) {
 			case 'markdown':
 				icon = icon ? `$(${icon}) ` : '';
-				link =
-					this._options.source.source === 'graph'
-						? `\`${icon}${label}\``
-						: `[\`${icon}${label}\`](${InspectCommand.createMarkdownCommandLink({
-								ref: getReferenceFromRevision(this._item),
-								source: this._options.source,
-							})} "Inspect Commit Details")`;
+				link = `[\`${icon}${label}\`](${InspectCommand.createMarkdownCommandLink({
+					ref: getReferenceFromRevision(this._item),
+					source: this._options.source,
+				})} "Inspect Commit Details")`;
 				break;
 			case 'html':
 				icon = icon ? `<span class="codicon codicon-${icon}"></span>` : '';

@@ -1,10 +1,8 @@
 export const extensionPrefix = 'gitlens';
+export const configurationPrefix = 'gitlens-lite';
 export const quickPickTitleMaxChars = 80;
 
 export const experimentalBadge = 'ᴇxᴘᴇʀɪᴍᴇɴᴛᴀʟ';
-export const previewBadge = 'ᴘʀᴇᴠɪᴇᴡ';
-export const proBadge = 'ᴘʀᴏ';
-export const proBadgeSuperscript = 'ᴾᴿᴼ';
 
 export const whitespaceRegex = /\s/;
 
@@ -97,12 +95,9 @@ export const enum Schemes {
 	Git = 'git',
 	GitHub = 'github',
 	GitLens = 'gitlens',
-	GitLensAIMarkdown = 'gitlens-ai-markdown',
 	GitLensVirtual = 'gitlens-virtual',
 	PRs = 'pr',
 	Remote = 'vscode-remote',
-	Vsls = 'vsls',
-	VslsScc = 'vsls-scc',
 	Virtual = 'vscode-vfs',
 }
 
@@ -113,59 +108,14 @@ export const trackableSchemes = Object.freeze(
 		Schemes.GitLens,
 		Schemes.PRs,
 		Schemes.Remote,
-		Schemes.Vsls,
-		Schemes.VslsScc,
 		Schemes.Virtual,
 		Schemes.GitHub,
 	]),
 );
 
-const utm = 'source=gitlens&product=gitlens&utm_source=gitlens-extension&utm_medium=in-app-links';
 export const urls = Object.freeze({
-	codeSuggest: `https://gitkraken.com/solutions/code-suggest?${utm}`,
-	cloudPatches: `https://gitkraken.com/solutions/cloud-patches?${utm}`,
-	graph: `https://gitkraken.com/solutions/commit-graph?${utm}`,
-	launchpad: `https://gitkraken.com/solutions/launchpad?${utm}`,
-	platform: `https://gitkraken.com/devex?${utm}`,
-	pricing: `https://gitkraken.com/pricing?${utm}`,
-	proFeatures: `https://gitkraken.com/gitlens/pro-features?${utm}`,
-	security: `https://help.gitkraken.com/gitlens/security?${utm}`,
-	workspaces: `https://gitkraken.com/solutions/workspaces?${utm}`,
-
-	kepler: `https://www.gitkraken.com/kepler?${utm}`,
-
-	cli: `https://gitkraken.com/cli?${utm}`,
-	browserExtension: `https://gitkraken.com/browser-extension?${utm}`,
-	desktop: `https://gitkraken.com/git-client?${utm}`,
-
-	githubNewIssue: `https://github.com/gitkraken/vscode-gitlens/issues/new/choose?${utm}`,
-	githubDiscussions: `https://github.com/gitkraken/vscode-gitlens/discussions/?${utm}`,
-	helpCenter: `https://help.gitkraken.com/gitlens/gitlens-start-here/?${utm}`,
-	helpCenterHome: `https://help.gitkraken.com/gitlens/home-view/?${utm}`,
-	helpCenterMCP: `https://help.gitkraken.com/mcp/mcp-getting-started/?${utm}`,
-	releaseNotes: `https://help.gitkraken.com/gitlens/gitlens-release-notes-current/?${utm}`,
-	helpCenterAiHooks: `https://help.gitkraken.com/cli/cli-home/?${utm}#how-to-uninstall-gitkraken-cli-ai-hooks`,
-
-	acceleratePrReviews: `https://help.gitkraken.com/gitlens/gitlens-start-here/?${utm}#accelerate-pr-reviews`,
-	communityVsPro: `https://help.gitkraken.com/gitlens/gitlens-community-vs-gitlens-pro/?${utm}`,
-	homeView: `https://help.gitkraken.com/gitlens/home-view/?${utm}&utm_campaign=walkthrough`,
-	interactiveCodeHistory: `https://help.gitkraken.com/gitlens/gitlens-start-here/?${utm}#interactive-code-history`,
-	startIntegrations: `https://help.gitkraken.com/gitlens/gitlens-start-here/?${utm}#improve-workflows-with-integrations`,
-	aiFeatures: `https://help.gitkraken.com/gitlens/gl-gk-ai/?${utm}`,
-
-	getStarted: `https://help.gitkraken.com/gitlens/gitlens-home/?${utm}`,
-	welcomeInTrial: `https://help.gitkraken.com/gitlens/gitlens-home/?${utm}`,
-	welcomePaid: `https://help.gitkraken.com/gitlens/gitlens-home/?${utm}`,
-	welcomeTrialExpired: `https://help.gitkraken.com/gitlens/gitlens-community-vs-gitlens-pro/?${utm}`,
-	welcomeTrialReactivationEligible: `https://help.gitkraken.com/gitlens/gitlens-community-vs-gitlens-pro/?${utm}`,
+	githubNewIssue: 'https://github.com/gitkraken/vscode-gitlens/issues/new/choose',
+	githubDiscussions: 'https://github.com/gitkraken/vscode-gitlens/discussions/',
+	helpCenter: 'https://help.gitkraken.com/gitlens/gitlens-start-here/',
+	releaseNotes: 'https://help.gitkraken.com/gitlens/gitlens-release-notes-current/',
 });
-
-export type WalkthroughSteps =
-	| 'welcome-in-trial'
-	| 'welcome-paid'
-	| 'welcome-in-trial-expired-eligible'
-	| 'welcome-in-trial-expired'
-	| 'get-started-community'
-	| 'visualize-code-history'
-	| 'accelerate-pr-reviews'
-	| 'improve-workflows-with-integrations';

@@ -628,7 +628,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 			const limit = options?.limit ?? cfg?.commits.maxItems ?? 0;
 			const isSingleCommit = limit === 1;
 
-			const cfgIncludeFiles = options?.includeFiles ?? cfg?.commits.includeFileDetails ?? true;
+			const cfgIncludeFiles = options?.includeFiles ?? cfg?.commits.includeFileDetails?.(repoPath) ?? true;
 			const includeFiles = cfgIncludeFiles || isSingleCommit || Boolean(options?.path?.pathspec);
 
 			const parser = getCommitsLogParser(includeFiles, Boolean(options?.path?.pathspec && options?.path?.range));
@@ -736,6 +736,9 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 			const currentUser = await currentUserPromise.catch(() => undefined);
 			if (cancellation?.aborted) throw new CancellationError();
 
+			// Only the eager, paged, multi-commit log measures the cost this evidence switches off.
+			const isEagerPagedFileLog = includeFiles && !isSingleCommit && !options?.path?.pathspec;
+
 			const cmdOpts: GitRunOptions = {
 				cwd: repoPath,
 				cancellation: cancellation,
@@ -752,6 +755,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 							},
 						}
 					: undefined),
+				...(isEagerPagedFileLog ? { slownessCategory: 'commitFiles' as const } : undefined),
 			};
 			let { commits, count } = await parseCommits(
 				parser,
@@ -971,8 +975,8 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 					count: commits.size,
 					limit: moreUntil == null ? (log.limit ?? 0) + moreLimit : undefined,
 					hasMore: moreUntil == null ? moreLog.hasMore : true,
-					// The oldest commit SHA of the previous page — the graph webview compares this
-					// against its last displayed row to determine the merge point for appending new rows
+					// The oldest commit SHA of the previous page — consumers compare this against their
+					// last displayed row to determine the merge point for appending new rows
 					startingCursor: sha,
 					endingCursor: moreLog.endingCursor,
 					pagedCommits: () => {
@@ -1374,20 +1378,6 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		const scope = getScopedLogger();
 
 		search = { matchAll: false, matchCase: false, matchRegex: true, matchWholeWord: false, ...search };
-
-		// Pre-process natural language search queries via the host-provided hook
-		if (
-			search.naturalLanguage &&
-			(typeof search.naturalLanguage !== 'object' || !search.naturalLanguage.processedQuery)
-		) {
-			search = (await this.context.searchQuery?.preprocessQuery?.(search, options?.source)) ?? search;
-		}
-
-		// The conversion failed — `search.query` is still the raw English sentence, not a query; running
-		// it as an ERE would produce a regex error about text the user never wrote.
-		if (typeof search.naturalLanguage === 'object' && search.naturalLanguage.error) {
-			return { search: search, log: undefined };
-		}
 
 		try {
 			const cfg = this.context.config;

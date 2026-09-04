@@ -6,24 +6,19 @@ import type { PropertyValues } from 'lit';
 import { html, nothing } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
 import { guard } from 'lit/directives/guard.js';
-import { ifDefined } from 'lit/directives/if-defined.js';
 import type { GitFileConflictStatus } from '@gitlens/git/models/fileStatus.js';
-import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
 import type { RebaseTodoCommitAction } from '@gitlens/git/models/rebase.js';
 import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
-import { filterMap, some } from '@gitlens/utils/iterable.js';
+import { filterMap } from '@gitlens/utils/iterable.js';
 import { pluralize } from '@gitlens/utils/string.js';
-import { isSubscriptionTrialOrPaidFromState } from '../../../plus/gk/utils/subscription.utils.js';
 import type { ConflictFileInfo, RebaseActiveStatus, RebaseCommitEntry, RebaseEntry } from '../../rebase/protocol.js';
 import { isCommandEntry, isCommitEntry } from '../../rebase/protocol.js';
 import type { RebaseServices, RebaseStateChangedEvent } from '../../rpc/rebaseService.js';
 import { fireAndForget } from '../shared/actions/rpc.js';
 import { SignalWatcherWebviewApp } from '../shared/appBase.js';
-import type { GlPopoverConfirm } from '../shared/components/overlays/popover-confirm.js';
 import type { GlSelect } from '../shared/components/select/select.js';
 import { scrollableBase } from '../shared/components/styles/lit/base.css.js';
-import { splitButtonStyles } from '../shared/components/styles/lit/split-button.css.js';
 import type {
 	TreeItemActionDetail,
 	TreeItemDecoration,
@@ -45,15 +40,12 @@ import { getConflictFileActions, getConflictFileContextData } from './conflictSt
 import { rebaseStyles } from './rebase.css.js';
 import '@lit-labs/virtualizer';
 import '../shared/components/tree/tree-view.js';
-import './components/conflict-indicator.js';
 import './components/rebase-entry.js';
 import '../shared/components/banner/banner.js';
 import '../shared/components/branch-name.js';
 import '../shared/components/button.js';
-import '../shared/components/menu/menu-popover.js';
 import '../shared/components/checkbox/checkbox.js';
 import '../shared/components/commit-sha.js';
-import '../shared/components/overlays/popover-confirm.js';
 import '../shared/components/overlays/tooltip.js';
 import '../shared/components/split-panel/split-panel.js';
 
@@ -82,7 +74,7 @@ const actionKeyMap: Record<string, RebaseTodoCommitAction> = {
 
 @customElement('gl-rebase-editor')
 export class GlRebaseEditor extends SignalWatcherWebviewApp {
-	static override styles = [scrollableBase, splitButtonStyles, rebaseStyles];
+	static override styles = [scrollableBase, rebaseStyles];
 
 	private _host = getHost();
 
@@ -119,12 +111,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 	// can resolve contributed `webview/context` items for conflicted file rows.
 	private readonly _contextMenuProxy = new ContextMenuProxyController(this);
 
-	/** Unified conflict detection state — single source of truth for both initial and dynamic checks */
-	@state() private _conflictResult: ConflictDetectionResult | undefined;
-	@state() private _conflictsLoading = false;
-	@state() private _startingWithAi = false;
-	@state() private _conflictingShas: string[] | undefined;
-
 	/** Drag state - uses direct DOM manipulation to avoid re-renders during drag */
 	private draggedId: string | undefined;
 	private dragOverId: string | undefined;
@@ -140,9 +126,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 
 	/** Selection state for multi-select - uses @state for automatic updates */
 	@state() private selectedIds: Set<string> = new Set();
-
-	/** Conflict detection stale state - set when commits are dropped */
-	@state() private conflictDetectionStale = false;
 
 	/** Cached values computed in willUpdate for performance */
 	private _idToSortedIndex = new Map<string, number>();
@@ -171,12 +154,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		if (Math.abs(pos - defaultPos) <= 1.5) return defaultPos;
 		return pos;
 	};
-
-	/** Conflict check scheduling/race-handling state */
-	private _conflictCheckTimer: ReturnType<typeof setTimeout> | undefined;
-	private _conflictCheckGeneration = 0;
-	private _conflictCheckKey: string | undefined;
-	private _hasCompletedInitialCheck = false;
 
 	/**
 	 * Number of non-editable entries (base + done) at the start of _sortedEntries.
@@ -252,10 +229,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		const rebase = await services.rebase;
 		this._rebase = rebase;
 
-		// The promos context fetches through the session's promos service; without this its
-		// pre-connect waiters never fulfill, so e.g. the conflict-detection Pro promo never shows.
-		this._promos.connect(this._rpc.connection!);
-
 		// Subscribe to events FIRST so an update pushed during the initial fetch isn't missed, then
 		// fetch and apply the authoritative snapshot. This replaces the legacy deferred bootstrap:
 		// unlike the visibility-gated push pipeline, the fetch answers even while hidden, matching
@@ -266,7 +239,7 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		await this._seed.run({
 			connection: this._rpc.connection!,
 			subscriber: async remoteServices => {
-				const [svc, subscription] = await Promise.all([remoteServices.rebase, remoteServices.subscription]);
+				const svc = await remoteServices.rebase;
 
 				return subscribeAll([
 					() =>
@@ -280,10 +253,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 					() =>
 						svc.onCommitsChanged(event => {
 							this._seed.during(() => this._actions.onCommitsChanged(event));
-						}),
-					() =>
-						subscription.onSubscriptionChanged(sub => {
-							this._seed.during(() => this._actions.onSubscriptionChanged(sub));
 						}),
 				]);
 			},
@@ -598,8 +567,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 			this._actions.moveEntries(orderedIds, 0);
 			this.refreshIndices();
 			this.sendCommand(this._rebase?.moveEntries({ ids: orderedIds, to: 0 }));
-
-			this.scheduleConflictCheck('todo');
 		} else {
 			const fromIndex = this.entries.findIndex(e => e.id === id);
 			if (fromIndex === -1) return;
@@ -783,8 +750,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 
 		// Send absolute position to host
 		this.sendCommand(this._rebase?.moveEntry({ id: entry.id, to: toIndex, relative: false }));
-
-		this.scheduleConflictCheck('todo');
 	}
 
 	/**
@@ -855,8 +820,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 
 		// Send batch command to host
 		this.sendCommand(this._rebase?.moveEntries({ ids: orderedIds, to: toIndex }));
-
-		this.scheduleConflictCheck('todo');
 	}
 
 	private readonly onEntrySelect = (
@@ -953,11 +916,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 			this._actions.changeEntryActions(entries);
 			this.sendCommand(this._rebase?.changeEntries({ entries: entries }));
 		}
-
-		// If dropping commits, schedule todo conflict check (since that affects what gets applied)
-		if (action === 'drop') {
-			this.scheduleConflictCheck('todo');
-		}
 	};
 
 	/**
@@ -1024,8 +982,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 
 			// Send shift command to host
 			this.sendCommand(this._rebase?.shiftEntries({ ids: ids, direction: direction }));
-
-			this.scheduleConflictCheck('todo');
 		} else {
 			const targetSortedIndex = sortedIndex + (isDownward ? 1 : -1);
 
@@ -1129,34 +1085,12 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		this.sendCommand(this._rebase?.start());
 	}
 
-	private async onStartWithAiClicked() {
-		if (this._startingWithAi) return;
-
-		const rebase = this._rebase;
-		if (rebase == null) return;
-
-		// Disabled while the host runs its pre-flight (plan gate, AI model prompt) — a refusal
-		// responds `false` and the editor stays open, so re-enable for another try
-		this._startingWithAi = true;
-		try {
-			const started = await rebase.startWithAi();
-			if (started) return;
-		} catch {
-			// Treat a failed request like a refusal — the editor is still open
-		}
-		this._startingWithAi = false;
-	}
-
 	private onAbortClicked() {
 		this.sendCommand(this._rebase?.abort());
 	}
 
 	private onContinueClicked() {
 		this.sendCommand(this._rebase?.continue());
-	}
-
-	private onContinueWithAiClicked() {
-		this.sendCommand(this._rebase?.continueWithAi());
 	}
 
 	private onSkipClicked() {
@@ -1169,10 +1103,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 
 	private onSearch() {
 		this.sendCommand(this._rebase?.search());
-	}
-
-	private onRecomposeCommitsClicked() {
-		this.sendCommand(this._rebase?.recompose());
 	}
 
 	private onDocumentKeyDown = (e: KeyboardEvent) => {
@@ -1330,34 +1260,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 			}
 		}
 
-		// Re-check when the rebase advances externally (Continue/Skip/external edit)
-		const conflictCheckKey = this.getConflictCheckKey();
-		if (conflictCheckKey !== this._conflictCheckKey) {
-			this._conflictCheckKey = conflictCheckKey;
-
-			if (conflictCheckKey != null) {
-				this.scheduleConflictCheck('todo');
-			} else {
-				this.resetConflictCheckState();
-			}
-		}
-
-		// Schedule the initial check once we have a valid planning state and the user is pro.
-		// Covers both first load and the pro-upgrade transition (no editor reopen needed).
-		const canRunInitial =
-			!this.isRebasing &&
-			this.state?.branch != null &&
-			this.state?.onto != null &&
-			isSubscriptionTrialOrPaidFromState(this.state?.subscription?.state);
-		if (
-			canRunInitial &&
-			!this._hasCompletedInitialCheck &&
-			!this._conflictsLoading &&
-			this._conflictCheckTimer == null
-		) {
-			this.scheduleConflictCheck('initial', true);
-		}
-
 		// Set initial focus and selection when entries first arrive
 		if (this.focusedEntryId == null && this._sortedEntries.length > 0) {
 			const baseId = this.state?.onto?.sha;
@@ -1427,11 +1329,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 						this.ascending,
 						preservesMerges,
 						this.rebaseStatus,
-						this.state.subscription?.state,
-						this._conflictsLoading,
-						this._conflictResult,
-						this._conflictingShas,
-						this.conflictDetectionStale,
 					],
 					() => this.renderHeader(),
 				)}
@@ -1520,70 +1417,13 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		this.sendCommand(this._rebase?.dismissCloseWarning());
 	}
 
-	private renderConflictIndicator() {
-		const loading = this._conflictsLoading;
-		const result = this._conflictResult;
-
-		// For active/paused rebases, show a compact inline status
-		if (this.isRebasing) {
-			if (loading) {
-				return html`<span class="conflict-loading" title="Checking remaining commits for conflicts...">
-					<code-icon icon="loading" modifier="spin"></code-icon>
-				</span>`;
-			}
-
-			const conflictCount = result?.status === 'conflicts' ? (result.conflict?.shas?.length ?? 0) : 0;
-			if (conflictCount) {
-				return html`<gl-tooltip
-					content="Potential conflicts detected in ${conflictCount} remaining commit${
-						conflictCount > 1 ? 's' : ''
-					}"
-				>
-					<span class="conflict-summary warning">
-						<code-icon icon="warning"></code-icon>
-						<span>${conflictCount}</span>
-					</span>
-				</gl-tooltip>`;
-			}
-			return nothing;
-		}
-
-		// For new rebases (planning phase), show the full conflict indicator popover
-		if (!this.state?.branch || !this.state?.onto) {
-			return nothing;
-		}
-
-		const isPro = isSubscriptionTrialOrPaidFromState(this.state?.subscription?.state);
-		// When a re-check is running AND we have a prior result, keep showing that result's
-		// colored box with a spin overlay — visual continuity beats flashing into a bland
-		// loading state for 500ms.
-		const status: 'loading' | 'clean' | 'conflicts' | 'error' | 'upgrade' = !isPro
-			? 'upgrade'
-			: loading && result == null
-				? 'loading'
-				: result?.status === 'error'
-					? 'error'
-					: result?.status === 'conflicts'
-						? 'conflicts'
-						: 'clean';
-
-		return html`<gl-rebase-conflict-indicator
-			class="conflict-indicator"
-			.status=${status}
-			.result=${result}
-			.stale=${this.conflictDetectionStale || (loading && result != null)}
-			.checking=${loading}
-			.subscriptionState=${this.state.subscription?.state}
-		></gl-rebase-conflict-indicator>`;
-	}
-
 	private renderRebaseBanner() {
 		const status = this.rebaseStatus;
 		if (!status) return nothing;
 
 		const currentCommitSha = status.currentCommit;
 		const pauseReason = status.pauseReason;
-		const revealTooltip = this.state?.revealLocation === 'graph' ? 'Open in Commit Graph' : 'Open in Inspect View';
+		const revealTooltip = 'Open in Inspect View';
 
 		// Determine icon based on pause reason
 		let icon: string;
@@ -1663,19 +1503,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 			<div class="conflict-panel__header">
 				<code-icon icon="warning" aria-hidden="true"></code-icon>
 				<span>${pluralize('conflicted file', conflictFiles.length)}</span>
-				${
-					this.state?.aiAllowed
-						? html`<gl-button
-								appearance="toolbar"
-								density="compact"
-								tooltip="Resolve Conflicts in Commit Graph"
-								aria-label="Resolve Conflicts in Commit Graph"
-								@click=${this.onResolveConflictsInGraph}
-								><code-icon icon="gl-merge" slot="prefix" aria-hidden="true"></code-icon>Resolve
-								Conflicts</gl-button
-							>`
-						: nothing
-				}
 				<gl-button
 					appearance="toolbar"
 					density="compact"
@@ -1826,10 +1653,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		}
 	}
 
-	private onResolveConflictsInGraph = () => {
-		this.sendCommand(this._rebase?.resolveConflictsInGraph());
-	};
-
 	private onStageAllCurrent = () => {
 		this.sendCommand(this._rebase?.resolveAllConflicts({ resolution: 'current' }));
 	};
@@ -1896,7 +1719,7 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 			data-id=${entryId}
 			.entry=${entry}
 			.authors=${this.state?.authors}
-			.revealLocation=${this.state?.revealLocation ?? 'graph'}
+			.revealLocation=${this.state?.revealLocation ?? 'inspect'}
 			?isBase=${entry.sha === this.state?.onto?.sha}
 			?isFirst=${isFirst}
 			?isLast=${isLast}
@@ -1905,11 +1728,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 			?isOldest=${entry.sha === this._oldestCommitId}
 			?isSelected=${this.selectedIds.has(entryId)}
 			?isSquashTarget=${this._squashTargetIds.has(entryId)}
-			?hasConflict=${Boolean(
-				entry.sha != null &&
-				this._conflictingShas?.length &&
-				some(this._conflictingShas, s => s?.startsWith(entry.sha)),
-			)}
 			@action-changed=${this.onActionChanged}
 			@entry-select=${this.onEntrySelect}
 			@gl-reveal-commit=${this.onRevealCommit}
@@ -1922,7 +1740,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 				<h1 class="header-title">GitLens Interactive Rebase</h1>
 				<div class="header-info">${this.renderSubhead()}</div>
 				<div class="header-actions">
-					${this.renderConflictIndicator()}
 					<gl-button
 						class="header-toggle"
 						appearance="toolbar"
@@ -1946,7 +1763,7 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		const doneCommitCount = this.doneEntries.filter(e => e.type === 'commit').length;
 		const pendingCommitCount = this.state.entries.filter(e => e.type === 'commit').length;
 		const totalCommitCount = doneCommitCount + pendingCommitCount;
-		const revealTooltip = this.state.revealLocation === 'graph' ? 'Open in Commit Graph' : 'Open in Inspect View';
+		const revealTooltip = 'Open in Inspect View';
 
 		return html`
 			<gl-tooltip content=${revealTooltip}>
@@ -2014,109 +1831,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 		this.sendCommand(this._rebase?.revealRef({ type: 'commit', ref: e.detail.sha }));
 	};
 
-	/** Computes a key that changes when the rebase advances externally (Continue/Skip/external edit).
-	 *  Local edits (move/shift/drop) are handled by explicit scheduleConflictCheck('todo') calls. */
-	private getConflictCheckKey(): string | undefined {
-		if (!this.isRebasing || !this.state?.onto?.sha) return undefined;
-
-		return `${this.state.onto.sha}|${this.rebaseStatus?.currentStep ?? 0}|${this.doneEntries.length}|${this.entries.length}`;
-	}
-
-	private scheduleConflictCheck(trigger: 'initial' | 'todo', immediate = false): void {
-		// Conflict detection is a Pro feature — don't schedule / clear state / fire IPC for non-Pro users
-		if (!isSubscriptionTrialOrPaidFromState(this.state?.subscription?.state)) return;
-
-		if (this._conflictCheckTimer != null) {
-			clearTimeout(this._conflictCheckTimer);
-			this._conflictCheckTimer = undefined;
-		}
-
-		// Clear row highlights immediately — old shas don't match the new plan
-		this._conflictingShas = undefined;
-		this._conflictsLoading = true;
-		this.conflictDetectionStale = trigger === 'todo' && this._conflictResult != null;
-
-		const run = () => {
-			this._conflictCheckTimer = undefined;
-			void this.runConflictCheck(trigger);
-		};
-
-		if (immediate || trigger === 'initial') {
-			run();
-		} else {
-			this._conflictCheckTimer = setTimeout(run, 500);
-		}
-	}
-
-	private resetConflictCheckState(): void {
-		if (this._conflictCheckTimer != null) {
-			clearTimeout(this._conflictCheckTimer);
-			this._conflictCheckTimer = undefined;
-		}
-
-		this._conflictCheckGeneration++;
-		this._conflictsLoading = false;
-		this._conflictResult = undefined;
-		this._conflictingShas = undefined;
-		this.conflictDetectionStale = false;
-		this._hasCompletedInitialCheck = false;
-	}
-
-	private async runConflictCheck(trigger: 'initial' | 'todo'): Promise<void> {
-		const state = this.state;
-		if (!state?.onto?.sha) return;
-
-		const commits =
-			trigger === 'initial'
-				? (state.entries
-						?.map(e => (isCommitEntry(e) ? e.sha : undefined))
-						.filter((s): s is string => s != null) ?? [])
-				: state.entries
-						.filter(e => isCommitEntry(e) && e.action !== 'drop')
-						.map(e => (e as RebaseCommitEntry).sha);
-
-		if (!commits.length) {
-			++this._conflictCheckGeneration;
-			this._conflictsLoading = false;
-			this._conflictResult = { status: 'clean' };
-			this._conflictingShas = undefined;
-			this.conflictDetectionStale = false;
-			this._hasCompletedInitialCheck = true;
-			return;
-		}
-
-		const generation = ++this._conflictCheckGeneration;
-
-		try {
-			// During an active rebase, done entries have been applied, so check from HEAD
-			const base = this.isRebasing ? 'HEAD' : undefined;
-
-			const result = await this._rebase?.getConflicts({
-				trigger: trigger,
-				onto: state.onto.sha,
-				commits: commits,
-				base: base,
-			});
-
-			if (generation !== this._conflictCheckGeneration) return;
-
-			this._conflictResult = result;
-			this._conflictingShas =
-				this._conflictResult?.status === 'conflicts' ? (this._conflictResult.conflict?.shas ?? []) : undefined;
-		} catch {
-			if (generation !== this._conflictCheckGeneration) return;
-
-			this._conflictResult = undefined;
-			this._conflictingShas = undefined;
-		} finally {
-			if (generation === this._conflictCheckGeneration) {
-				this._conflictsLoading = false;
-				this.conflictDetectionStale = false;
-				this._hasCompletedInitialCheck = true;
-			}
-		}
-	}
-
 	private renderFooter() {
 		const isActive = this.isRebasing;
 		const hasConflicts = this.rebaseStatus?.hasConflicts ?? false;
@@ -2134,153 +1848,17 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 				<span class="shortcut"><kbd>/</kbd><span class="label">search</span></span>
 			</div>
 			<div class="actions">
-				${
-					// Recompose lives in the relevant split button's menu when AI is allowed (Start Auto-Rebase
-					// pre-start, Continue with Auto-Rebase once active) — the standalone form only appears when
-					// AI isn't allowed at all.
-					isActive && !(this.state?.aiAllowed ?? false) ? this.renderRecomposeAction(true) : nothing
-				}
 				${isActive ? this.renderActiveRebaseActions(hasConflicts) : this.renderStartRebaseActions()}
 			</div>
 		</footer>`;
 	}
 
 	private renderStartRebaseActions() {
-		let variant: 'warning' | 'success' | undefined;
-		let icon: 'check' | 'warning' | 'loading' | undefined;
-		let tooltip: string | undefined;
-
-		// Check if conflict indicator should be shown (same conditions as renderConflictIndicator)
-		const showConflictState = !this.isRebasing && this.state?.branch && this.state?.onto;
-		if (showConflictState) {
-			const isLoading = this._conflictsLoading;
-			const hasConflicts = this._conflictResult?.status === 'conflicts';
-			const isStale = this.conflictDetectionStale;
-
-			if (!isLoading) {
-				if (hasConflicts) {
-					variant = 'warning';
-					icon = 'warning';
-					tooltip = 'Start Rebase (Conflicts Detected)';
-				} else if (!isStale) {
-					variant = 'success';
-					icon = 'check';
-					tooltip = 'Start Rebase (No Conflicts Detected)';
-				}
-			} else {
-				icon = 'loading';
-				tooltip = 'Checking for conflicts...';
-			}
-		}
-
-		return html`<gl-button
-				?disabled=${!this.state?.entries?.length}
-				variant=${ifDefined(variant)}
-				tooltip=${ifDefined(tooltip)}
-				@click=${this.onStartClicked}
-			>
-				<span
-					>Start Rebase
-					${
-						icon
-							? html`<code-icon
-									slot="label"
-									icon=${icon}
-									modifier=${ifDefined(icon === 'loading' ? 'spin' : undefined)}
-								></code-icon>`
-							: nothing
-					}</span
-				>
+		return html`<gl-button ?disabled=${!this.state?.entries?.length} @click=${this.onStartClicked}>
+				<span>Start Rebase</span>
 				<span slot="suffix" class="button-shortcut">Ctrl+Enter</span>
 			</gl-button>
-			${
-				this.state?.aiAllowed
-					? html`<span class="split-btn">
-							<gl-button
-								class="split-btn__main"
-								appearance="secondary"
-								?disabled=${!this.state?.entries?.length || this._startingWithAi}
-								tooltip="Starts the rebase and automatically resolves any conflicts — pausing for input where you've marked edits, or when confidence is low, and completes with a reviewable summary you can undo"
-								@click=${this.onStartWithAiClicked}
-							>
-								<code-icon
-									slot="prefix"
-									icon=${this._startingWithAi ? 'loading' : 'sparkle'}
-									modifier=${ifDefined(this._startingWithAi ? 'spin' : undefined)}
-								></code-icon>
-								Start Auto-Rebase
-							</gl-button>
-							<gl-popover-confirm
-								class="split-btn__confirm"
-								trigger="manual"
-								heading="Abort Rebase &amp; Recompose"
-								message=${this.recomposeConfirmMessage}
-								confirm="Abort &gt; Recompose"
-								initial-focus="confirm"
-								icon="warning"
-								@gl-confirm=${this.onRecomposeCommitsClicked}
-							>
-								<gl-menu-popover
-									slot="anchor"
-									.items=${[
-										{
-											label: 'Recompose Commits...',
-											value: 'recompose',
-										},
-									]}
-									@gl-menu-select=${this.onRecomposeMenuSelect}
-								>
-									<gl-button
-										class="split-btn__menu"
-										slot="anchor"
-										appearance="secondary"
-										aria-label="More Actions"
-									>
-										<code-icon icon="chevron-down"></code-icon>
-									</gl-button>
-								</gl-menu-popover>
-							</gl-popover-confirm>
-						</span>`
-					: // Without AI the split button is gone, so Recompose keeps its standalone (confirmed) form
-						this.renderRecomposeAction(false)
-			}
 			<gl-button appearance="secondary" @click=${this.onAbortClicked}>Abort</gl-button>`;
-	}
-
-	/** Handles the Recompose menu entry shared by both split buttons — the pre-start Start
-	 *  Auto-Rebase split button and the active-rebase Continue with Auto-Rebase split button. */
-	private onRecomposeMenuSelect = async (e: CustomEvent<{ value: string }>) => {
-		if (e.detail.value !== 'recompose') return;
-
-		// The selection rides the same confirmation the standalone Recompose button anchored — the
-		// confirm is manual-trigger (its anchor is the menu itself) and opened here, mirroring the
-		// Commit Graph PR sheet's split-button pattern.
-		await this.updateComplete;
-		void this.shadowRoot?.querySelector<GlPopoverConfirm>('gl-popover-confirm.split-btn__confirm')?.show();
-	};
-
-	/** The standalone Recompose button's confirm copy, shared by the split menu's confirmation. */
-	private get recomposeConfirmMessage(): string {
-		return (this.state?.isInPlace ?? false)
-			? 'Let AI intelligently reorganize these commits with clearer messages and better logical grouping.'
-			: 'Let AI intelligently reorganize these commits with clearer messages and better logical grouping. <br><br> After recomposition, simply rebase again to apply these commits onto the target branch.';
-	}
-
-	private renderRecomposeAction(isActive: boolean) {
-		return html`<gl-popover-confirm
-			heading="Abort Rebase &amp; Recompose"
-			message=${this.recomposeConfirmMessage}
-			confirm="Abort &gt; Recompose"
-			confirm-variant=${ifDefined(isActive ? 'danger' : undefined)}
-			initial-focus=${isActive ? 'cancel' : 'confirm'}
-			icon=${isActive ? 'error' : 'warning'}
-			@gl-confirm=${this.onRecomposeCommitsClicked}
-		>
-			<gl-button slot="anchor" appearance="secondary" tooltip="Open Commit Composer &amp; Recompose using AI">
-				<code-icon slot=${ifDefined(isActive ? undefined : 'prefix')} icon="sparkle"></code-icon>
-				${isActive ? nothing : 'Recompose...'}
-			</gl-button>
-		</gl-popover-confirm>`;
 	}
 
 	private renderActiveRebaseActions(hasConflicts: boolean) {
@@ -2289,47 +1867,6 @@ export class GlRebaseEditor extends SignalWatcherWebviewApp {
 				<span>Continue</span>
 				<span slot="suffix" class="button-shortcut">Ctrl+Enter</span>
 			</gl-button>
-			${
-				this.state?.aiAllowed
-					? html`<span class="split-btn">
-							<gl-button
-								class="split-btn__main"
-								appearance="secondary"
-								tooltip="Resolves any conflicts automatically and continues the rest of the rebase — pausing for your input when confidence is low, with a reviewable, undoable summary at the end"
-								@click=${this.onContinueWithAiClicked}
-							>
-								<code-icon slot="prefix" icon="sparkle"></code-icon>
-								Continue with Auto-Rebase
-							</gl-button>
-							<gl-popover-confirm
-								class="split-btn__confirm"
-								trigger="manual"
-								heading="Abort Rebase &amp; Recompose"
-								message=${this.recomposeConfirmMessage}
-								confirm="Abort &gt; Recompose"
-								confirm-variant="danger"
-								initial-focus="cancel"
-								icon="error"
-								@gl-confirm=${this.onRecomposeCommitsClicked}
-							>
-								<gl-menu-popover
-									slot="anchor"
-									.items=${[{ label: 'Recompose Commits...', value: 'recompose' }]}
-									@gl-menu-select=${this.onRecomposeMenuSelect}
-								>
-									<gl-button
-										class="split-btn__menu"
-										slot="anchor"
-										appearance="secondary"
-										aria-label="More Actions"
-									>
-										<code-icon icon="chevron-down"></code-icon>
-									</gl-button>
-								</gl-menu-popover>
-							</gl-popover-confirm>
-						</span>`
-					: nothing
-			}
 			<gl-button appearance="secondary" @click=${this.onSkipClicked}>Skip</gl-button>
 			<gl-button variant="danger" @click=${this.onAbortClicked}>Abort</gl-button>
 		`;

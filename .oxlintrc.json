@@ -22,21 +22,12 @@
 		}
 	},
 	"ignorePatterns": [
-		"**/.agents",
-		"!.claude/settings.json",
-		".claude/settings.local.json",
-		".claude/scheduled_tasks.lock",
-		".claude/worktrees/**/*",
-		".claude/*.lock",
 		"**/.codex",
 		"**/.DS_Store",
 		"**/.work/",
 		"**/.superpowers",
 		"**/.tasks",
 		"**/.vscode-clean/**/*",
-		"**/.vscode-test/**/*",
-		"**/.vscode-test-web/**/*",
-		"**/test-results/**/*",
 		"**/dist",
 		"**/out",
 		"**/node_modules",
@@ -52,9 +43,7 @@
 		"/patches",
 		"/scripts",
 		"/src/@types",
-		"/packages/core",
-		"/tests/e2e/runner/**",
-		"/tests/fixtures/**"
+		"/packages/core"
 	],
 	"rules": {
 		"constructor-super": "error",
@@ -307,18 +296,11 @@
 		{
 			"files": [
 				"src/**/*",
-				"tests/**/*",
 				"src/constants.subscription.ts",
-				"src/plus/gk/__debug__accountDebug.ts",
 				"packages/utils/src/**/*",
 				"packages/ipc/src/**/*",
 				"packages/git/src/**/*",
-				"packages/git-cli/src/**/*",
-				"packages/plus/git-github/src/**/*",
-				"packages/plus/integrations/src/**/*",
-				"packages/plus/ai/src/**/*",
-				"packages/plus/agents/src/**/*",
-				"packages/plus/commit-graph/src/**/*"
+				"packages/git-cli/src/**/*"
 			],
 			"rules": {
 				"curly": ["error", "multi-line", "consistent"],
@@ -570,42 +552,18 @@
 			"env": { "browser": true }
 		},
 		{
-			"files": ["tests/**/*", "src/constants.subscription.ts", "src/plus/gk/__debug__accountDebug.ts"],
+			"files": ["src/constants.subscription.ts"],
 			"rules": {
 				"no-restricted-imports": "off"
 			},
 			"env": { "node": true }
 		},
 		{
-			"files": ["src/**/__tests__/**/*", "packages/**/src/**/__tests__/**/*"],
-			"rules": {
-				"no-restricted-globals": "off",
-				"no-restricted-imports": "off",
-				"no-unused-vars": "off",
-				"no-useless-computed-key": "off",
-				"e18e/prefer-array-to-reversed": "off",
-				"e18e/prefer-array-to-sorted": "off",
-				"e18e/prefer-array-to-spliced": "off",
-				"typescript/no-floating-promises": "off",
-				"typescript/require-await": "off"
-			},
-			"env": { "node": true }
-		},
-		{
-			"files": ["src/webviews/apps/**/__tests__/**/*"],
-			"env": { "browser": true }
-		},
-		{
 			"files": [
 				"packages/utils/src/**/*",
 				"packages/ipc/src/**/*",
 				"packages/git/src/**/*",
-				"packages/git-cli/src/**/*",
-				"packages/plus/git-github/src/**/*",
-				"packages/plus/integrations/src/**/*",
-				"packages/plus/ai/src/**/*",
-				"packages/plus/agents/src/**/*",
-				"packages/plus/commit-graph/src/**/*"
+				"packages/git-cli/src/**/*"
 			],
 			"rules": {
 				"no-restricted-imports": [
@@ -635,70 +593,7 @@
 				"node": true
 			}
 		},
-		{
-			// The commit-graph engine is deliberately host- and renderer-agnostic, which was convention
-			// only — nothing failed if a GitLens type crept in. These bans make the boundary real. Scoped
-			// to this package alone: the sibling plus packages legitimately import `@gitlens/*`.
-			"files": ["packages/plus/commit-graph/src/**/*"],
-			"rules": {
-				"no-restricted-imports": [
-					"error",
-					{
-						"paths": [{ "name": "vscode", "message": "Packages must not import vscode" }],
-						"patterns": [
-							{
-								"group": ["@gitlens/*", "@gitlens/**", "@gitkraken/*", "@gitkraken/**"],
-								"message": "The commit-graph engine must not depend on GitLens or the host. Make the module generic over the package's own row types and inject an accessor from the consumer instead — see `scope.ts`'s heads predicate."
-							},
-							{
-								"group": ["**/container.js", "**/container"],
-								"importNames": ["Container"],
-								"message": "Packages must not import Container"
-							},
-							{
-								"group": ["**/-webview/**/*"],
-								"message": "Packages must not import -webview modules"
-							}
-						]
-					}
-				]
-			}
-		},
-		{
-			"files": ["packages/plus/integrations/src/**/*"],
-			"rules": {
-				"no-restricted-imports": [
-					"error",
-					{
-						"paths": [
-							{
-								"name": "vscode",
-								"message": "Packages must not import vscode"
-							}
-						],
-						"patterns": [
-							{
-								"group": ["**/container.js", "**/container"],
-								"importNames": ["Container"],
-								"message": "Packages must not import Container"
-							},
-							{
-								"group": ["**/-webview/**/*"],
-								"message": "Packages must not import -webview modules"
-							},
-							{
-								"group": ["**/src/*", "**/src/**", "*/src/*", "*/src/**"],
-								"message": "The @gitlens/integrations package must not import from the host (src/)."
-							},
-							{
-								"group": ["@env/*"],
-								"message": "The package gets fetch/isWeb via ctx.http; @env/* belongs to the host adapter."
-							}
-						]
-					}
-				]
-			}
-		},
+
 		{
 			"files": ["**/-webview/**/*"],
 			"rules": {
@@ -762,14 +657,7 @@
 			}
 		},
 		{
-			"files": ["**/-webview/**/__tests__/**/*"],
-			"rules": {
-				"no-restricted-imports": "off",
-				"no-loop-func": "off"
-			}
-		},
-		{
-			"files": ["packages/git-cli/**/*", "packages/plus/git-github/**/*"],
+			"files": ["packages/git-cli/**/*"],
 			"rules": {
 				"no-throw-literal": "off",
 				"no-unmodified-loop-condition": "off"

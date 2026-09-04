@@ -8,7 +8,7 @@
  * module-level singletons. The root component passes the state it owns.
  *
  * Event Flow:
- * 1. Backend fires event (e.g., commit selected in graph)
+ * 1. Backend fires event (e.g., commit selected from another view)
  * 2. RPC delivers event to subscribed callback
  * 3. Callback updates local state via signals
  * 4. UI reacts to signal changes
@@ -17,10 +17,6 @@
  * - inspect.onCommitSelected (view-specific commit selection)
  * - repositories.onRepositoryChanged (workspace-level repo changes)
  * - config.onConfigChanged
- * - integrations.onIntegrationsChanged
- *
- * Note: subscription events (onSubscriptionChanged, onOrgSettingsChanged) are handled
- * via signal bridges — see commitDetails.ts _onRpcReady.
  */
 import type { Connection, Subscription } from '@eamodio/supertalk';
 import { subscribe } from '@eamodio/supertalk';
@@ -42,12 +38,10 @@ export function setupSubscriptions(
 	actions: CommitDetailsActions,
 ): Subscription {
 	return subscribe<CommitDetailsServices>(connection, async services => {
-		const [inspect, repositories, config, integrations, ai] = await Promise.all([
+		const [inspect, repositories, config] = await Promise.all([
 			services.inspect,
 			services.repositories,
 			services.config,
-			services.integrations,
-			services.ai,
 		]);
 
 		return subscribeAll([
@@ -58,10 +52,6 @@ export function setupSubscriptions(
 					handleRepositoryChanged(state, event, actions),
 				),
 			() => config.onConfigChanged(() => handleConfigChanged(actions)),
-			// Note: onSubscriptionChanged/onOrgSettingsChanged removed — the bridged hasAccount and
-			// orgSettings signals are kept fresh by SubscriptionService's eager listeners (#5513)
-			() => integrations.onIntegrationsChanged(data => handleIntegrationsChanged(state, data.hasAnyConnected)),
-			() => ai.onModelChanged(model => state.aiModel.set(model)),
 		]);
 	});
 }
@@ -72,7 +62,7 @@ export function setupSubscriptions(
 
 /**
  * Handle commit selection event.
- * Fired when a commit is selected elsewhere (graph, editor line, etc.).
+ * Fired when a commit is selected elsewhere (editor line, tree view, etc.).
  */
 function handleCommitSelected(
 	state: CommitDetailsState,
@@ -117,11 +107,4 @@ function handleRepositoryChanged(
 function handleConfigChanged(actions: CommitDetailsActions): void {
 	// Re-fetch preferences when config changes
 	void actions.fetchPreferences();
-}
-
-/**
- * Handle integrations change event.
- */
-function handleIntegrationsChanged(state: CommitDetailsState, hasConnected: boolean): void {
-	state.capabilities.hasIntegrationsConnected = hasConnected;
 }

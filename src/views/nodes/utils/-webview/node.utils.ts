@@ -1,10 +1,7 @@
 import type { GitCommit } from '@gitlens/git/models/commit.js';
 import type { TreeViewNodeTypes } from '../../../../constants.views.js';
 import { treeViewFileNodeTypes, treeViewRefFileNodeTypes, treeViewRefNodeTypes } from '../../../../constants.views.js';
-import type { DraftsViewNode } from '../../../draftsView.js';
-import type { LaunchpadItemNode, LaunchpadViewNode } from '../../../launchpadView.js';
 import type { SearchAndCompareViewNode } from '../../../searchAndCompareView.js';
-import type { WorkspacesViewNode } from '../../../workspacesView.js';
 import type { RepositoryFolderNode } from '../../abstract/repositoryFolderNode.js';
 import { ContextValues, ViewNode } from '../../abstract/viewNode.js';
 import type { AutolinkedItemNode } from '../../autolinkedItemNode.js';
@@ -14,7 +11,6 @@ import type { BranchNode, CommitsCurrentBranchNode } from '../../branchNode.js';
 import type { BranchOrTagFolderNode } from '../../branchOrTagFolderNode.js';
 import type { BranchTrackingStatusFilesNode } from '../../branchTrackingStatusFilesNode.js';
 import type { BranchTrackingStatusNode } from '../../branchTrackingStatusNode.js';
-import type { CodeSuggestionsNode } from '../../codeSuggestionsNode.js';
 import type { CommitFileNode } from '../../commitFileNode.js';
 import type { CommitNode } from '../../commitNode.js';
 import type { PagerNode } from '../../common.js';
@@ -23,7 +19,6 @@ import type { CompareBranchNode } from '../../compareBranchNode.js';
 import type { CompareResultsNode } from '../../compareResultsNode.js';
 import type { ContributorNode } from '../../contributorNode.js';
 import type { ContributorsNode } from '../../contributorsNode.js';
-import type { DraftNode } from '../../draftNode.js';
 import type { FileHistoryNode } from '../../fileHistoryNode.js';
 import type { FileHistoryTrackerNode } from '../../fileHistoryTrackerNode.js';
 import type { FileRevisionAsCommitNode } from '../../fileRevisionAsCommitNode.js';
@@ -35,7 +30,6 @@ import type { MergeConflictChangesNode } from '../../mergeConflictChangesNode.js
 import type { MergeConflictFileNode } from '../../mergeConflictFileNode.js';
 import type { MergeConflictFilesNode } from '../../mergeConflictFilesNode.js';
 import type { PausedOperationStatusNode } from '../../pausedOperationStatusNode.js';
-import type { PullRequestNode } from '../../pullRequestNode.js';
 import type { ReflogNode } from '../../reflogNode.js';
 import type { ReflogRecordNode } from '../../reflogRecordNode.js';
 import type { RemoteNode } from '../../remoteNode.js';
@@ -55,8 +49,6 @@ import type { TagNode } from '../../tagNode.js';
 import type { TagsNode } from '../../tagsNode.js';
 import type { UncommittedFileNode } from '../../UncommittedFileNode.js';
 import type { UncommittedFilesNode } from '../../UncommittedFilesNode.js';
-import type { WorkspaceMissingRepositoryNode } from '../../workspaceMissingRepositoryNode.js';
-import type { WorkspaceNode } from '../../workspaceNode.js';
 import type { WorktreeNode } from '../../worktreeNode.js';
 import type { WorktreesNode } from '../../worktreesNode.js';
 
@@ -94,12 +86,6 @@ export type TreeViewNodesByType = {
 		? ContributorNode
 		: T extends 'contributors'
 		? ContributorsNode
-		: T extends 'draft'
-		? DraftNode
-		: T extends 'drafts'
-		? DraftsViewNode
-		: T extends 'drafts-code-suggestions'
-		? CodeSuggestionsNode
 		: T extends 'file-commit'
 		? FileRevisionAsCommitNode
 		: T extends 'file-history'
@@ -110,10 +96,6 @@ export type TreeViewNodesByType = {
 		? FolderNode
 		: T extends 'grouping'
 		? GroupingNode
-		: T extends 'launchpad'
-		? LaunchpadViewNode
-		: T extends 'launchpad-item'
-		? LaunchpadItemNode
 		: T extends 'line-history'
 		? LineHistoryNode
 		: T extends 'line-history-tracker'
@@ -124,8 +106,6 @@ export type TreeViewNodesByType = {
 		? PagerNode
 		: T extends 'paused-operation-status'
 		? PausedOperationStatusNode
-		: T extends 'pullrequest'
-		? PullRequestNode
 		: T extends 'reflog'
 		? ReflogNode
 		: T extends 'reflog-record'
@@ -172,12 +152,6 @@ export type TreeViewNodesByType = {
 		? UncommittedFileNode
 		: T extends 'uncommitted-files'
 		? UncommittedFilesNode
-		: T extends 'workspace'
-		? WorkspaceNode
-		: T extends 'workspace-missing-repository'
-		? WorkspaceMissingRepositoryNode
-		: T extends 'workspaces'
-		? WorkspacesViewNode
 		: T extends 'worktree'
 		? WorktreeNode
 		: T extends 'worktrees'

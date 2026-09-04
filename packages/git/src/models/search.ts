@@ -72,17 +72,6 @@ export const searchOperationHelpRegex =
 
 export interface SearchQuery {
 	query: string;
-	naturalLanguage?:
-		| boolean
-		| {
-				query: string;
-				processedQuery?: string;
-				error?: string;
-				explanation?: string;
-				mode?: 'highlight' | 'filter' | 'select';
-				alternates?: string[];
-		  };
-
 	filter?: boolean;
 	matchAll?: boolean;
 	matchCase?: boolean;
@@ -94,8 +83,6 @@ export interface GitCommitSearchContext {
 	readonly query: SearchQuery;
 	readonly queryFilters: SearchQueryFilters;
 	readonly matchedFiles: ReadonlyArray<Readonly<{ readonly path: string }>>;
-	/** Whether the commit is hidden from the graph (filtered out by type or other filters) */
-	readonly hiddenFromGraph?: boolean;
 }
 
 /** Operators plus special tokens that can be highlighted */

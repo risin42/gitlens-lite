@@ -7,7 +7,6 @@ import { defer } from '@gitlens/utils/promise.js';
 import { compare, fromString, fromVersion, satisfies } from '@gitlens/utils/version.js';
 import type { OnboardingItemState, OnboardingKeys } from '../constants.onboarding.js';
 import { onboardingDefinitions } from '../constants.onboarding.js';
-import type { DeprecatedGlobalStorage } from '../constants.storage.js';
 import { registerCommand } from '../system/-webview/command.js';
 import { configuration } from '../system/-webview/configuration.js';
 import type { Storage, StorageChangeEvent, StorageType } from '../system/-webview/storage.js';
@@ -19,10 +18,7 @@ export interface OnboardingChangeEvent {
 	readonly dismissed: boolean;
 }
 
-/** Highest legacy-migration batch version — the gates, the skip-check, and the persisted stamp must agree */
-const currentMigrationVersion = '17.9.0';
-
-type OnboardingStorageType = Exclude<StorageType, 'scoped'>;
+type OnboardingStorageType = StorageType;
 
 /**
  * Centralized service for managing dismissible/onboarding UI state.
@@ -79,16 +75,10 @@ export class OnboardingService implements Disposable {
 				: []),
 		);
 
-		void this.migrateLegacyState().then(
-			() => this._ready.fulfill(undefined),
-			(ex: unknown) => {
-				Logger.error(ex, 'OnboardingService', 'Legacy state migration failed');
-				this._ready.fulfill(undefined);
-			},
-		);
+		this._ready.fulfill(undefined);
 	}
 
-	/** Promise that resolves once legacy state migration is complete */
+	/** Promise that resolves when the service is ready for use. */
 	get ready(): Promise<void> {
 		return this._ready.promise;
 	}
@@ -99,7 +89,7 @@ export class OnboardingService implements Disposable {
 	}
 
 	private onStorageChanged(e: StorageChangeEvent): void {
-		if (e.type === 'scoped' || !e.keys.includes('onboarding:state')) return;
+		if (!e.keys.includes('onboarding:state')) return;
 
 		const previousItems = this._lastSeen[e.type];
 		const currentState = this.getOnboarding(e.type);
@@ -126,20 +116,14 @@ export class OnboardingService implements Disposable {
 	 * Checks if an onboarding item is dismissed
 	 * Respects `reshowAfter` - if the user dismissed before that version, returns false
 	 */
-	isDismissed(key: OnboardingKeys, skipLegacyFallback: boolean = false): boolean {
+	isDismissed(key: OnboardingKeys): boolean {
 		// `advanced.skipOnboarding` opts out of onboarding entirely — treat every dismissible surface as
 		// already dismissed so this is the single, service-wide switch (no per-call-site checks). Gated to
-		// post-init (`!_ready.pending`) so the one-time legacy→new migration still reads real dismiss state
-		// and doesn't drop it when the setting is on.
+		// post-init so the setting is applied consistently after construction.
 		if (!this._ready.pending && configuration.get('advanced.skipOnboarding')) return true;
 
 		const item = this.getItem(key);
 		if (!item?.dismissedAt) {
-			// During migration, check legacy storage keys as a fallback so callers
-			// that run before migration completes don't see unmigrated (false) state
-			if (!skipLegacyFallback && this._ready.pending) {
-				return this.isLegacyDismissed(key);
-			}
 			return false;
 		}
 
@@ -152,27 +136,6 @@ export class OnboardingService implements Disposable {
 		}
 
 		return true;
-	}
-
-	/**
-	 * Checks legacy (pre-onboarding-service) storage keys for dismiss state.
-	 * Only used as a fallback during the brief migration window on upgrade.
-	 */
-	private isLegacyDismissed(key: OnboardingKeys): boolean {
-		/* oxlint-disable typescript/no-deprecated -- intentional: reading deprecated keys as migration fallback */
-		switch (key) {
-			case 'views:scmGrouped:welcome':
-				return this.storage.get('views:scm:grouped:welcome:dismissed') ?? false;
-			case 'home:walkthrough':
-				return this.storage.get('home:walkthrough:dismissed') ?? false;
-			case 'home:integrationBanner':
-				return this.storage.get('home:sections:collapsed')?.includes('integrationBanner') ?? false;
-			case 'composer:onboarding':
-				return this.storage.get('composer:onboarding:dismissed') != null;
-			default:
-				return false;
-		}
-		/* oxlint-enable typescript/no-deprecated */
 	}
 
 	/** Dismiss an onboarding item, recording the current timestamp and GitLens version */
@@ -280,93 +243,6 @@ export class OnboardingService implements Disposable {
 		for (const key of dismissedKeys) {
 			this._onDidChange.fire({ key: key, dismissed: false });
 		}
-	}
-
-	private async migrateLegacyState(): Promise<void> {
-		const onboarding = this.getOnboarding('global');
-		// Support both the old boolean flag and new versioned flag
-		/* oxlint-disable typescript/no-deprecated -- intentional access to deprecated `migrated` flag */
-		const migratedVersion = onboarding.migratedVersion ?? (onboarding.migrated ? '17.8.0' : undefined);
-		const hadDeprecatedFlag = onboarding.migrated != null;
-		/* oxlint-enable typescript/no-deprecated */
-
-		let ranBatch = false;
-
-		// Batch 1 (17.8.0): Original deprecated key migrations
-		if (!migratedVersion || compare(migratedVersion, '17.8.0') < 0) {
-			ranBatch = true;
-
-			const batch1: { legacy: keyof DeprecatedGlobalStorage; current: OnboardingKeys }[] = [
-				{ legacy: 'views:scm:grouped:welcome:dismissed', current: 'views:scmGrouped:welcome' },
-				{ legacy: 'home:walkthrough:dismissed', current: 'home:walkthrough' },
-			];
-
-			for (const { legacy, current } of batch1) {
-				// Intentionally reading/deleting deprecated keys during migration
-				// oxlint-disable-next-line typescript/no-deprecated
-				const wasDismissed = this.storage.get(legacy);
-				if (wasDismissed) {
-					if (!this.isDismissed(current, true)) {
-						await this.dismiss(current);
-					}
-					await this.storage.delete(legacy);
-				}
-			}
-		}
-
-		// Batch 2 (17.9.0): home:sections:collapsed + composer onboarding
-		if (!migratedVersion || compare(migratedVersion, currentMigrationVersion) < 0) {
-			ranBatch = true;
-
-			// Migrate onboarding items from home:sections:collapsed array
-			const collapsedSections = this.storage.get('home:sections:collapsed');
-			if (collapsedSections != null) {
-				const sectionMap: Record<string, OnboardingKeys> = { integrationBanner: 'home:integrationBanner' };
-
-				for (const section of collapsedSections) {
-					const key = sectionMap[section];
-					if (key && !this.isDismissed(key, true)) {
-						await this.dismiss(key);
-					}
-				}
-				await this.storage.delete('home:sections:collapsed');
-			}
-
-			// Intentionally reading/deleting deprecated keys during migration
-			// oxlint-disable-next-line typescript/no-deprecated
-			const composerDismissed = this.storage.get('composer:onboarding:dismissed');
-			// oxlint-disable-next-line typescript/no-deprecated
-			const composerStepReached = this.storage.get('composer:onboarding:stepReached');
-			if (composerDismissed != null || composerStepReached != null) {
-				if (composerDismissed != null && !this.isDismissed('composer:onboarding', true)) {
-					await this.dismiss('composer:onboarding');
-				}
-				if (composerStepReached != null) {
-					await this.setItemState('composer:onboarding', {
-						stepReached: composerStepReached,
-					});
-				}
-				await this.storage.delete('composer:onboarding:dismissed');
-				await this.storage.delete('composer:onboarding:stepReached');
-			}
-		}
-
-		// Already migrated and no deprecated flag to clear — nothing to persist
-		if (
-			!ranBatch &&
-			!hadDeprecatedFlag &&
-			migratedVersion != null &&
-			compare(migratedVersion, currentMigrationVersion) >= 0
-		) {
-			return;
-		}
-
-		// Re-read since dismiss calls above wrote to storage directly
-		const state = this.getOnboarding('global');
-		state.migratedVersion = currentMigrationVersion;
-		// oxlint-disable-next-line typescript/no-deprecated
-		delete state.migrated;
-		await this.saveOnboarding('global', state);
 	}
 
 	private async setItemStateCore<T extends OnboardingKeys>(

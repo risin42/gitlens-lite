@@ -1,10 +1,6 @@
 import type { QuickInputButton } from 'vscode';
 import type { StoredRecentUsage } from '../../constants.storage.js';
 import type { Container } from '../../container.js';
-import { LaunchpadCommand } from '../../plus/launchpad/launchpad.js';
-import { StartReviewCommand } from '../../plus/launchpad/startReview.js';
-import { AssociateIssueWithBranchCommand } from '../../plus/startWork/associateIssueWithBranch.js';
-import { StartWorkCommand } from '../../plus/startWork/startWork.js';
 import { configuration } from '../../system/-webview/configuration.js';
 import { getContext } from '../../system/-webview/context.js';
 import { BranchGitCommand } from '../git/branch.js';
@@ -96,21 +92,6 @@ export class QuickWizardRootStep implements QuickPickStep<QuickCommand> {
 		}
 
 		this.hiddenItems = [];
-		if (args?.command === 'launchpad') {
-			this.hiddenItems.push(new LaunchpadCommand(container, args));
-		}
-
-		if (args?.command === 'startReview') {
-			this.hiddenItems.push(new StartReviewCommand(container, args));
-		}
-
-		if (args?.command === 'startWork') {
-			this.hiddenItems.push(new StartWorkCommand(container, args));
-		}
-
-		if (args?.command === 'associateIssueWithBranch') {
-			this.hiddenItems.push(new AssociateIssueWithBranchCommand(container, args));
-		}
 	}
 
 	private _command: QuickCommand | undefined;

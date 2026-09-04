@@ -3,7 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import type { GlButton } from '../button.js';
-import { elementBase } from '../styles/lit/base.css.js';
+import { boxSizingBase } from '../styles/lit/base.css.js';
 import type { GlPopover } from './popover.js';
 import type { GlTooltip } from './tooltip.js';
 import '../button.js';
@@ -46,7 +46,7 @@ declare global {
 @customElement('gl-popover-confirm')
 export class GlPopoverConfirm extends LitElement {
 	static override styles = [
-		elementBase,
+		boxSizingBase,
 		css`
 			:host {
 				display: contents;

@@ -7,7 +7,6 @@ import {
 	pausedOperationVariantIcons,
 } from '@gitlens/git/utils/pausedOperationStatus.utils.js';
 import { pluralize } from '@gitlens/utils/string.js';
-import { getPausedOperationBarLabel } from '../../../plus/shared/components/merge-rebase-status.utils.js';
 import { baseStyles as pillStyles } from '../pills/pill.css.js';
 import './commit-stats.js';
 import '../code-icon.js';
@@ -102,18 +101,20 @@ export class GlWipStats extends LitElement {
 				line-height: 2rem;
 				color: #000;
 				white-space: nowrap;
-				background-color: var(--vscode-gitlens-decorations\\.statusMergingOrRebasingForegroundColor);
+				background-color: var(--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingForegroundColor);
 				border-radius: var(--gl-radius-sm);
 			}
 
 			.paused-op-badge--conflicts {
 				color: #fff;
-				background-color: var(--vscode-gitlens-decorations\\.statusMergingOrRebasingConflictForegroundColor);
+				background-color: var(
+					--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingConflictForegroundColor
+				);
 			}
 
 			.paused-op-badge--ready {
 				color: #06150a;
-				background-color: var(--vscode-gitlens-decorations\\.statusPausedOperationReadyForegroundColor);
+				background-color: var(--vscode-gitlens-lite-decorations\\.statusPausedOperationReadyForegroundColor);
 			}
 
 			/* The light theme's green is dark enough to carry white text; dark's is not. */
@@ -226,7 +227,9 @@ export class GlWipStats extends LitElement {
 		const label =
 			variant === 'conflicts'
 				? pluralize('Conflict', this.conflictsCount ?? 1)
-				: getPausedOperationBarLabel(pausedOp, variant);
+				: variant === 'pending' && pausedOp.type === 'rebase'
+					? 'Pending Rebase'
+					: opStrings.label;
 
 		const badge = html`<span
 			class="paused-op-badge${variant === 'conflicts' ? ' paused-op-badge--conflicts' : ''}${

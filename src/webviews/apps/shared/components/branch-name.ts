@@ -19,10 +19,10 @@ export class GlBranchName extends LitElement {
 
 		:host([appearance='pill']) {
 			padding: 0.1rem 0.6rem;
-			color: var(--gl-branch-color, var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, #4ec9b0));
+			color: var(--gl-branch-color, var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, #4ec9b0));
 			background-color: color-mix(
 				in srgb,
-				var(--gl-branch-color, var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, #4ec9b0)) 15%,
+				var(--gl-branch-color, var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, #4ec9b0)) 15%,
 				transparent
 			);
 			border-radius: var(--gl-radius-sm);
@@ -31,7 +31,7 @@ export class GlBranchName extends LitElement {
 		:host([appearance='button']) {
 			padding: var(--gl-space-2) var(--gl-space-4);
 			font-size: var(--gl-font-base);
-			color: var(--gl-branch-color, var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, inherit));
+			color: var(--gl-branch-color, var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, inherit));
 			cursor: pointer;
 			border-radius: var(--gl-radius-sm);
 		}

@@ -53,7 +53,7 @@ export interface GitGraphSessionRefreshOptions {
 	/**
 	 * Force a FULL walk (skip the incremental seed) so every row's decorations — including the
 	 * host-serialized webview-item contexts reused rows otherwise keep — are rebuilt from fresh inputs.
-	 * For host-known invalidations the provider can't observe (pinned-ref changes, integration
+	 * For host-known invalidations the provider can't observe (pinned-ref changes, remote
 	 * connections); rare events, so the full-walk cost is acceptable.
 	 */
 	rebuild?: boolean;

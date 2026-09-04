@@ -13,7 +13,7 @@ export type RepositoryDescriptor = ResourceDescriptor & {
 /**
  * A normalized read scope that unifies the three provider scoping representations (repo-level
  * `ProviderReposInput`, per-provider `PagingMode`, and org/project `ResourceDescriptor`s). Consumers pass
- * this single shape; the integration resolves it to the provider-appropriate inputs. At least one field
+ * this single shape; the provider resolves it to the appropriate inputs. At least one field
  * should be set:
  * - `org`: GitHub login / Bitbucket workspace / Azure organization / GitLab namespace
  * - `project`: Azure project / Jira project key

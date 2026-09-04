@@ -22,8 +22,7 @@ export type { RemoteProviderMatcher } from '../models/remoteProvider.js';
  * Configuration for a remote provider, provided by the host.
  * The library uses these to build a {@link RemoteProviderMatcher} internally.
  *
- * Each config describes either a user-configured custom remote (from settings)
- * or a cloud self-managed host (from integration descriptors).
+ * Each config describes a user-configured custom remote (from settings).
  */
 export interface RemoteProviderConfig {
 	readonly type: RemoteProviderId;
@@ -183,11 +182,11 @@ function matchEntries(
 /**
  * Creates a {@link RemoteProviderMatcher} from optional extra configs and built-in providers.
  *
- * Extra configs (from user settings or cloud integrations) are matched first, then built-ins.
+ * Extra configs (from user settings) are matched first, then built-ins.
  * The optional {@link RemoteProviderContext} is attached to each created provider so it can
  * call host-side providers (e.g., cross-fork PR URLs, autolink decoration).
  *
- * @param configs - Extra provider configs beyond built-ins (user custom remotes, cloud self-managed hosts)
+ * @param configs - Extra provider configs beyond built-ins (user custom remotes)
  * @param context - Optional host-provided context to attach to created providers
  */
 export function createRemoteProviderMatcher(
@@ -198,7 +197,7 @@ export function createRemoteProviderMatcher(
 
 	return (url: string, domain: string, path: string, scheme: string | undefined): RemoteProvider | undefined => {
 		try {
-			// Try extra configs first (user-configured + cloud self-managed take priority)
+			// Try user-configured extra configs first
 			if (extraEntries != null) {
 				const provider = matchEntries(extraEntries, url, domain, path, scheme, context);
 				if (provider != null) return provider;

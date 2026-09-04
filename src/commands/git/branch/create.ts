@@ -1,7 +1,6 @@
 import { window } from 'vscode';
 import { BranchError } from '@gitlens/git/errors.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
-import type { IssueShape } from '@gitlens/git/models/issue.js';
 import type { GitReference } from '@gitlens/git/models/reference.js';
 import type { GitWorktree } from '@gitlens/git/models/worktree.js';
 import {
@@ -10,19 +9,14 @@ import {
 	isBranchReference,
 	isRevisionReference,
 } from '@gitlens/git/utils/reference.utils.js';
-import { getIssueOwner } from '@gitlens/integrations/providers/utils.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import type { Deferred } from '@gitlens/utils/promise.js';
 import { defer } from '@gitlens/utils/promise.js';
 import type { Container } from '../../../container.js';
 import type { GlRepository } from '../../../git/models/repository.js';
-import { addAssociatedIssueToBranch } from '../../../git/utils/-webview/branch.issue.utils.js';
 import { showGitErrorMessage } from '../../../messages.js';
-import type { StartReviewChatAction, StartWorkChatAction } from '../../../plus/chat/chatActions.js';
 import type { FlagsQuickPickItem } from '../../../quickpicks/items/flags.js';
 import { createFlagsQuickPickItem } from '../../../quickpicks/items/flags.js';
-import { executeCommand } from '../../../system/-webview/command.js';
-import type { OpenChatActionCommandArgs } from '../../openChatAction.js';
 import type {
 	PartialStepState,
 	StepGenerator,
@@ -64,16 +58,11 @@ interface State<Repo = string | GlRepository> {
 	flags: Flags[];
 
 	confirmOptions?: Flags[];
-	associateWithIssue?: IssueShape;
-
 	// Pass through to worktree command
 	worktreeDefaultOpen?: 'new' | 'current' | 'none';
 
 	// Result tracking
 	result?: Deferred<{ branch: GitBranch; worktree?: GitWorktree }>;
-
-	// Chat action for deeplink storage
-	chatAction?: StartWorkChatAction | StartReviewChatAction;
 }
 export type BranchCreateState = State;
 
@@ -217,7 +206,6 @@ export class BranchCreateGitCommand extends QuickCommand<State> {
 								repo: state.repo,
 								worktreeDefaultOpen: state.worktreeDefaultOpen,
 								result: worktreeResult,
-								chatAction: state.chatAction,
 							},
 						},
 						context,
@@ -295,16 +283,6 @@ export class BranchCreateGitCommand extends QuickCommand<State> {
 					}
 				}
 
-				if (state.associateWithIssue != null) {
-					const issue = state.associateWithIssue;
-					const branch = await state.repo.git.branches.getBranch(state.name);
-					// TODO: These descriptors are hacked in. Use an integration function to get the right resource for the issue.
-					const owner = getIssueOwner(issue);
-					if (branch != null && owner != null) {
-						await addAssociatedIssueToBranch(this.container, branch, { ...issue, type: 'issue' }, owner);
-					}
-				}
-
 				// Capture branch-only result if requested (non-worktree case)
 				if (state.result && !state.flags.includes('--worktree')) {
 					const branch = await state.repo.git.branches.getBranch(state.name);
@@ -313,17 +291,6 @@ export class BranchCreateGitCommand extends QuickCommand<State> {
 					} else {
 						state.result.cancel();
 					}
-				}
-
-				// Non-worktree paths don't go through the deep-link bridge (which only fires on
-				// new-window worktree open). When `chatAction.agent` is set, the user explicitly
-				// chose an agent — fire the dispatch inline in the current window so the agent
-				// actually launches. Without this, picking `--switch` (no worktree) silently
-				// drops the agent dispatch.
-				if (state.chatAction?.agent != null && !state.flags.includes('--worktree')) {
-					void executeCommand('gitlens.openChatAction', {
-						chatAction: state.chatAction,
-					} as OpenChatActionCommandArgs);
 				}
 			}
 		} finally {

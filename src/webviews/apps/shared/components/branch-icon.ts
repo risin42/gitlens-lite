@@ -16,13 +16,16 @@ export class GlBranchIcon extends LitElement {
 
 			--gl-icon-color-status-synced: var(
 				--gl-icon-color-foreground,
-				var(--vscode-gitlens-decoration\\.branchUpToDateForegroundColor)
+				var(--vscode-gitlens-lite-decorations\\.branchUpToDateForegroundColor)
 			);
-			--gl-icon-color-status-diverged: var(--vscode-gitlens-decorations\\.branchDivergedForegroundColor, #ff5);
-			--gl-icon-color-status-behind: var(--vscode-gitlens-decorations\\.branchBehindForegroundColor, #f05);
-			--gl-icon-color-status-ahead: var(--vscode-gitlens-decorations\\.branchAheadForegroundColor, #0f5);
+			--gl-icon-color-status-diverged: var(
+				--vscode-gitlens-lite-decorations\\.branchDivergedForegroundColor,
+				#ff5
+			);
+			--gl-icon-color-status-behind: var(--vscode-gitlens-lite-decorations\\.branchBehindForegroundColor, #f05);
+			--gl-icon-color-status-ahead: var(--vscode-gitlens-lite-decorations\\.branchAheadForegroundColor, #0f5);
 			--gl-icon-color-status-missingUpstream: var(
-				--vscode-gitlens-decorations\\.branchMissingUpstreamForegroundColor,
+				--vscode-gitlens-lite-decorations\\.branchMissingUpstreamForegroundColor,
 				#c74e39
 			);
 			--gl-icon-color-status-changes: #1a79ff;

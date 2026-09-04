@@ -279,11 +279,11 @@ ul {
 
 	&--local-branch {
 		font-weight: 600;
-		color: var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, #4ec9b0);
+		color: var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, #4ec9b0);
 	}
 
 	&--remote-branch {
-		color: var(--vscode-gitlens-graphScrollMarkerLocalBranchesColor, #4ec9b0);
+		color: var(--vscode-gitlens-lite-graphScrollMarkerLocalBranchesColor, #4ec9b0);
 	}
 
 	&--tag {
@@ -382,31 +382,5 @@ ul {
 
 	[aria-hidden='true'] {
 		display: none;
-	}
-}
-
-.ai-content {
-	padding: 0.5rem;
-	margin-top: var(--gl-space-10);
-	font-size: var(--gl-font-base);
-	background: var(--vscode-input-background);
-	border: var(--gl-border-width) solid var(--vscode-input-border, transparent);
-	border-radius: var(--gl-radius-xs);
-
-	&.has-error {
-		padding-left: var(--gl-space-8);
-		border-left-color: var(--color-alert-errorBorder);
-		border-left-width: 0.3rem;
-	}
-
-	&:empty {
-		display: none;
-	}
-
-	&__summary {
-		display: block;
-		max-height: 20rem;
-		margin: 0;
-		overflow: hidden auto;
 	}
 }

@@ -13,7 +13,7 @@
 	--gl-font-base: var(--vscode-bodyFontSize, 1.3rem); // 13px — primary body text, messages, controls
 	--gl-font-lg: 1.4rem; // 14px — emphasized headline (commit message subject) (bespoke)
 
-	// Input max-width (AI input / action input)
+	// Input max-width (action input)
 	--gl-max-input: 560px;
 
 	// Radius scale — bridges to VS Code's cornerRadius tokens (1.110+), falls back to rem.

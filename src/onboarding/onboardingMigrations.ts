@@ -15,16 +15,4 @@ export type OnboardingMigration<T> = Record<`${number}.${number}.${number}`, (st
 
 export const onboardingMigrations: {
 	[K in OnboardingKeys]?: OnboardingMigration<OnboardingItemState<K>>;
-} = {
-	'composer:onboarding': {
-		'17.8.0': (state: unknown) => {
-			const s = state as { stepReached?: number } | undefined;
-			return { stepReached: s?.stepReached ?? 0 };
-		},
-		// Schema bump for reshowAfter support — no state shape change
-		'17.9.0': (state: unknown) => {
-			const s = state as { stepReached?: number } | undefined;
-			return { stepReached: s?.stepReached ?? 0 };
-		},
-	},
-};
+} = {};

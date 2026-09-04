@@ -3,6 +3,7 @@ import { Disposable, ThemeIcon, TreeItem, TreeItemCheckboxState, TreeItemCollaps
 import type { GitUser } from '@gitlens/git/models/user.js';
 import { createRevisionRange, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { md5 } from '@gitlens/utils/crypto.js';
+import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import { weakEvent } from '@gitlens/utils/event.js';
 import { pluralize } from '@gitlens/utils/string.js';
@@ -11,7 +12,6 @@ import type { FilesComparison } from '../../git/actions/commit.js';
 import { GitUri } from '../../git/gitUri.js';
 import type { CommitsQueryResults, FilesQueryResults } from '../../git/queryResults.js';
 import { getAheadBehindFilesQuery, getCommitsQuery, getFilesQuery } from '../../git/queryResults.js';
-import { gate } from '../../system/decorators/gate.js';
 import type { SearchAndCompareView } from '../searchAndCompareView.js';
 import type { View } from '../viewBase.js';
 import { SubscribeableViewNode } from './abstract/subscribeableViewNode.js';

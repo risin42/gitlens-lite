@@ -8,7 +8,6 @@ export type SearchCompletionItem = CompletionItem<
 >;
 
 export type SearchCompletionCommand =
-	| { command: 'toggle-natural-language-mode' }
 	| { command: 'pick-author' | 'pick-file'; multi?: boolean }
 	| { command: 'pick-folder' | 'pick-ref' | 'pick-comparison'; multi?: never };
 
@@ -18,24 +17,6 @@ export interface SearchCompletionValue {
 	/** The value to insert */
 	value: string;
 }
-
-export const naturalLanguageSearchAutocompleteCommand: CompletionItem<SearchCompletionCommand> = {
-	label: 'Search using natural language',
-	detail: "Describe what you're looking for and let AI build the query",
-	icon: 'sparkle',
-	item: { command: 'toggle-natural-language-mode' },
-	score: 0,
-	alwaysVisible: true,
-};
-
-export const structuredSearchAutocompleteCommand: CompletionItem<SearchCompletionCommand> = {
-	label: 'Search using filters',
-	detail: 'Combine filters to build powerful searches, e.g. @me after:1.week.ago file:*.ts.',
-	icon: 'search',
-	item: { command: 'toggle-natural-language-mode' },
-	score: 0,
-	alwaysVisible: true,
-};
 
 export interface SearchCompletionOperatorValue {
 	/** The value to suggest or command to execute when this value is selected */

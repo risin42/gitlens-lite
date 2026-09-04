@@ -6,7 +6,7 @@
  * 2. Make RPC calls to the backend
  *
  * Patterns used:
- * - Resources: commit, reachability, explain resources handle
+ * - Resources: commit and reachability resources handle asynchronous data
  *   fetch/cancel/staleness (replaces CancellableRequest + manual loading)
  * - Auto-persistence: persisted signals are auto-saved via `startAutoPersist()`
  *   (replaces manual `persistState()` / `getHostApi().setState()`)
@@ -21,8 +21,6 @@
  */
 import type { Remote } from '@eamodio/supertalk';
 import type { GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
-import type { IssueOrPullRequest } from '@gitlens/git/models/issueOrPullRequest.js';
-import type { PullRequestRefs, PullRequestShape } from '@gitlens/git/models/pullRequest.js';
 import type { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import { isUncommitted } from '@gitlens/git/utils/revision.utils.js';
@@ -32,23 +30,17 @@ import { getSettledValue } from '@gitlens/utils/promise.js';
 import type { Autolink } from '../../../autolinks/models/autolinks.js';
 import type { ViewFilesLayout } from '../../../config.js';
 import type { GlExtensionCommands } from '../../../constants.commands.js';
-import type { InspectWebviewTelemetryContext, TelemetryEvents } from '../../../constants.telemetry.js';
 import type { CommitDetailsServices, InitialContext } from '../../commitDetails/commitDetailsService.js';
 import type { CommitDetails, CommitSignatureShape, FileShowOptions } from '../../commitDetails/protocol.js';
-import { defaultViewFilesConfig } from '../../commitDetails/protocol.js';
-import {
-	applyAvatars,
-	applyReachableFromOtherWorktrees,
-	fetchCommitEnrichment,
-	withCachedEnrichment,
-} from '../shared/actions/commitEnrichment.js';
+import { defaultViewFilesConfig, messageHeadlineSplitterToken } from '../../commitDetails/protocol.js';
+import { applyReachableFromOtherWorktrees, withCachedEnrichment } from '../shared/actions/commitEnrichment.js';
 import type { OpenMultipleChangesArgs } from '../shared/actions/file.js';
 import * as fileActions from '../shared/actions/file.js';
-import * as prActions from '../shared/actions/pr.js';
 import {
 	enrichmentGuard,
 	fireAndForget,
 	fireRpc,
+	guardedEnrich,
 	isConnectionClosedError,
 	noop,
 	noopUnlessReal,
@@ -57,7 +49,7 @@ import {
 } from '../shared/actions/rpc.js';
 import { NavigationStack } from '../shared/controllers/navigationStack.js';
 import type { Resource } from '../shared/state/resource.js';
-import type { CommitDetailsState, ExplainState } from './state.js';
+import type { CommitDetailsState } from './state.js';
 
 // ============================================================
 // Resolved Services Type (resolve-once pattern)
@@ -75,19 +67,13 @@ type ResolvedSubService<K extends keyof CommitDetailsServices> = Awaited<Remote<
  */
 export interface ResolvedServices {
 	readonly inspect: ResolvedSubService<'inspect'>;
-	readonly drafts: ResolvedSubService<'drafts'>;
 	readonly repositories: ResolvedSubService<'repositories'>;
 	readonly repository: ResolvedSubService<'repository'>;
 	readonly commands: ResolvedSubService<'commands'>;
 	readonly config: ResolvedSubService<'config'>;
 	readonly storage: ResolvedSubService<'storage'>;
-	readonly ai: ResolvedSubService<'ai'>;
 	readonly autolinks: ResolvedSubService<'autolinks'>;
-	readonly subscription: ResolvedSubService<'subscription'>;
-	readonly integrations: ResolvedSubService<'integrations'>;
 	readonly files: ResolvedSubService<'files'>;
-	readonly pullRequests: ResolvedSubService<'pullRequests'>;
-	readonly telemetry: ResolvedSubService<'telemetry'>;
 }
 
 /**
@@ -96,24 +82,20 @@ export interface ResolvedServices {
 export interface CommitDetailsResources {
 	readonly commit: Resource<CommitDetails | undefined, [string, string]>;
 	readonly reachability: Resource<GitCommitReachability | undefined>;
-	readonly explain: Resource<ExplainState | undefined, [string | undefined]>;
 }
 
 interface FetchCommitOptions {
 	force?: boolean;
 }
 
-/** Per-SHA aggregate of resolved enrichment values. Mirrors the graph-details cache shape:
+/** Per-SHA aggregate of resolved enrichment values:
  *  `hasPullRequest` / `hasSignature` are sentinels because `undefined` is a valid resolved
  *  value (commit not signed, no PR), distinguishing "not fetched yet" from "fetched and got nothing". */
 interface CommitEnrichmentCacheEntry {
 	commit?: CommitDetails;
 	autolinks?: Autolink[];
 	formattedMessage?: string;
-	autolinkedIssues?: IssueOrPullRequest[];
-	pullRequest?: PullRequestShape | undefined;
 	signature?: CommitSignatureShape | undefined;
-	hasPullRequest?: boolean;
 	hasSignature?: boolean;
 }
 
@@ -140,12 +122,12 @@ export class CommitDetailsActions {
 
 	/** SHA-keyed cache of commit shell + chip enrichment. Hydrated synchronously on revisit so
 	 *  chips are visible from t≈0ms instead of flashing through cleared state. Same shape as the
-	 *  graph-details panel's cache. Populated as fetches resolve via the sink in `fetchCommit`. */
+	 *  local commit cache. Populated as fetches resolve via the sink in `fetchCommit`. */
 	private readonly _commitEnrichmentCache = new LruMap<string, CommitEnrichmentCacheEntry>(
 		commitEnrichmentCacheLimit,
 	);
 
-	/** Shared back/forward history of visited commits — same controller the graph uses. The
+	/** Shared back/forward history of visited commits. The
 	 *  onChange callback mirrors derived state into the `navigationStack` signal; recording happens
 	 *  in {@link fetchCommit}. Survives hide/show because the webview is `retainContextWhenHidden`. */
 	private readonly _nav = new NavigationStack<{ sha: string; repoPath: string }>(10, undefined, s =>
@@ -180,22 +162,6 @@ export class CommitDetailsActions {
 	cancelPendingRequests(): void {
 		this.resources.commit.cancel();
 		this.resources.reachability.cancel();
-		this.resources.explain.cancel();
-	}
-
-	// ============================================================
-	// Telemetry Actions
-	// ============================================================
-
-	updateTelemetryContext(context: InspectWebviewTelemetryContext): void {
-		notifyService(this.services.telemetry, 'telemetry/updateContext', svc => svc.updateContext(context));
-	}
-
-	sendTelemetryEvent(
-		name: keyof TelemetryEvents,
-		data?: Record<string, string | number | boolean | undefined>,
-	): void {
-		notifyService(this.services.telemetry, 'telemetry/sendEvent', svc => svc.sendEvent(name, data));
 	}
 
 	// ============================================================
@@ -372,7 +338,7 @@ export class CommitDetailsActions {
 	 * `to` is the commit sha, `from` the parent (undefined for a root commit).
 	 */
 	copyCommitPatchToClipboard(repoPath: string, to: string, from?: string): void {
-		fireAndForget(this.services.drafts.copyCommitPatchToClipboard(repoPath, to, from), 'copy commit patch');
+		fireAndForget(this.services.inspect.copyCommitPatchToClipboard(repoPath, to, from), 'copy commit patch');
 	}
 
 	// ============================================================
@@ -380,9 +346,9 @@ export class CommitDetailsActions {
 	// ============================================================
 
 	/**
-	 * Execute a commit action (show in graph, copy SHA, etc.).
+	 * Execute a commit action (copy SHA or open a local action menu).
 	 */
-	executeCommitAction(action: 'graph' | 'more' | 'scm' | 'sha', alt?: boolean): void {
+	executeCommitAction(action: 'more' | 'scm' | 'sha', alt?: boolean): void {
 		const commit = this.state.currentCommit.get();
 		if (!commit) return;
 
@@ -410,21 +376,6 @@ export class CommitDetailsActions {
 		);
 	}
 
-	/** Delegate inspect's Review/Compose mode toggles to the graph: open it, select the target row
-	 *  (the WIP row for the uncommitted commit, else the commit), and enter the mode there — these
-	 *  modes aren't orchestrated standalone in Inspect. */
-	openCommitInGraphMode(mode: 'review' | 'compose' | 'compare', commit: CommitDetails | undefined): void {
-		if (commit?.repoPath == null || commit.sha == null) return;
-		if (mode !== 'review' && mode !== 'compose') return;
-
-		notifyService(this.services.commands, 'command: gitlens.showGraph', svc =>
-			svc.execute('gitlens.showGraph', {
-				action: mode === 'review' ? 'enter-review' : 'enter-compose',
-				target: { sha: commit.sha, worktreePath: commit.repoPath },
-			}),
-		);
-	}
-
 	changeFilesLayout(layout: ViewFilesLayout): void {
 		const prefs = this.state.preferences.get();
 		if (!prefs?.files) return;
@@ -432,48 +383,6 @@ export class CommitDetailsActions {
 		const files = { ...prefs.files, layout: layout };
 		this.state.preferences.set({ ...prefs, files: files });
 		void this.services.config.update('views.commitDetails.files.layout', layout);
-	}
-
-	// ============================================================
-	// Pull Request Actions
-	// ============================================================
-
-	/** Get PR context from state */
-	private getPrContext():
-		| { repoPath: string; refs: PullRequestRefs; url: string; id: string; provider: string }
-		| undefined {
-		const pr = this.state.pullRequest.get();
-		const repoPath = this.state.currentCommit.get()?.repoPath;
-		if (!pr?.refs || !repoPath) return undefined;
-		return {
-			repoPath: repoPath,
-			refs: pr.refs,
-			url: pr.url,
-			id: pr.id,
-			provider: pr.provider?.id ?? 'unknown',
-		};
-	}
-
-	openPullRequestDetails(): void {
-		const ctx = this.getPrContext();
-		if (!ctx) return;
-
-		prActions.openPullRequestDetails(this.services.pullRequests, ctx.repoPath, ctx.id, ctx.provider);
-	}
-
-	// ============================================================
-	// AI Actions (via resources)
-	// ============================================================
-
-	/**
-	 * Generate an AI explanation of the current commit.
-	 * Resource handles cancel-previous and staleness.
-	 */
-	async explainCommit(prompt?: string): Promise<void> {
-		const commit = this.state.currentCommit.get();
-		if (!commit) return;
-
-		await this.resources.explain.fetch(prompt);
 	}
 
 	// ============================================================
@@ -539,13 +448,6 @@ export class CommitDetailsActions {
 			void this.services.config
 				.get('views.commitDetails.autolinks.enabled')
 				.then(a => (this.state.capabilities.autolinksEnabled = a), noop);
-			// Note: hasAccount and orgSettings use RemoteSignalBridge (connected in commitDetails.ts)
-			void this.services.integrations
-				.getIntegrationStates()
-				.then(s => (this.state.capabilities.hasIntegrationsConnected = s.some(i => i.connected)), noop);
-			// Fetch the selected AI model for the Explain input's model chip; refreshed live via onModelChanged.
-			void this.services.ai.getModel().then(m => this.state.aiModel.set(m), noop);
-
 			// Fetch the initial commit — the only thing worth blocking on.
 			// Use persisted commitRef as fallback when host has no initial commit.
 			const initialCommit = context.initialCommit ?? persistedCommitRef;
@@ -586,7 +488,6 @@ export class CommitDetailsActions {
 
 		this.state.error.set(undefined);
 		this.resources.reachability.cancel();
-		this.resources.explain.cancel();
 
 		// Abort any prior in-flight enrichment so a slow autolinks / PR / signature lookup from
 		// the previous selection can't overwrite the new selection's state. Host-side methods
@@ -608,14 +509,10 @@ export class CommitDetailsActions {
 			}
 			this.state.autolinks.set(cached.autolinks);
 			this.state.formattedMessage.set(cached.formattedMessage);
-			this.state.autolinkedIssues.set(cached.autolinkedIssues);
-			this.state.pullRequest.set(cached.hasPullRequest ? cached.pullRequest : undefined);
 			this.state.signature.set(cached.hasSignature ? cached.signature : undefined);
 		} else {
 			this.state.autolinks.set(undefined);
 			this.state.formattedMessage.set(undefined);
-			this.state.autolinkedIssues.set(undefined);
-			this.state.pullRequest.set(undefined);
 			this.state.signature.set(undefined);
 		}
 
@@ -635,55 +532,44 @@ export class CommitDetailsActions {
 				// Cache the freshly-fetched commit shell so future revisits hydrate instantly.
 				this._commitEnrichmentCache.update(cacheKey, { commit: commit });
 
-				// Shared chip-enrichment fan-out — same orchestration as the graph details panel
-				// (basic autolinks + enriched autolinks + PR + signature in parallel, generation
-				// guarded, abort-aware, AbortError-silent rejection). Sink writes resolved values
-				// into commitDetails state signals AND the per-SHA cache so revisits show chips
-				// from t≈0ms.
-				fetchCommitEnrichment(
-					this.services,
+				guardedEnrich(
 					this.resources.commit,
 					enrichSignal,
-					{
-						repoPath: repoPath,
-						sha: sha,
-						isStash: commit.stashNumber != null,
-						isUncommitted: isUncommitted(sha),
-						autolinksEnabled: this.state.capabilities.autolinksEnabled,
-						avatarsEnabled: this.state.preferences.get()?.avatars ?? true,
+					() =>
+						this.services.autolinks.getCommitAutolinks(
+							repoPath,
+							sha,
+							messageHeadlineSplitterToken,
+							commit.stashNumber != null,
+							enrichSignal,
+						),
+					result => {
+						if (result == null) return;
+
+						this._commitEnrichmentCache.update(cacheKey, result);
+						this.state.autolinks.set(result.autolinks);
+						this.state.formattedMessage.set(result.formattedMessage);
 					},
-					{
-						setBasicAutolinks: (autolinks, formattedMessage) => {
-							this._commitEnrichmentCache.update(cacheKey, {
-								autolinks: autolinks,
-								formattedMessage: formattedMessage,
-							});
-							this.state.autolinks.set(autolinks);
-							this.state.formattedMessage.set(formattedMessage);
-						},
-						setEnrichedAutolinks: (issues, formattedMessage) => {
-							this._commitEnrichmentCache.update(cacheKey, {
-								autolinkedIssues: issues,
-								formattedMessage: formattedMessage,
-							});
-							this.state.autolinkedIssues.set(issues);
-							// Enriched formatted message overrides basic (has issue titles in tooltips)
-							this.state.formattedMessage.set(formattedMessage);
-						},
-						setPullRequest: pr => {
-							this._commitEnrichmentCache.update(cacheKey, { pullRequest: pr, hasPullRequest: true });
-							this.state.pullRequest.set(pr);
-						},
-						setSignature: sig => {
-							this._commitEnrichmentCache.update(cacheKey, { signature: sig, hasSignature: true });
-							this.state.signature.set(sig);
-						},
-						setAvatars: avatars => this.patchCommit(cacheKey, sha, repoPath, c => applyAvatars(c, avatars)),
-						setReachableFromOtherWorktrees: reachable =>
-							this.patchCommit(cacheKey, sha, repoPath, c =>
-								applyReachableFromOtherWorktrees(c, reachable),
-							),
+					{ skipIf: () => !this.state.capabilities.autolinksEnabled },
+				);
+
+				guardedEnrich(
+					this.resources.commit,
+					enrichSignal,
+					() => this.services.repository.getCommitSignature(repoPath, sha, enrichSignal),
+					signature => {
+						this._commitEnrichmentCache.update(cacheKey, { signature: signature, hasSignature: true });
+						this.state.signature.set(signature);
 					},
+				);
+
+				guardedEnrich(
+					this.resources.commit,
+					enrichSignal,
+					() => this.services.repository.getReachableFromOtherWorktrees(repoPath, sha, enrichSignal),
+					reachable =>
+						this.patchCommit(cacheKey, sha, repoPath, c => applyReachableFromOtherWorktrees(c, reachable)),
+					{ skipIf: () => commit.stashNumber != null || isUncommitted(sha) },
 				);
 
 				// Check if repo has remotes (for "Open on Remote" action) — not enrichment, but
@@ -731,37 +617,28 @@ export class CommitDetailsActions {
 	 */
 	async fetchPreferences(): Promise<void> {
 		try {
-			const [
-				pullRequestExpandedResult,
-				showSearchBoxResult,
-				searchBoxFilterResult,
-				configResult,
-				coreConfigResult,
-				aiEnabledResult,
-			] = await Promise.allSettled([
-				this.services.storage.getWorkspace('views:commitDetails:pullRequestExpanded'),
-				this.services.storage.getWorkspace('views:commitDetails:showSearchBox'),
-				this.services.storage.getWorkspace('views:commitDetails:searchBoxFilter'),
-				this.services.config.getMany(
-					'views.commitDetails.avatars',
-					'defaultCurrentUserNameStyle',
-					'defaultDateFormat',
-					'defaultDateStyle',
-					'views.commitDetails.files',
-					'signing.showSignatureBadges',
-					'views.commitDetails.autolinks.enabled',
-					'sortWorkingChangesBy',
-				),
-				this.services.config.getManyCore(
-					'workbench.tree.renderIndentGuides',
-					'workbench.tree.indent',
-					'git.enableSmartCommit',
-					'scm.defaultViewSortKey',
-				),
-				this.services.ai.isEnabled(),
-			]);
+			const [showSearchBoxResult, searchBoxFilterResult, configResult, coreConfigResult] =
+				await Promise.allSettled([
+					this.services.storage.getWorkspace('views:commitDetails:showSearchBox'),
+					this.services.storage.getWorkspace('views:commitDetails:searchBoxFilter'),
+					this.services.config.getMany(
+						'views.commitDetails.avatars',
+						'defaultCurrentUserNameStyle',
+						'defaultDateFormat',
+						'defaultDateStyle',
+						'views.commitDetails.files',
+						'signing.showSignatureBadges',
+						'views.commitDetails.autolinks.enabled',
+						'sortWorkingChangesBy',
+					),
+					this.services.config.getManyCore(
+						'workbench.tree.renderIndentGuides',
+						'workbench.tree.indent',
+						'git.enableSmartCommit',
+						'scm.defaultViewSortKey',
+					),
+				]);
 
-			const pullRequestExpanded = getSettledValue(pullRequestExpandedResult);
 			const showSearchBox = getSettledValue(showSearchBoxResult);
 			const searchBoxFilter = getSettledValue(searchBoxFilterResult);
 			const [
@@ -776,11 +653,8 @@ export class CommitDetailsActions {
 			] = getSettledValue(configResult) ?? [];
 			const [indentGuides, indent, enableSmartCommit, workingFilesOrderBy] =
 				getSettledValue(coreConfigResult) ?? [];
-			const aiEnabled = getSettledValue(aiEnabledResult);
-
 			this.state.preferences.set({
 				currentUserNameStyle: currentUserNameStyle ?? 'you',
-				pullRequestExpanded: pullRequestExpanded ?? true,
 				avatars: avatars ?? true,
 				dateFormat: dateFormat ?? 'MMMM Do, YYYY h:mma',
 				dateStyle: dateStyle ?? 'relative',
@@ -789,7 +663,6 @@ export class CommitDetailsActions {
 				indent: indent,
 				workingFilesOrderBy: workingFilesOrderBy ?? 'path',
 				workingChangesSortBy: workingChangesSortBy ?? 'stage',
-				aiEnabled: aiEnabled ?? false,
 				enableSmartCommit: enableSmartCommit ?? false,
 				showSignatureBadges: showSignatureBadges ?? false,
 				showSearchBox: showSearchBox ?? true,
@@ -805,23 +678,6 @@ export class CommitDetailsActions {
 			}
 
 			Logger.error(ex, 'Failed to fetch preferences');
-		}
-	}
-
-	/**
-	 * Check integrations status.
-	 */
-	async checkIntegrations(): Promise<void> {
-		try {
-			const states = await this.services.integrations.getIntegrationStates();
-			this.state.capabilities.hasIntegrationsConnected = states.some(i => i.connected);
-		} catch (ex) {
-			if (isConnectionClosedError(ex)) {
-				Logger.debug('Integrations status check dropped by deliberate connection teardown');
-				return;
-			}
-
-			Logger.error(ex, 'Failed to check integrations status');
 		}
 	}
 }

@@ -16,21 +16,6 @@ import type { TreeViewNodeTypes, TreeViewTypes } from '../../../constants.views.
 import type { GitUri } from '../../../git/gitUri.js';
 import { unknownGitUri } from '../../../git/gitUri.js';
 import type { GlRepository } from '../../../git/models/repository.js';
-import type { Draft } from '../../../plus/drafts/models/drafts.js';
-import type { LaunchpadItem } from '../../../plus/launchpad/launchpadProvider.js';
-import type { LaunchpadGroup } from '../../../plus/launchpad/models/launchpad.js';
-import {
-	launchpadCategoryToGroupMap,
-	sharedCategoryToLaunchpadActionCategoryMap,
-} from '../../../plus/launchpad/models/launchpad.js';
-import type {
-	CloudWorkspace,
-	CloudWorkspaceRepositoryDescriptor,
-} from '../../../plus/workspaces/models/cloudWorkspace.js';
-import type {
-	LocalWorkspace,
-	LocalWorkspaceRepositoryDescriptor,
-} from '../../../plus/workspaces/models/localWorkspace.js';
 import type { View } from '../../viewBase.js';
 import type { BranchTrackingStatus } from '../branchTrackingStatusNode.js';
 import type { TreeViewNodesByType } from '../utils/-webview/node.utils.js';
@@ -49,7 +34,6 @@ export const enum ContextValues {
 	BranchStatusNoUpstream = 'gitlens:status-branch:upstream:none',
 	BranchStatusSameAsUpstream = 'gitlens:status-branch:upstream:same',
 	BranchStatusFiles = 'gitlens:status-branch:files',
-	CodeSuggestions = 'gitlens:drafts:code-suggestions',
 	Commit = 'gitlens:commit',
 	Commits = 'gitlens:commits',
 	CommitsCurrentBranch = 'gitlens:commits:current-branch',
@@ -60,19 +44,14 @@ export const enum ContextValues {
 	Contributor = 'gitlens:contributor',
 	Contributors = 'gitlens:contributors',
 	DateMarker = 'gitlens:date-marker',
-	Draft = 'gitlens:draft',
 	File = 'gitlens:file',
 	FileHistory = 'gitlens:history:file',
 	Folder = 'gitlens:folder',
 	Grouping = 'gitlens:grouping',
-	LaunchpadItem = 'gitlens:launchpad:item',
-	LaunchpadError = 'gitlens:launchpad:error',
-	LaunchpadErrorAuth = 'gitlens:launchpad:error+auth',
 	LineHistory = 'gitlens:history:line',
 	MergeConflictCurrentChanges = 'gitlens:merge-conflict:current',
 	MergeConflictIncomingChanges = 'gitlens:merge-conflict:incoming',
 	Message = 'gitlens:message',
-	MessageSignIn = 'gitlens:message:signin',
 	Pager = 'gitlens:pager',
 	PausedOperationCherryPick = 'gitlens:paused-operation:cherry-pick',
 	PausedOperationMerge = 'gitlens:paused-operation:merge',
@@ -103,9 +82,6 @@ export const enum ContextValues {
 	Tag = 'gitlens:tag',
 	Tags = 'gitlens:tags',
 	UncommittedFiles = 'gitlens:uncommitted:files',
-	Workspace = 'gitlens:workspace',
-	WorkspaceMissingRepository = 'gitlens:workspaceMissingRepository',
-	Workspaces = 'gitlens:workspaces',
 	Worktree = 'gitlens:worktree',
 	Worktrees = 'gitlens:worktrees',
 }
@@ -118,10 +94,7 @@ export interface AmbientContext {
 	readonly comparisonId?: string;
 	readonly comparisonFiltered?: boolean;
 	readonly contributor?: GitContributor;
-	readonly draft?: Draft;
 	readonly file?: GitFile;
-	readonly launchpadGroup?: LaunchpadGroup;
-	readonly launchpadItem?: LaunchpadItem;
 	readonly pausedOperation?: GitPausedOperation;
 	readonly pullRequest?: PullRequest;
 	readonly reflog?: GitReflogRecord;
@@ -133,8 +106,6 @@ export interface AmbientContext {
 	readonly storedComparisonId?: string;
 	readonly tag?: GitTag;
 	readonly viewType?: TreeViewTypes;
-	readonly workspace?: CloudWorkspace | LocalWorkspace;
-	readonly wsRepositoryDescriptor?: CloudWorkspaceRepositoryDescriptor | LocalWorkspaceRepositoryDescriptor;
 	readonly worktree?: GitWorktree;
 
 	readonly worktreesByBranch?: Map<string, GitWorktree>;
@@ -144,12 +115,6 @@ export function getViewNodeId(type: string, context: AmbientContext): string {
 	let uniqueness = '';
 	if (context.root) {
 		uniqueness += '/root';
-	}
-	if (context.workspace != null) {
-		uniqueness += `/ws/${context.workspace.id}`;
-	}
-	if (context.wsRepositoryDescriptor != null) {
-		uniqueness += `/wsrepo/${context.wsRepositoryDescriptor.id}`;
 	}
 	if (context.repository != null || context.repoPath != null) {
 		uniqueness += `/repo/${context.repository?.id ?? context.repoPath}`;
@@ -171,16 +136,6 @@ export function getViewNodeId(type: string, context: AmbientContext): string {
 	}
 	if (context.branchStatusUpstreamType != null) {
 		uniqueness += `/branch-status-direction/${context.branchStatusUpstreamType}`;
-	}
-	if (context.launchpadGroup != null) {
-		uniqueness += `/lp/${context.launchpadGroup}`;
-		if (context.launchpadItem != null) {
-			uniqueness += `/${context.launchpadItem.type}/${context.launchpadItem.uuid}`;
-		}
-	} else if (context.launchpadItem != null) {
-		uniqueness += `/lp/${launchpadCategoryToGroupMap.get(
-			sharedCategoryToLaunchpadActionCategoryMap.get(context.launchpadItem.suggestedActionCategory)!,
-		)}/${context.launchpadItem.type}/${context.launchpadItem.uuid}`;
 	}
 	if (context.pullRequest != null) {
 		uniqueness += `/pr/${context.pullRequest.id}`;
@@ -211,10 +166,6 @@ export function getViewNodeId(type: string, context: AmbientContext): string {
 	if (context.file != null) {
 		uniqueness += `/file/${context.file.path}+${context.file.status}`;
 	}
-	if (context.draft != null) {
-		uniqueness += `/draft/${context.draft.id}`;
-	}
-
 	return `gitlens://${context.viewType ?? 'view'}/${type}${uniqueness}`;
 }
 

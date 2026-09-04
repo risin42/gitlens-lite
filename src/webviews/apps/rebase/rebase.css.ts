@@ -262,12 +262,15 @@ export const rebaseStyles = css`
 		align-items: center;
 		padding: 0.3rem 0.6rem;
 		color: #000;
-		background-color: var(--vscode-gitlens-decorations\\.statusMergingOrRebasingForegroundColor, #c4a000);
+		background-color: var(--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingForegroundColor, #c4a000);
 		border-radius: var(--gl-radius-sm);
 
 		&.has-conflicts {
 			color: #fff;
-			background-color: var(--vscode-gitlens-decorations\\.statusMergingOrRebasingConflictForegroundColor, #c60);
+			background-color: var(
+				--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingConflictForegroundColor,
+				#c60
+			);
 		}
 
 		code-icon {
@@ -325,12 +328,12 @@ export const rebaseStyles = css`
 		border-top: var(--gl-border-width) solid var(--vscode-sideBarSectionHeader-border);
 		border-bottom: var(--gl-border-width) solid var(--vscode-sideBarSectionHeader-border);
 
-		--current-entry-color: var(--vscode-gitlens-decorations\\.statusMergingOrRebasingForegroundColor, #c4a000);
+		--current-entry-color: var(--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingForegroundColor, #c4a000);
 
 		/* Override current entry color when there are conflicts */
 		&.has-conflicts {
 			--current-entry-color: var(
-				--vscode-gitlens-decorations\\.statusMergingOrRebasingConflictForegroundColor,
+				--vscode-gitlens-lite-decorations\\.statusMergingOrRebasingConflictForegroundColor,
 				#c74e39
 			);
 		}

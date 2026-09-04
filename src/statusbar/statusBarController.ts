@@ -1,18 +1,15 @@
 import type { ConfigurationChangeEvent, StatusBarItem, TextEditor, Uri } from 'vscode';
 import { CancellationTokenSource, Disposable, MarkdownString, StatusBarAlignment, window } from 'vscode';
-import type { PullRequest } from '@gitlens/git/models/pullRequest.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
 import { once } from '@gitlens/utils/event.js';
 import { getScopedLogger } from '@gitlens/utils/logger.scoped.js';
-import type { MaybePausedResult } from '@gitlens/utils/promise.js';
-import { getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
+import { pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
 import type { ToggleFileChangesAnnotationCommandArgs } from '../commands/toggleFileAnnotations.js';
 import type { GlCommands } from '../constants.commands.js';
 import { GlyphChars } from '../constants.js';
 import type { Container } from '../container.js';
 import { CommitFormatter } from '../git/formatters/commitFormatter.js';
-import { getCommitAssociatedPullRequest, getCommitGitUri } from '../git/utils/-webview/commit.utils.js';
-import { remoteSupportsIntegration } from '../git/utils/-webview/remote.utils.js';
+import { getCommitGitUri } from '../git/utils/-webview/commit.utils.js';
 import { detailsMessage } from '../hovers/hovers.js';
 import { toAbortSignal } from '../system/-webview/cancellation.js';
 import { createCommand } from '../system/-webview/command.js';
@@ -349,47 +346,20 @@ export class StatusBarController implements Disposable {
 
 		const svc = this.container.git.getRepositoryService(commit.repoPath);
 		const remotes = await svc.remotes.getBestRemotesWithProviders();
-		const [remote] = remotes;
-
 		const defaultDateFormat = configuration.get('defaultDateFormat');
 		const getBranchAndTagTipsPromise =
 			CommitFormatter.has(cfg.format, 'tips') || CommitFormatter.has(cfg.tooltipFormat, 'tips')
 				? svc.getBranchesAndTagsTipsLookup()
 				: undefined;
 
-		const showPullRequests =
-			!commit.isUncommitted &&
-			remote != null &&
-			remoteSupportsIntegration(remote) &&
-			cfg.pullRequests.enabled &&
-			(CommitFormatter.has(
-				cfg.format,
-				'pullRequest',
-				'pullRequestAgo',
-				'pullRequestAgoOrDate',
-				'pullRequestDate',
-				'pullRequestState',
-			) ||
-				CommitFormatter.has(
-					cfg.tooltipFormat,
-					'pullRequest',
-					'pullRequestAgo',
-					'pullRequestAgoOrDate',
-					'pullRequestDate',
-					'pullRequestState',
-				));
-
 		function setBlameText(
 			statusBarItem: StatusBarItem,
 			getBranchAndTagTips: Awaited<typeof getBranchAndTagTipsPromise> | undefined,
-			pr: Promise<PullRequest | undefined> | PullRequest | undefined,
 		) {
 			statusBarItem.text = `$(git-commit) ${CommitFormatter.fromTemplate(cfg.format, commit, {
 				dateFormat: cfg.dateFormat ?? defaultDateFormat,
 				getBranchAndTagTips: getBranchAndTagTips,
 				messageTruncateAtNewLine: true,
-				pullRequest: pr,
-				pullRequestPendingMessage: 'PR $(watch)',
 				remotes: remotes,
 			})}`;
 			statusBarItem.accessibilityInformation = {
@@ -400,7 +370,6 @@ export class StatusBarController implements Disposable {
 		async function getBlameTooltip(
 			container: Container,
 			getBranchAndTagTips: Awaited<typeof getBranchAndTagTipsPromise> | undefined,
-			pr: Promise<PullRequest | undefined> | PullRequest | undefined,
 			timeout?: number,
 		) {
 			return detailsMessage(container, commit, getCommitGitUri(commit), commit.lines[0].line - 1, {
@@ -409,61 +378,21 @@ export class StatusBarController implements Disposable {
 				dateFormat: defaultDateFormat,
 				format: cfg.tooltipFormat,
 				getBranchAndTagTips: getBranchAndTagTips,
-				pullRequest: pr,
-				pullRequests: showPullRequests && pr != null,
 				remotes: remotes,
 				timeout: timeout,
 				sourceName: 'statusbar:hover',
 			});
 		}
 
-		let prResult: MaybePausedResult<PullRequest | undefined> | undefined;
-		if (showPullRequests) {
-			// TODO: Make this configurable?
-			const timeout = 100;
-
-			prResult = await pauseOnCancelOrTimeout(
-				getCommitAssociatedPullRequest(commit.repoPath, commit.sha, remote),
-				toAbortSignal(cancellation),
-				timeout,
-				async result => {
-					if (result.reason !== 'timedout' || this._statusBarBlame == null) return;
-
-					// If the PR is taking too long, refresh the status bar once it completes
-
-					scope?.warn(`\u2022 pull request query took too long (over ${timeout} ms)`);
-
-					const [getBranchAndTagTipsResult, prResult] = await Promise.allSettled([
-						getBranchAndTagTipsPromise,
-						result.value,
-					]);
-
-					if (cancellation.isCancellationRequested || this._statusBarBlame == null) return;
-
-					const pr = getSettledValue(prResult);
-					const getBranchAndTagTips = getSettledValue(getBranchAndTagTipsResult);
-
-					scope?.trace('\u2022  pull request query completed; updating...');
-
-					setBlameText(this._statusBarBlame, getBranchAndTagTips, pr);
-
-					const tooltip = await getBlameTooltip(this.container, getBranchAndTagTips, pr);
-					if (tooltip != null) {
-						this._statusBarBlame.tooltip = tooltip.appendMarkdown(`\n\n---\n\n${actionTooltip}`);
-					}
-				},
-			);
-		}
-
 		const getBranchAndTagTips = getBranchAndTagTipsPromise != null ? await getBranchAndTagTipsPromise : undefined;
 
 		if (cancellation.isCancellationRequested) return;
 
-		setBlameText(this._statusBarBlame, getBranchAndTagTips, prResult?.value);
+		setBlameText(this._statusBarBlame, getBranchAndTagTips);
 		this._statusBarBlame.show();
 
 		const tooltipResult = await pauseOnCancelOrTimeout(
-			getBlameTooltip(this.container, getBranchAndTagTips, prResult?.value, 20),
+			getBlameTooltip(this.container, getBranchAndTagTips, 20),
 			toAbortSignal(cancellation),
 			100,
 			async result => {

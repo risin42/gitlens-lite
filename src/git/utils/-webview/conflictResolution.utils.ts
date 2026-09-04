@@ -55,7 +55,7 @@ export async function stageConflictResolution(
  * Resolve every conflicted file at once by staging the requested side. Prompts for
  * confirmation, partitions files by `classifyConflictAction`, and reports failures. Scoped
  * to paused rebases for now — bulk resolution during merge/cherry-pick/revert can follow
- * once telemetry confirms safe usage.
+ * once the single-file path has been validated in normal use.
  */
 export async function resolveAllConflicts(
 	container: Container,

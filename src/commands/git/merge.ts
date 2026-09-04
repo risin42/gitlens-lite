@@ -2,7 +2,6 @@ import { ThemeIcon, window } from 'vscode';
 import { MergeError, SigningError } from '@gitlens/git/errors.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitLog } from '@gitlens/git/models/log.js';
-import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
 import type { GitReference } from '@gitlens/git/models/reference.js';
 import { parseGitBoolean } from '@gitlens/git/utils/config.utils.js';
 import { getReferenceLabel, isRevisionReference } from '@gitlens/git/utils/reference.utils.js';
@@ -13,7 +12,6 @@ import type { Container } from '../../container.js';
 import { showPausedOperationStatus } from '../../git/actions/pausedOperation.js';
 import type { GlRepository } from '../../git/models/repository.js';
 import { showGitErrorMessage } from '../../messages.js';
-import { isSubscriptionTrialOrPaidFromState } from '../../plus/gk/utils/subscription.utils.js';
 import { createQuickPickSeparator } from '../../quickpicks/items/common.js';
 import type { ConfirmToggleQuickPickItem, DirectiveQuickPickItem } from '../../quickpicks/items/directive.js';
 import {
@@ -107,8 +105,6 @@ export class MergeGitCommand extends QuickCommand<State> {
 		if (state.flags.includes('--no-commit')) {
 			options.noCommit = true;
 		}
-
-		this.container.telemetry.sendEvent('gitCommand/run', { command: 'merge' });
 
 		try {
 			const result = await state.repo.git.ops?.merge(state.reference.ref, options);
@@ -414,8 +410,6 @@ export class MergeGitCommand extends QuickCommand<State> {
 
 		let step: QuickPickStep<DirectiveQuickPickItem | FlagsQuickPickItem<Flags>>;
 
-		const notices: DirectiveQuickPickItem[] = [];
-
 		interface Toggles {
 			ff?: DirectiveQuickPickItem;
 			noCommit?: ConfirmToggleQuickPickItem;
@@ -427,7 +421,6 @@ export class MergeGitCommand extends QuickCommand<State> {
 
 		/** Every row the confirm step shows, minus the separator + Cancel that `createConfirmStep` appends. */
 		const buildRows = (): (FlagsQuickPickItem<Flags> | DirectiveQuickPickItem)[] => [
-			...notices,
 			...items,
 			createQuickPickSeparator(confirmOptionsSeparatorLabel),
 			toggles.ff!,
@@ -476,64 +469,6 @@ export class MergeGitCommand extends QuickCommand<State> {
 				refreshConfirmStepItems(step, buildRows());
 			},
 		});
-
-		let potentialConflict: Promise<ConflictDetectionResult | undefined> | undefined;
-		const subscription = await this.container.subscription.getSubscription();
-		if (isSubscriptionTrialOrPaidFromState(subscription?.state)) {
-			potentialConflict = state.repo.git.branches.getPotentialMergeConflicts?.(
-				state.reference.name,
-				context.destination.name,
-			);
-		}
-
-		if (potentialConflict) {
-			void potentialConflict?.then(result => {
-				if (result == null || result.status === 'clean') {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'No Conflicts Detected',
-							iconPath: new ThemeIcon('check'),
-						}),
-					);
-				} else if (result.status === 'error') {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'Unable to Detect Conflicts',
-							detail: result.message,
-							iconPath: new ThemeIcon('error'),
-						}),
-					);
-				} else {
-					notices.splice(
-						0,
-						1,
-						createDirectiveQuickPickItem(Directive.Noop, false, {
-							label: 'Conflicts Detected',
-							detail: `Will result in ${pluralize(
-								'conflicting file',
-								result.conflict.files.length,
-							)} that will need to be resolved`,
-							iconPath: new ThemeIcon('warning'),
-						}),
-					);
-				}
-
-				refreshConfirmStepItems(step, buildRows());
-			});
-
-			notices.push(
-				createDirectiveQuickPickItem(Directive.Noop, false, {
-					label: `$(loading~spin) \u00a0Detecting Conflicts...`,
-					// Don't use this, because the spin here causes the icon to spin incorrectly
-					//iconPath: new ThemeIcon('loading~spin'),
-				}),
-				createQuickPickSeparator(),
-			);
-		}
 
 		step = this.createConfirmStep(appendReposToTitle(`Confirm ${title}`, state, context), buildRows());
 		const selection: StepSelection<typeof step> = yield step;

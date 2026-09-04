@@ -1,5 +1,4 @@
 import type { RemoteProviderSupportedFeatures } from '@gitlens/git/models/remoteProvider.js';
-import type { SupportedCloudIntegrationIds } from '@gitlens/integrations/constants.js';
 
 export interface RepositoryShape {
 	id: string;
@@ -15,7 +14,6 @@ export interface RepositoryShape {
 	provider?: {
 		name: string;
 		icon?: string;
-		integration?: { id: SupportedCloudIntegrationIds; connected: boolean };
 		supportedFeatures: RemoteProviderSupportedFeatures;
 		url?: string;
 		bestRemoteName: string;

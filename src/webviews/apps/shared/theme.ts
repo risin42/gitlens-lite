@@ -1,7 +1,8 @@
+import type { Disposable } from 'vscode';
 /*global window document MutationObserver*/
 import { getCssVariable } from '@gitlens/utils/color.js';
-import type { Disposable, Event } from './events.js';
-import { Emitter } from './events.js';
+import type { Event } from '@gitlens/utils/event.js';
+import { Emitter } from '@gitlens/utils/event.js';
 
 export interface ThemeChangeEvent {
 	colors: {

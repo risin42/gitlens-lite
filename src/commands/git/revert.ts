@@ -80,8 +80,6 @@ export class RevertGitCommand extends QuickCommand<State> {
 			options.editMessage = false;
 		}
 
-		this.container.telemetry.sendEvent('gitCommand/run', { command: 'revert' });
-
 		try {
 			const result = await state.repo.git.ops?.revert(refs, options);
 			if (result?.conflicted) {

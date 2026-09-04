@@ -6,7 +6,6 @@ import { UriTrie } from '@gitlens/utils/trie.js';
 import { Schemes } from './constants.js';
 import type { RevisionUriData } from './git/gitProvider.js';
 import type { GlRepository } from './git/models/repository.js';
-import { addVslsPrefixIfNeeded } from './system/-webview/path.vsls.js';
 
 const slash = 47; //CharCode.Slash;
 
@@ -61,18 +60,6 @@ export function normalizeRepoUri(uri: Uri): { path: string; ignoreCase: boolean 
 			const authority = uri.authority?.split('+', 1)[0];
 			return { path: authority ? `${authority}/${path}` : path, ignoreCase: false };
 		}
-		case Schemes.Vsls:
-		case Schemes.VslsScc:
-			// Check if this is a root live share folder, if so add the required prefix (required to match repos correctly)
-			path = addVslsPrefixIfNeeded(uri.path);
-			if (path.charCodeAt(path.length - 1) === slash) {
-				path = path.slice(1, -1);
-			} else {
-				path = path.slice(1);
-			}
-
-			return { path: path, ignoreCase: false };
-
 		case Schemes.PRs: {
 			path = uri.path;
 			if (path.charCodeAt(path.length - 1) === slash) {

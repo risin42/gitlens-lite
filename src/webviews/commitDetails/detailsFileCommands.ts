@@ -14,7 +14,6 @@ import { debug } from '@gitlens/utils/decorators/log.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import { basename } from '@gitlens/utils/path.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';
-import type { CopyDeepLinkCommandArgs, CopyFileDeepLinkCommandArgs } from '../../commands/copyDeepLink.js';
 import type { DiffWithCommandArgs } from '../../commands/diffWith.js';
 import type { OpenFileOnRemoteCommandArgs } from '../../commands/openFileOnRemote.js';
 import type { OpenOnRemoteCommandArgs } from '../../commands/openOnRemote.js';
@@ -654,21 +653,6 @@ export class DetailsFileCommands {
 	quickOpenFileHistory(_commit: GitCommit, file: GitFileChange): void {
 		void executeCommand('gitlens.quickOpenFileHistory', file.uri);
 	}
-
-	@command('gitlens.visualizeHistory.file:')
-	@debug()
-	visualizeFileHistory(_commit: GitCommit, file: GitFileChange): void {
-		void executeCommand('gitlens.visualizeHistory.file', file.uri);
-	}
-
-	@command('gitlens.openFileHistoryInGraph:')
-	@debug()
-	openFileHistoryInGraph(commit: GitCommit, file: GitFileChange): void {
-		// Skip the selection for uncommitted and stashes; the graph doesn't surface either by default,
-		// so the sha would never resolve to a visible row.
-		const selectSha = isUncommitted(commit.sha) || GitCommit.isStash(commit) ? undefined : commit.sha;
-		void executeCommand('gitlens.openFileHistoryInGraph', file.uri, selectSha);
-	}
 	@command('gitlens.views.selectFileForCompare:')
 	@debug()
 	selectFileForCompare(commit: GitCommit, file: GitFileChange): void {
@@ -704,32 +688,6 @@ export class DetailsFileCommands {
 			rhs: { sha: commit.sha ?? uncommitted, uri: uri },
 		});
 	}
-	@command('gitlens.copyDeepLinkToCommit:')
-	@debug()
-	copyDeepLinkToCommit(commit: GitCommit, _file: GitFileChange): void {
-		void executeCommand<CopyDeepLinkCommandArgs>('gitlens.copyDeepLinkToCommit', { refOrRepoPath: commit });
-	}
-
-	@command('gitlens.copyDeepLinkToFile:')
-	@debug()
-	copyDeepLinkToFile(commit: GitCommit, file: GitFileChange): void {
-		void executeCommand<CopyFileDeepLinkCommandArgs>('gitlens.copyDeepLinkToFile', {
-			ref: commit,
-			filePath: file.path,
-			repoPath: commit.repoPath,
-		});
-	}
-
-	@command('gitlens.copyDeepLinkToFileAtRevision:')
-	@debug()
-	copyDeepLinkToFileAtRevision(commit: GitCommit, file: GitFileChange): void {
-		void executeCommand<CopyFileDeepLinkCommandArgs>('gitlens.copyDeepLinkToFileAtRevision', {
-			ref: commit,
-			filePath: file.path,
-			repoPath: commit.repoPath,
-			chooseRef: true,
-		});
-	}
 	@command('gitlens.views.copyRemoteCommitUrl:')
 	@debug()
 	copyRemoteCommitUrl(commit: GitCommit, _file: GitFileChange): void {
@@ -759,35 +717,6 @@ export class DetailsFileCommands {
 			clipboard: true,
 			range: false,
 		});
-	}
-	@command('gitlens.shareAsCloudPatch:')
-	@debug()
-	async shareAsCloudPatch(
-		commit: GitCommit,
-		_file: GitFileChange,
-		_showOptions?: TextDocumentShowOptions,
-		comparison?: ComparisonContext,
-	): Promise<void> {
-		if (comparison != null) {
-			void executeCommand<CreatePatchCommandArgs>('gitlens.createCloudPatch', {
-				to: commit.ref,
-				from: comparison.sha,
-				repoPath: commit.repoPath,
-			});
-		} else {
-			if (commit.message == null) {
-				await GitCommit.ensureFullDetails(commit);
-			}
-
-			const { summary: title, body: description } = splitCommitMessage(commit.message);
-
-			void executeCommand<CreatePatchCommandArgs>('gitlens.createCloudPatch', {
-				to: commit.ref,
-				repoPath: commit.repoPath,
-				title: title,
-				description: description,
-			});
-		}
 	}
 	// --- Multi-file actions (right-clicking a multi-selection). Each receives the selected files
 	// resolved from `webviewItemsValues`; the host registration loop does the resolution. ---

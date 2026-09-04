@@ -1,16 +1,13 @@
 import type { BranchDisposition, BranchTargetInfo, GitBranch } from '@gitlens/git/models/branch.js';
-import type { PullRequest, PullRequestState } from '@gitlens/git/models/pullRequest.js';
 import type { GitRemote } from '@gitlens/git/models/remote.js';
 import type { GitWorktree } from '@gitlens/git/models/worktree.js';
 import { getBranchNameWithoutRemote } from '@gitlens/git/utils/branch.utils.js';
 import { createRevisionRange } from '@gitlens/git/utils/revision.utils.js';
 import { CancellationError } from '@gitlens/utils/cancellation.js';
 import type { MaybePausedResult } from '@gitlens/utils/promise.js';
-import { getSettledValue, pauseOnCancelOrTimeout } from '@gitlens/utils/promise.js';
-import type { EnrichedAutolink } from '../../../autolinks/models/autolinks.js';
+import { getSettledValue } from '@gitlens/utils/promise.js';
 import type { Container } from '../../../container.js';
 import type { GitRepositoryService } from '../../gitRepositoryService.js';
-import { getBestRemoteWithIntegration, getRemoteIntegration } from './remote.utils.js';
 
 const maxDefaultBranchWeight = 100;
 const weightedDefaultBranches = new Map<string, number>([
@@ -56,7 +53,6 @@ export async function getBranchMergeTargetInfo(
 	container: Container,
 	branch: GitBranch,
 	options?: {
-		associatedPullRequest?: Promise<PullRequest | undefined>;
 		cancellation?: AbortSignal;
 		detectedOnly?: boolean;
 		timeout?: number;
@@ -97,7 +93,6 @@ export async function getBranchMergeTargetName(
 	container: Container,
 	branch: GitBranch,
 	options?: {
-		associatedPullRequest?: Promise<PullRequest | undefined>;
 		cancellation?: AbortSignal;
 		detectedOnly?: boolean;
 		timeout?: number;
@@ -147,7 +142,6 @@ async function getBranchMergeTargetNameWithoutFallback(
 	container: Container,
 	branch: GitBranch,
 	options?: {
-		associatedPullRequest?: Promise<PullRequest | undefined>;
 		cancellation?: AbortSignal;
 		detectedOnly?: boolean;
 		timeout?: number;
@@ -164,31 +158,7 @@ async function getBranchMergeTargetNameWithoutFallback(
 
 	if (options?.cancellation?.aborted) return { value: undefined, paused: false };
 
-	return pauseOnCancelOrTimeout(
-		(options?.associatedPullRequest ?? getBranchAssociatedPullRequest(container, branch))?.then(pr => {
-			if (pr?.refs?.base == null) return undefined;
-
-			const name = `${branch.remoteName}/${pr.refs.base.branch}`;
-
-			// A stacked PR's base is the layer below it — an ephemeral branch that is deleted when the
-			// stack merges. Persisting it would outlive the branch it names, and because a stored target
-			// wins over every other source it would keep winning, silently, until cleared by hand. Return
-			// it for display (per-layer diffs are what makes a stack reviewable) but never write it.
-			if (pr.stack != null) return name;
-
-			// Same self-write semantics as `getBranchContributionsOverview`'s Tier 2: the value
-			// being stored is the canonical mergeTarget any future overview lookup will resolve
-			// to, so skip the wholesale `branchOverviews` invalidation that would otherwise
-			// evict an in-cache entry keyed by `${ref}|${name}`.
-			void svc.branches.storeMergeTargetBranchName?.(branch.name, name, {
-				skipInvalidation: ['branchOverviews'],
-			});
-
-			return name;
-		}),
-		options?.cancellation,
-		options?.timeout,
-	);
+	return { value: undefined, paused: false };
 }
 
 export async function getDefaultBranchName(
@@ -200,19 +170,7 @@ export async function getDefaultBranchName(
 	const name = await container.git
 		.getRepositoryService(repoPath)
 		.branches.getDefaultBranchName(remoteName, undefined, options?.cancellation);
-	return name ?? getDefaultBranchNameFromIntegration(repoPath, options);
-}
-
-export async function getDefaultBranchNameFromIntegration(
-	repoPath: string,
-	options?: { cancellation?: AbortSignal },
-): Promise<string | undefined> {
-	const remote = await getBestRemoteWithIntegration(repoPath, undefined, options?.cancellation);
-	if (remote == null) return undefined;
-
-	const integration = await getRemoteIntegration(remote);
-	const defaultBranch = await integration?.getDefaultBranch?.(remote.provider.repoDesc);
-	return defaultBranch && `${remote.name}/${defaultBranch?.name}`;
+	return name;
 }
 
 export function getStarredBranches(branches: Iterable<GitBranch>): Set<string> {
@@ -230,57 +188,6 @@ export async function getBranchRemote(container: Container, branch: GitBranch): 
 	if (remoteName == null) return undefined;
 
 	return container.git.getRepositoryService(branch.repoPath).remotes.getRemote(remoteName);
-}
-
-export async function getBranchAssociatedPullRequest(
-	container: Container,
-	branch: GitBranch,
-	options?: {
-		avatarSize?: number;
-		include?: PullRequestState[];
-		expiryOverride?: boolean | number;
-		/** Only return a value already in the local cache. No remote fetch — returns undefined on cache miss. */
-		cached?: boolean;
-	},
-): Promise<PullRequest | undefined> {
-	const remote = await getBranchRemote(container, branch);
-	if (remote?.provider == null) return undefined;
-
-	const integration = await getRemoteIntegration(remote);
-
-	if (options?.cached) {
-		if (branch.upstream?.missing) {
-			if (!branch.sha) return undefined;
-			return container.cache.peekPullRequestForSha(branch.sha, remote.provider.repoDesc, integration);
-		}
-		return container.cache.peekPullRequestForBranch(
-			branch.trackingWithoutRemote ?? branch.nameWithoutRemote,
-			remote.provider.repoDesc,
-			integration,
-		);
-	}
-
-	if (integration == null) return undefined;
-
-	if (branch.upstream?.missing) {
-		if (!branch.sha) return undefined;
-		return integration.getPullRequestForCommit(remote.provider.repoDesc, branch.sha);
-	}
-
-	return integration.getPullRequestForBranch(
-		remote.provider.repoDesc,
-		branch.trackingWithoutRemote ?? branch.nameWithoutRemote,
-		options,
-	);
-}
-
-export async function getBranchEnrichedAutolinks(
-	container: Container,
-	branch: GitBranch,
-): Promise<Map<string, EnrichedAutolink> | undefined> {
-	const remote = await container.git.getRepositoryService(branch.repoPath).remotes.getBestRemoteWithProvider();
-	const branchAutolinks = await container.autolinks.getBranchAutolinks(branch.name, remote);
-	return container.autolinks.getEnrichedAutolinks(branchAutolinks, remote);
 }
 
 export async function getBranchWorktree(

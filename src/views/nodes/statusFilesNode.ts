@@ -62,7 +62,7 @@ export class StatusFilesNode extends ViewNode<'status-files', ViewsWithWorkingTr
 			}
 		}
 
-		if ((this.view.type === 'worktrees' || this.view.config.includeWorkingTree) && this.status.files.length) {
+		if (this.view.config.includeWorkingTree && this.status.files.length) {
 			files.unshift(
 				...flatMap(this.status.files, f =>
 					map(getStatusFilePseudoCommits(f, undefined), c => this.getFileWithPseudoCommit(f, c)),
@@ -96,8 +96,7 @@ export class StatusFilesNode extends ViewNode<'status-files', ViewsWithWorkingTr
 	}
 
 	async getTreeItem(): Promise<TreeItem> {
-		let files =
-			this.view.type === 'worktrees' || this.view.config.includeWorkingTree ? this.status.files.length : 0;
+		let files = this.view.config.includeWorkingTree ? this.status.files.length : 0;
 
 		if (this.range != null) {
 			if (this.status.upstream?.state.ahead) {

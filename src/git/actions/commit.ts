@@ -19,7 +19,6 @@ import { fileUri, joinUriPath } from '@gitlens/utils/uri.js';
 import type { DiffWithCommandArgs } from '../../commands/diffWith.js';
 import type { DiffWithPreviousCommandArgs } from '../../commands/diffWithPrevious.js';
 import type { DiffWithWorkingCommandArgs } from '../../commands/diffWithWorking.js';
-import type { ExplainCommitCommandArgs } from '../../commands/explainCommit.js';
 import type { OpenFileOnRemoteCommandArgs } from '../../commands/openFileOnRemote.js';
 import type { OpenOnlyChangedFilesCommandArgs } from '../../commands/openOnlyChangedFiles.js';
 import type { OpenWorkingFileCommandArgs } from '../../commands/openWorkingFile.js';
@@ -27,7 +26,6 @@ import type { ShowQuickCommitCommandArgs } from '../../commands/showQuickCommit.
 import type { ShowQuickCommitFileCommandArgs } from '../../commands/showQuickCommitFile.js';
 import type { FileAnnotationType } from '../../config.js';
 import { GlyphChars } from '../../constants.js';
-import type { Source } from '../../constants.telemetry.js';
 import { Container } from '../../container.js';
 import { showGitErrorMessage } from '../../messages.js';
 import { showRevisionFilesPicker } from '../../quickpicks/revisionFilesPicker.js';
@@ -42,11 +40,9 @@ import {
 } from '../../system/-webview/vscode/editors.js';
 import type { ViewNode } from '../../views/nodes/abstract/viewNode.js';
 import type { RevealOptions } from '../../views/viewBase.js';
-import type { ShowInCommitGraphCommandArgs } from '../../webviews/plus/graph/registration.js';
 import { GitUri } from '../gitUri.js';
 import { getAheadBehindFilesQuery } from '../queryResults.js';
 import { findCommitFile, getCommitDate, getCommitForFile } from '../utils/-webview/commit.utils.js';
-import { getReferenceFromRevision } from '../utils/-webview/reference.utils.js';
 
 export type Ref = { repoPath: string; ref: string };
 export type RefRange = { repoPath: string; rhs: string; lhs: string };
@@ -930,28 +926,6 @@ export function showCommitInDetailsView(
 ): Promise<void> {
 	const { preserveFocus, ...opts } = { ...options, commit: commit };
 	return Container.instance.views.commitDetails.show({ preserveFocus: preserveFocus }, opts);
-}
-
-export async function showCommitInGraph(
-	commit: GitRevisionReference | GitCommit,
-	options?: { preserveFocus?: boolean; source?: Source },
-): Promise<void> {
-	void (await executeCommand<ShowInCommitGraphCommandArgs>('gitlens.showInCommitGraph', {
-		ref: getReferenceFromRevision(commit),
-		preserveFocus: options?.preserveFocus,
-		source: options?.source,
-	}));
-}
-
-export async function explainCommit(
-	commit: GitRevisionReference | GitCommit,
-	options: { source: Source },
-): Promise<void> {
-	void (await executeCommand<ExplainCommitCommandArgs>('gitlens.ai.explainCommit', {
-		repoPath: commit.repoPath,
-		rev: commit.ref,
-		source: { ...options?.source, context: { type: 'commit' } },
-	}));
 }
 
 export async function openOnlyChangedFiles(container: Container, commit: GitCommit): Promise<void>;

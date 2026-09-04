@@ -13,7 +13,7 @@ import { isAbsolute } from '@gitlens/utils/path.js';
 import type { Container } from '../../container.js';
 import type { AllowedSignerEntry } from '../../git/utils/allowedSignersFile.js';
 import { getExistingEntryKeys, mergeAllowedSigners } from '../../git/utils/allowedSignersFile.js';
-import type { CandidateSigner, LoadingProgress, SaveEntry, SignerProvider } from '../allowedSigners/protocol.js';
+import type { CandidateSigner, LoadingProgress, SaveEntry } from '../allowedSigners/protocol.js';
 import type { EventVisibilityBuffer, SubscriptionTracker } from './eventVisibilityBuffer.js';
 import { createRpcEvent } from './eventVisibilityBuffer.js';
 import type { SharedWebviewServices } from './services/common.js';
@@ -38,11 +38,6 @@ export interface SaveResult {
 /** A discovery snapshot — always complete, never a delta (the event is save-last buffered). */
 export interface AllowedSignersResultsChangedEvent {
 	signers: CandidateSigner[];
-	integrationConnected: boolean;
-	/** The connected integration's provider, when one was available — used to render the provider indicator. */
-	provider?: SignerProvider;
-	/** Whether provider verification is still in progress (commit-derived signers are shown first). */
-	verifying: boolean;
 	/** Set when discovery failed; the webview leaves the loading/verifying state and surfaces this message. */
 	error?: string;
 }

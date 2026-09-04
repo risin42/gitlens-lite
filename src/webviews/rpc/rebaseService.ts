@@ -3,20 +3,18 @@
  *
  * Carries the host operations of the Interactive Rebase Editor — todo-plan mutations
  * (entry action changes, moves, shifts), rebase lifecycle (start/continue/skip/abort),
- * conflict resolution affordances, enrichment lookups, and the AI handoff requests — plus
+ * local conflict resolution affordances and enrichment lookups — plus
  * the three save-last events that stream state to the webview. The methods delegate verbatim
  * to the provider's handlers (the provider owns the todo document and all git context); this
  * class owns the transport: save-last buffering keyed off webview visibility.
  */
 
-import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
 import type { Serialized } from '../../system/serialize.js';
 import type {
 	Author,
 	ChangeEntriesParams,
 	ChangeEntryParams,
 	Commit,
-	GetConflictsParams,
 	GetMissingAvatarsParams,
 	GetMissingCommitsParams,
 	MoveEntriesParams,
@@ -61,11 +59,9 @@ export interface RebaseCommitsChangedEvent {
 export interface RebaseRpcHandlers {
 	abort(): Promise<void>;
 	continue(): Promise<void>;
-	continueWithAi(): Promise<void>;
 	search(): void;
 	skip(): Promise<void>;
 	start(): Promise<void>;
-	startWithAi(): Promise<boolean>;
 	switchToText(): Promise<void>;
 	swapOrdering(params: ReorderParams): Promise<void>;
 	changeEntry(params: ChangeEntryParams): Promise<void>;
@@ -77,16 +73,13 @@ export interface RebaseRpcHandlers {
 	revealRef(params: RevealRefParams): Promise<void>;
 	getMissingAvatars(params: GetMissingAvatarsParams): Promise<void>;
 	getMissingCommits(params: GetMissingCommitsParams): Promise<void>;
-	getConflicts(params: GetConflictsParams): Promise<ConflictDetectionResult | undefined>;
 	getState(): Promise<Serialized<State>>;
-	recompose(): Promise<void>;
 	dismissCloseWarning(): void;
 	openConflictFile(params: OpenConflictFileParams): Promise<void>;
 	openConflictChanges(params: OpenConflictChangesParams): Promise<void>;
 	resolveConflict(params: ResolveConflictParams): Promise<void>;
 	stageConflict(params: StageConflictParams): Promise<void>;
 	resolveAllConflicts(params: ResolveAllConflictsParams): Promise<void>;
-	resolveConflictsInGraph(): Promise<void>;
 }
 
 /**
@@ -105,16 +98,12 @@ export interface RebaseViewService {
 	abort(): Promise<void>;
 	/** Continues the paused rebase. */
 	continue(): Promise<void>;
-	/** Continues the paused rebase with automatic (AI) conflict resolution. */
-	continueWithAi(): Promise<void>;
 	/** Opens the webview's find widget. */
 	search(): Promise<void>;
 	/** Skips the currently paused commit. */
 	skip(): Promise<void>;
 	/** Starts the planned rebase and closes the editor. */
 	start(): Promise<void>;
-	/** Hands the pending rebase off to automatic (AI) conflict resolution. Always answers. */
-	startWithAi(): Promise<boolean>;
 	/** Reopens the todo file in the default text editor. */
 	switchToText(): Promise<void>;
 	/** Toggles the todo ordering (ascending/descending). */
@@ -137,12 +126,8 @@ export interface RebaseViewService {
 	getMissingAvatars(params: GetMissingAvatarsParams): Promise<void>;
 	/** Fetches enriched commit data for the requested SHAs; results arrive via {@link onCommitsChanged}. */
 	getMissingCommits(params: GetMissingCommitsParams): Promise<void>;
-	/** Checks the plan for potential conflicts (Pro feature). */
-	getConflicts(params: GetConflictsParams): Promise<ConflictDetectionResult | undefined>;
 	/** Serves the webview's initial-state query (the standard-bootstrap replacement for deferred bootstrap). */
 	getState(): Promise<Serialized<State>>;
-	/** Aborts the rebase and opens the Commit Graph composer with the original commits. */
-	recompose(): Promise<void>;
 	/** Dismisses the close-warning banner. */
 	dismissCloseWarning(): Promise<void>;
 	/** Opens a conflicted file. */
@@ -155,8 +140,6 @@ export interface RebaseViewService {
 	stageConflict(params: StageConflictParams): Promise<void>;
 	/** Resolves every conflicted file by staging the chosen side, after confirmation. */
 	resolveAllConflicts(params: ResolveAllConflictsParams): Promise<void>;
-	/** Opens the AI conflict-resolution flow in the Commit Graph. */
-	resolveConflictsInGraph(): Promise<void>;
 }
 
 /** RPC services for the Rebase Editor webview. */
@@ -205,10 +188,6 @@ export class RebaseService implements RebaseViewService {
 		await this.#handlers.continue();
 	}
 
-	async continueWithAi(): Promise<void> {
-		await this.#handlers.continueWithAi();
-	}
-
 	search(): Promise<void> {
 		this.#handlers.search();
 		return Promise.resolve();
@@ -220,10 +199,6 @@ export class RebaseService implements RebaseViewService {
 
 	async start(): Promise<void> {
 		await this.#handlers.start();
-	}
-
-	startWithAi(): Promise<boolean> {
-		return this.#handlers.startWithAi();
 	}
 
 	switchToText(): Promise<void> {
@@ -271,16 +246,8 @@ export class RebaseService implements RebaseViewService {
 		return this.#handlers.getMissingCommits(params);
 	}
 
-	getConflicts(params: GetConflictsParams): Promise<ConflictDetectionResult | undefined> {
-		return this.#handlers.getConflicts(params);
-	}
-
 	getState(): Promise<Serialized<State>> {
 		return this.#handlers.getState();
-	}
-
-	recompose(): Promise<void> {
-		return this.#handlers.recompose();
 	}
 
 	dismissCloseWarning(): Promise<void> {
@@ -306,9 +273,5 @@ export class RebaseService implements RebaseViewService {
 
 	resolveAllConflicts(params: ResolveAllConflictsParams): Promise<void> {
 		return this.#handlers.resolveAllConflicts(params);
-	}
-
-	resolveConflictsInGraph(): Promise<void> {
-		return this.#handlers.resolveConflictsInGraph();
 	}
 }

@@ -3,8 +3,6 @@ import type { GitCommitStats } from '@gitlens/git/models/commit.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFile } from '@gitlens/git/models/file.js';
 import type { GitFileChange } from '@gitlens/git/models/fileChange.js';
-import type { PullRequest } from '@gitlens/git/models/pullRequest.js';
-import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { uncommitted, uncommittedStaged } from '@gitlens/git/models/revision.js';
 import type { CommitSignature } from '@gitlens/git/models/signature.js';
 import type { PreviousRangeComparisonUrisResult } from '@gitlens/git/providers/diff.js';
@@ -16,7 +14,6 @@ import {
 } from '@gitlens/git/utils/commit.utils.js';
 import { isUncommitted } from '@gitlens/git/utils/revision.utils.js';
 import { pluralize } from '@gitlens/utils/string.js';
-import type { EnrichedAutolink } from '../../../autolinks/models/autolinks.js';
 import { getAvatarUri, getCachedAvatarUri } from '../../../avatars.js';
 import type { CurrentUserNameStyle, GravatarDefaultStyle } from '../../../config.js';
 import { GlyphChars } from '../../../constants.js';
@@ -24,7 +21,6 @@ import { Container } from '../../../container.js';
 import { configuration } from '../../../system/-webview/configuration.js';
 import { GitUri } from '../../gitUri.js';
 import type { GlRepository } from '../../models/repository.js';
-import { getBestRemoteWithIntegration, getRemoteIntegration, remoteSupportsIntegration } from './remote.utils.js';
 
 // #region Current user display name
 
@@ -111,36 +107,6 @@ export function getCommitRepository(repoPath: string): GlRepository | undefined 
 
 export function isCommitPushed(repoPath: string, ref: string): Promise<boolean> {
 	return Container.instance.git.getRepositoryService(repoPath).commits.hasCommitBeenPushed(ref);
-}
-
-// #endregion
-
-// #region Pull request / autolinks
-
-export async function getCommitAssociatedPullRequest(
-	repoPath: string,
-	sha: string,
-	remote?: GitRemote,
-	options?: { expiryOverride?: boolean | number },
-): Promise<PullRequest | undefined> {
-	if (isUncommitted(sha)) return undefined;
-
-	remote ??= await getBestRemoteWithIntegration(repoPath);
-	if (!(remote != null && remoteSupportsIntegration(remote))) return undefined;
-
-	const integration = await getRemoteIntegration(remote);
-	return integration?.getPullRequestForCommit(remote.provider.repoDesc, sha, options);
-}
-
-export async function getCommitEnrichedAutolinks(
-	repoPath: string,
-	message: string | undefined,
-	summary: string,
-	remote?: GitRemote,
-): Promise<Map<string, EnrichedAutolink> | undefined> {
-	remote ??= await getBestRemoteWithIntegration(repoPath);
-
-	return Container.instance.autolinks.getEnrichedAutolinks(message ?? summary, remote);
 }
 
 // #endregion
