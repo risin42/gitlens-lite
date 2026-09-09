@@ -122,21 +122,13 @@ export class WorktreeCopyChangesGitCommand extends QuickCommand<State> {
 				let placeholder;
 				switch (state.changes.type) {
 					case 'index':
-						context.title =
-							state.overrides?.title ??
-							`Copy Staged${state.source?.name ? ' Worktree' : ''} Changes to Worktree`;
-						placeholder = `Choose a worktree to copy your staged${
-							state.source?.name ? ' Worktree' : ''
-						} changes to`;
+						context.title = state.overrides?.title ?? 'Copy Staged Changes to Worktree';
+						placeholder = 'Choose a worktree to copy your staged changes to';
 						break;
 					case 'working-tree':
 					default:
-						context.title =
-							state.overrides?.title ??
-							`Copy Working${state.source?.name ? ' Worktree' : ''} Changes to Worktree`;
-						placeholder = `Choose a worktree to copy your working${
-							state.source?.name ? ' worktree' : ''
-						} changes to`;
+						context.title = state.overrides?.title ?? 'Copy Working Changes to Worktree';
+						placeholder = 'Choose a worktree to copy your working changes to';
 						break;
 				}
 
