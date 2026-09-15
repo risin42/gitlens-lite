@@ -113,7 +113,7 @@
 					"gitlens-lite.currentLine.scrollable": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether the inline blame annotation can be scrolled into view when it is outside the viewport. **NOTE**: Setting this to `false` will inhibit the hovers from showing over the annotation; Set `#gitlens-lite.hovers.currentLine.over#` to `line` to enable the hovers to show anywhere over the line.",
+						"markdownDescription": "Specifies whether the inline blame annotation can be scrolled into view when it is outside the viewport. **NOTE**: Setting this to `false` will inhibit the hovers from showing over the annotation. Set `#gitlens-lite.hovers.currentLine.over#` to `line` to enable the hovers to show anywhere over the line.",
 						"scope": "window",
 						"order": 40
 					},
@@ -232,7 +232,7 @@
 							"Toggles file changes from the commit",
 							"Compares the current committed file with the previous commit",
 							"Reveals the commit in the Side Bar",
-							"Shows the Inspect",
+							"Searches for commits within the range",
 							"Shows an Inspect quick pick menu",
 							"Shows a commit file details quick pick menu",
 							"Shows a file history quick pick menu",
@@ -392,7 +392,7 @@
 							"Compares the current line commit with the previous",
 							"Compares the current line commit with the working tree",
 							"Reveals the commit in the Side Bar",
-							"Shows the Inspect",
+							"Searches for commits within the range",
 							"Shows an Inspect quick pick menu",
 							"Shows a commit file details quick pick menu",
 							"Shows a file history quick pick menu",
@@ -607,7 +607,7 @@
 					"gitlens-lite.advanced.blame.delayAfterEdit": {
 						"type": "number",
 						"default": 5000,
-						"markdownDescription": "Specifies the time (in milliseconds) to wait before re-blaming an unsaved document after an edit but before it is saved. Use 0 to specify an infinite wait. Only applies if the file is under the `#gitlens-lite.advanced.sizeThresholdAfterEdit#`",
+						"markdownDescription": "Specifies the time (in milliseconds) to wait before re-blaming an unsaved document after an edit but before it is saved. Use 0 to specify an infinite wait. Only applies if the file is under the `#gitlens-lite.advanced.blame.sizeThresholdAfterEdit#` threshold",
 						"scope": "window",
 						"order": 90
 					},
@@ -862,7 +862,7 @@
 					"gitlens-lite.heatmap.fadeLines": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies the whether to fade out older lines",
+						"markdownDescription": "Specifies whether to fade out older lines",
 						"scope": "window",
 						"order": 21
 					},
@@ -1105,7 +1105,7 @@
 					"gitlens-lite.views.pageItemLimit": {
 						"type": "number",
 						"default": 40,
-						"markdownDescription": "Specifies the number of items to show in a each page when paginating a view list. Use 0 to specify no limit",
+						"markdownDescription": "Specifies the number of items to show on each page when paginating a view list. Use 0 to specify no limit",
 						"scope": "window",
 						"order": 21
 					},
@@ -1126,14 +1126,14 @@
 					"gitlens-lite.views.formats.commits.tooltip": {
 						"type": "string",
 						"default": "${avatar} &nbsp;__${author}__${signature} &nbsp;$(history) ${agoAndDateBothSources} \\\n${link}${'&nbsp;&nbsp;'changesDetail} ${message}${\n\n---\n\nfootnotes}\n\n${tips}",
-						"markdownDescription": "Specifies the tooltip format (in markdown) of commits in the views. See [_Commit Tokens_](https://github.com/eamodio/vscode-gitlens/wiki/Custom-Formatting#commit-tokens) in the GitLens docs",
+						"markdownDescription": "Specifies the tooltip format (in markdown) of commits in the views. See [_Commit Tokens_](https://github.com/gitkraken/vscode-gitlens/wiki/Custom-Formatting#commit-tokens) in the GitLens docs",
 						"scope": "window",
 						"order": 32
 					},
 					"gitlens-lite.views.formats.commits.tooltipWithStatus": {
 						"type": "string",
 						"default": "${avatar} &nbsp;__${author}__${signature} &nbsp;$(history) ${agoAndDateBothSources} \\\n${link}&nbsp;&nbsp;•&nbsp;&nbsp;{{slot-status}} ${message}${\n\n---\n\nfootnotes}\n\n${tips}",
-						"markdownDescription": "Specifies the tooltip format (in markdown) of \"file\" commits in the views. See [_Commit Tokens_](https://github.com/eamodio/vscode-gitlens/wiki/Custom-Formatting#commit-tokens) in the GitLens docs",
+						"markdownDescription": "Specifies the tooltip format (in markdown) of \"file\" commits in the views. See [_Commit Tokens_](https://github.com/gitkraken/vscode-gitlens/wiki/Custom-Formatting#commit-tokens) in the GitLens docs",
 						"scope": "window",
 						"order": 32
 					},
@@ -1168,7 +1168,7 @@
 					"gitlens-lite.views.formats.stashes.tooltip": {
 						"type": "string",
 						"default": "${link}${' on `'stashOnRef`}${'\\\n&nbsp;&nbsp;'changesDetail} \\\n &nbsp;$(history) ${agoAndDate} ${message}${\n\n---\n\nfootnotes}",
-						"markdownDescription": "Specifies the tooltip format (in markdown) of stashes in the views. See [_Commit Tokens_](https://github.com/eamodio/vscode-gitlens/wiki/Custom-Formatting#commit-tokens) in the GitLens docs",
+						"markdownDescription": "Specifies the tooltip format (in markdown) of stashes in the views. See [_Commit Tokens_](https://github.com/gitkraken/vscode-gitlens/wiki/Custom-Formatting#commit-tokens) in the GitLens docs",
 						"scope": "window",
 						"order": 52
 					},
@@ -1189,7 +1189,7 @@
 					},
 					"gitlens-lite.views.commitFormat": {
 						"deprecationMessage": "Deprecated. Use `gitlens-lite.views.formats.commits.label` instead",
-						"markdownDeprecationMessage": "Deprecated. Use `#gitlens-lite.views.commits.files.label#` instead"
+						"markdownDeprecationMessage": "Deprecated. Use `#gitlens-lite.views.formats.commits.label#` instead"
 					},
 					"gitlens-lite.views.commitDescriptionFormat": {
 						"deprecationMessage": "Deprecated. Use `gitlens-lite.views.formats.commits.description` instead",
@@ -1205,7 +1205,7 @@
 					},
 					"gitlens-lite.views.stashFormat": {
 						"deprecationMessage": "Deprecated. Use `gitlens-lite.views.formats.stashes.label` instead",
-						"markdownDeprecationMessage": "Deprecated. Use `#gitlens-lite.views.stashes.files.label#` instead"
+						"markdownDeprecationMessage": "Deprecated. Use `#gitlens-lite.views.formats.stashes.label#` instead"
 					},
 					"gitlens-lite.views.stashDescriptionFormat": {
 						"deprecationMessage": "Deprecated. Use `gitlens-lite.views.formats.stashes.description` instead",
@@ -1309,7 +1309,7 @@
 					"gitlens-lite.views.commits.reveal": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether to reveal commits in the _Commits_ view, otherwise they revealed in the _Repositories_ view",
+						"markdownDescription": "Specifies whether to reveal commits in the _Commits_ view, otherwise they are revealed in the _Repositories_ view",
 						"scope": "window",
 						"order": 50
 					}
@@ -1850,7 +1850,7 @@
 					"gitlens-lite.views.branches.reveal": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether to reveal branches in the _Branches_ view, otherwise they revealed in the _Repositories_ view",
+						"markdownDescription": "Specifies whether to reveal branches in the _Branches_ view, otherwise they are revealed in the _Repositories_ view",
 						"scope": "window",
 						"order": 70
 					}
@@ -1939,7 +1939,7 @@
 					"gitlens-lite.views.remotes.reveal": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether to reveal remotes in the _Remotes_ view, otherwise they revealed in the _Repositories_ view",
+						"markdownDescription": "Specifies whether to reveal remotes in the _Remotes_ view, otherwise they are revealed in the _Repositories_ view",
 						"scope": "window",
 						"order": 50
 					}
@@ -1999,7 +1999,7 @@
 					"gitlens-lite.views.stashes.reveal": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether to reveal stashes in the _Stashes_ view, otherwise they revealed in the _Repositories_ view",
+						"markdownDescription": "Specifies whether to reveal stashes in the _Stashes_ view, otherwise they are revealed in the _Repositories_ view",
 						"scope": "window",
 						"order": 20
 					}
@@ -2088,7 +2088,7 @@
 					"gitlens-lite.views.tags.reveal": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether to reveal tags in the _Tags_ view, otherwise they revealed in the _Repositories_ view",
+						"markdownDescription": "Specifies whether to reveal tags in the _Tags_ view, otherwise they are revealed in the _Repositories_ view",
 						"scope": "window",
 						"order": 50
 					}
@@ -2211,7 +2211,7 @@
 					"gitlens-lite.views.contributors.reveal": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether to reveal contributors in the _Contributors_ view, otherwise they revealed in the _Repositories_ view",
+						"markdownDescription": "Specifies whether to reveal contributors in the _Contributors_ view, otherwise they are revealed in the _Repositories_ view",
 						"scope": "window",
 						"order": 20
 					},
@@ -2490,7 +2490,7 @@
 							"null"
 						],
 						"default": null,
-						"markdownDescription": "Specifies whether to show the commit search results directly in the quick pick menu, in the Side Bar, or will be based on the context",
+						"markdownDescription": "Specifies whether to show the commit search results directly in the quick pick menu, in the Side Bar, or based on the context",
 						"scope": "window",
 						"order": 40
 					},
@@ -2762,7 +2762,7 @@
 					"gitlens-lite.terminal.overrideGitEditor": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Specifies whether to use VS Code as Git's `core.editor` for Gitlens terminal commands",
+						"markdownDescription": "Specifies whether to use VS Code as Git's `core.editor` for GitLens terminal commands",
 						"scope": "window",
 						"order": 100
 					}
@@ -2804,7 +2804,7 @@
 							"null"
 						],
 						"default": null,
-						"markdownDescription": "Specifies the locale, a [BCP 47 language tag](https://en.wikipedia.org/wiki/IETF_language_tag#List_of_major_primary_language_subtags), to use for date formatting, defaults to the VS Code locale. Use `system` to follow the current system locale, or choose a specific locale, e.g `en-US` — US English, `en-GB` — British English, `de-DE` — German, `ja-JP` = Japanese, etc.",
+						"markdownDescription": "Specifies the locale, a [BCP 47 language tag](https://en.wikipedia.org/wiki/IETF_language_tag#List_of_major_primary_language_subtags), to use for date formatting, defaults to the VS Code locale. Use `system` to follow the current system locale, or choose a specific locale, e.g. `en-US` — US English, `en-GB` — British English, `de-DE` — German, `ja-JP` — Japanese, etc.",
 						"scope": "window",
 						"order": 21
 					},
@@ -3822,7 +3822,7 @@
 					},
 					"gitlens-lite.outputLevel": {
 						"type": "string",
-						"markdownDeprecationMessage": "This setting is deprecated. Use the **GitLens: Enable Debug Logging** and **GitLens: Disable Debug Logging** commands, or the **Developer: Set Log Level...** command to control logging."
+						"markdownDeprecationMessage": "This setting is deprecated. Use the **GitLens: Enable Debug (Trace) Logging** and **GitLens: Disable Debug (Trace) Logging** commands, or the **Developer: Set Log Level...** command to control logging."
 					},
 					"gitlens-lite.defaultCurrentUserNameStyle": {
 						"type": "string",
@@ -4219,7 +4219,7 @@
 			},
 			{
 				"id": "gitlens-lite.decorations.worktreeMissingForegroundColor",
-				"description": "Specifies the decoration foreground color for worktrees cannot be found on disk",
+				"description": "Specifies the decoration foreground color for worktrees that cannot be found on disk",
 				"defaults": {
 					"light": "#ad0707",
 					"dark": "#c74e39",
