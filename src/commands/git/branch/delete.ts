@@ -169,6 +169,9 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 			if (worktrees.length) {
 				using step = steps.enterStep(Steps.DeleteWorktrees);
 
+				// Git refuses to delete a branch that's checked out in a worktree, so a branch with a
+				// worktree can only be deleted by the worktree wizard -- hand off to it entirely, with
+				// Delete Branch pre-checked, rather than deleting the worktree here and the branch after
 				const result = yield* getSteps(
 					this.container,
 					{
@@ -177,12 +180,7 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 							subcommand: 'delete',
 							repo: state.repo,
 							uris: worktrees.map(wt => wt.uri),
-							startingFromBranchDelete: true,
-							overrides: {
-								title: `Delete ${worktrees.length === 1 ? 'Worktree' : 'Worktrees'} for ${
-									worktrees.length === 1 ? 'Branch' : 'Branches'
-								}`,
-							},
+							fromBranchDelete: prune ? 'prune' : 'delete',
 						},
 					},
 					context,
@@ -192,6 +190,24 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 					if (step.goBack() == null) break;
 					continue;
 				}
+
+				// The worktree wizard owns every ref it just handled, so narrow to the rest -- same
+				// predicate as `getSelectedWorktrees`
+				state.references = state.references.filter(r => {
+					const wt = worktreesByBranch.get(r.id!);
+					return wt == null || wt.isDefault;
+				});
+
+				// Nothing left (the common case) -- the worktree wizard owns the outcome and the completion
+				// it propagated through the shared navigation state is correct
+				if (!state.references.length) return;
+
+				// A mixed multi-select still has refs to delete here, so clear the sub-command's completion...
+				steps.clearStepsComplete();
+				// ...and drop this step from history. Without it, Back from the confirm below would pop to
+				// this step, the worktrees would already be gone so this block would be skipped, and the
+				// `isAtStepOrUnset(Confirm)` check below would `continue` with identical state -- a UI hang.
+				step.skip();
 			}
 
 			if (!steps.isAtStepOrUnset(Steps.Confirm)) continue;
@@ -239,7 +255,7 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 							try {
 								await state.repo.git.branches.deleteLocalBranch?.(name, { force: true });
 							} catch (ex) {
-								Logger.error(ex, context.title);
+								Logger.error(ex, this.prune ? 'Prune Branches' : 'Delete Branches');
 								void showGitErrorMessage(
 									ex,
 									BranchError.is(ex) ? undefined : 'Unable to force delete branch',
@@ -250,7 +266,7 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 						continue;
 					}
 
-					Logger.error(ex, context.title);
+					Logger.error(ex, this.prune ? 'Prune Branches' : 'Delete Branches');
 					void showGitErrorMessage(ex, BranchError.is(ex) ? undefined : 'Unable to delete branch');
 				}
 			}
@@ -281,10 +297,6 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 	): StepResultGenerator<Flags[]> {
 		const { prune } = this;
 		const refsLabel = getReferenceLabel(state.references);
-		const branchWord = state.references.length === 1 ? 'Branch' : 'Branches';
-		const upstreamWord = state.references.length === 1 ? 'Upstream' : 'Upstreams';
-		const pronoun = state.references.length === 1 ? 'its' : 'their';
-		const verb = prune ? 'Prune' : 'Delete';
 
 		// Remote-tracking refs (e.g. `origin/foo`) don't take `--force` or have an upstream of their own,
 		// so neither the Force toggle nor the "& Upstream(s)" mode applies when every selected ref is remote.
@@ -296,9 +308,24 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 		// Folds the live Force toggle value into each mode's flags and detail — the accepted item's flags
 		// are the whole contract with `execute()` — so the list says what will actually happen.
 		const buildItems = (): FlagsQuickPickItem<Flags>[] => {
+			const label = prune
+				? force
+					? state.references.length === 1
+						? 'Force Prune Branch'
+						: 'Force Prune Branches'
+					: state.references.length === 1
+						? 'Prune Branch'
+						: 'Prune Branches'
+				: force
+					? state.references.length === 1
+						? 'Force Delete Branch'
+						: 'Force Delete Branches'
+					: state.references.length === 1
+						? 'Delete Branch'
+						: 'Delete Branches';
 			const items: FlagsQuickPickItem<Flags>[] = [
 				createFlagsQuickPickItem<Flags>(state.flags, force ? ['--force'] : [], {
-					label: force ? `Force ${verb} ${branchWord}` : `${verb} ${branchWord}`,
+					label: label,
 					description: force ? '--force' : undefined,
 					detail: force
 						? `Will forcibly delete ${refsLabel}, even if not fully merged`
@@ -311,12 +338,20 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 				items.push(
 					createFlagsQuickPickItem<Flags>(state.flags, force ? ['--force', '--remotes'] : ['--remotes'], {
 						label: force
-							? `Force Delete ${branchWord} & ${upstreamWord}`
-							: `Delete ${branchWord} & ${upstreamWord}`,
+							? state.references.length === 1
+								? 'Force Delete Branch & Upstream'
+								: 'Force Delete Branches & Upstreams'
+							: state.references.length === 1
+								? 'Delete Branch & Upstream'
+								: 'Delete Branches & Upstreams',
 						description: force ? '--force --remotes' : '--remotes',
 						detail: force
-							? `Will forcibly delete ${refsLabel} and ${pronoun} upstream ${branchWord.toLowerCase()} from the remote, even if not fully merged`
-							: `Will delete ${refsLabel} and ${pronoun} upstream ${branchWord.toLowerCase()} from the remote`,
+							? state.references.length === 1
+								? `Will forcibly delete ${refsLabel} and its upstream branch from the remote, even if not fully merged`
+								: `Will forcibly delete ${refsLabel} and its upstream branches from the remote, even if not fully merged`
+							: state.references.length === 1
+								? `Will delete ${refsLabel} and its upstream branch from the remote`
+								: `Will delete ${refsLabel} and its upstream branches from the remote`,
 						picked: state.flags.includes('--remotes'),
 					}),
 				);
@@ -360,7 +395,8 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 			rows = buildRows();
 		}
 
-		step = createConfirmStep(appendReposToTitle(`Confirm ${context.title}`, state, context), rows, context);
+		const confirmTitle = prune ? 'Confirm Prune Branches' : 'Confirm Delete Branches';
+		step = createConfirmStep(appendReposToTitle(confirmTitle, state, context), rows, confirmTitle);
 		const selection: StepSelection<typeof step> = yield step;
 		return canPickStepContinue(step, state, selection) ? selection[0].item : StepResultBreak;
 	}
