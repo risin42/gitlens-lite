@@ -61,7 +61,7 @@ export const commitPopoverStyles = css`
 	}
 
 	.commit-popover-content__email {
-		font-weight: 400;
+		font-weight: var(--gl-font-weight-regular);
 		color: var(--vscode-descriptionForeground);
 	}
 
@@ -115,7 +115,7 @@ export const commitPopoverStyles = css`
 	}
 
 	.commit-popover-content__committer-label {
-		font-weight: 400;
+		font-weight: var(--gl-font-weight-regular);
 		color: var(--vscode-descriptionForeground);
 	}
 `;

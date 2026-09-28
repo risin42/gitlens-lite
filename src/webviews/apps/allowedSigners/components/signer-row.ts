@@ -50,7 +50,7 @@ export class GlSignerRow extends LitElement {
 		}
 
 		.name {
-			font-weight: 600;
+			font-weight: var(--gl-font-weight-semibold);
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;

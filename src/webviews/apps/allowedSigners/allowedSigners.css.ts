@@ -31,7 +31,7 @@ export const allowedSignersStyles = css`
 
 	header h1 {
 		font-size: 2rem;
-		font-weight: 600;
+		font-weight: var(--gl-font-weight-semibold);
 		margin: 0 0 0.4rem;
 	}
 
@@ -71,7 +71,7 @@ export const allowedSignersStyles = css`
 	}
 
 	.field label {
-		font-weight: 600;
+		font-weight: var(--gl-font-weight-semibold);
 	}
 
 	.path-row {
@@ -113,7 +113,7 @@ export const allowedSignersStyles = css`
 	.list__group {
 		padding: 0.6rem 1.2rem;
 		font-size: 1.1rem;
-		font-weight: 600;
+		font-weight: var(--gl-font-weight-semibold);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--vscode-descriptionForeground);

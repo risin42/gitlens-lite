@@ -458,7 +458,7 @@ export class GlBreadcrumbItem extends LitElement {
 			}
 
 			:host([aria-current='page']) {
-				font-weight: 600;
+				font-weight: var(--gl-font-weight-semibold);
 				color: var(--vscode-foreground);
 			}
 
