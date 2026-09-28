@@ -45,7 +45,7 @@ export const allowedSignersStyles = css`
 		align-items: center;
 		gap: 0.8rem;
 		padding: 0.8rem 1.2rem;
-		border-radius: 0.4rem;
+		border-radius: var(--gl-radius-sm);
 		background: var(--vscode-inputValidation-warningBackground, rgba(255, 191, 0, 0.1));
 		border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-editorWarning-foreground));
 	}
@@ -61,7 +61,7 @@ export const allowedSignersStyles = css`
 		gap: 1rem;
 		padding: 1.2rem;
 		border: 1px solid var(--vscode-panel-border);
-		border-radius: 0.4rem;
+		border-radius: var(--gl-radius-sm);
 	}
 
 	.field {
@@ -102,7 +102,7 @@ export const allowedSignersStyles = css`
 		display: flex;
 		flex-direction: column;
 		border: 1px solid var(--vscode-panel-border);
-		border-radius: 0.4rem;
+		border-radius: var(--gl-radius-sm);
 		overflow: hidden;
 	}
 

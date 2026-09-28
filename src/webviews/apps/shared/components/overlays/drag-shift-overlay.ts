@@ -48,7 +48,7 @@ export class GlDragShiftOverlay extends LitElement {
 			gap: 0.6rem;
 			align-items: center;
 			padding: 1rem 1.6rem;
-			border-radius: 0.4rem;
+			border-radius: var(--gl-radius-sm);
 			color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
 			background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
 			border: 0.1rem solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));

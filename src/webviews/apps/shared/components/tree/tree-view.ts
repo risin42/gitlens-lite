@@ -233,7 +233,7 @@ export class GlTreeView extends GlElement {
 				padding: 0 var(--gl-space-4);
 				font-size: var(--gl-font-sm);
 				font-variant-numeric: tabular-nums;
-				border-radius: 0.8rem;
+				border-radius: var(--gl-radius-lg);
 				background: color-mix(in srgb, transparent 88%, var(--color-foreground));
 			}
 
