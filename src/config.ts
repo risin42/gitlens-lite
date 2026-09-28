@@ -728,8 +728,17 @@ export type CoreConfig = {
 	readonly search: {
 		readonly exclude: Record<string, boolean>;
 	};
+	readonly window: {
+		readonly density: {
+			readonly layout: 'default' | 'compact';
+		};
+	};
 	readonly workbench: {
 		readonly editorAssociations: Record<string, string> | { viewType: string; filenamePattern: string }[];
+		readonly experimental: {
+			readonly modernUI: boolean;
+			readonly modernUIUppercaseViewHeaders: boolean;
+		};
 		readonly panel: {
 			readonly visible: boolean;
 		};

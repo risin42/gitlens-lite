@@ -24,6 +24,7 @@ import { setContext } from '../system/-webview/context.js';
 import { getViewFocusCommand } from '../system/-webview/vscode/views.js';
 import type { WebviewContext } from '../system/webview.js';
 import { serializeWireData } from '../system/wireSerialize.js';
+import { getWebviewHostEnvironment, getWebviewHostEnvironmentAttributes } from './hostEnvironment.js';
 import type { WebviewState } from './protocol.js';
 import { EventVisibilityBuffer, SubscriptionTracker } from './rpc/eventVisibilityBuffer.js';
 import { RpcHost } from './rpc/rpcHost.js';
@@ -869,13 +870,14 @@ export class WebviewController<
 			head,
 			body,
 			endOfBody,
+			getWebviewHostEnvironmentAttributes(getWebviewHostEnvironment()),
 		);
 		return html;
 	}
 }
 
 const htmlTokensRegex =
-	/#{(head|body|endOfBody|webviewId|webviewInstanceId|placement|cspSource|cspNonce|root|webroot|state)}/g;
+	/#{(head|body|endOfBody|webviewId|webviewInstanceId|placement|hostEnvironment|cspSource|cspNonce|root|webroot|state)}/g;
 
 export function replaceWebviewHtmlTokens<SerializedState>(
 	html: string,
@@ -890,6 +892,7 @@ export function replaceWebviewHtmlTokens<SerializedState>(
 	head?: string,
 	body?: string,
 	endOfBody?: string,
+	hostEnvironment?: string,
 ): string {
 	return html.replace(htmlTokensRegex, (_substring: string, token: string) => {
 		switch (token) {
@@ -915,6 +918,8 @@ export function replaceWebviewHtmlTokens<SerializedState>(
 				return webviewInstanceId ?? '';
 			case 'placement':
 				return placement;
+			case 'hostEnvironment':
+				return hostEnvironment ?? '';
 			case 'cspSource':
 				return cspSource;
 			case 'cspNonce':

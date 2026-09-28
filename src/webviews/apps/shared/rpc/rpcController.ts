@@ -45,7 +45,12 @@ import { createRpcClient } from '../rpcClient.js';
 interface CoreWebviewServices {
 	readonly webview: Pick<
 		WebviewViewService,
-		'connect' | 'focusChanged' | 'onHostWindowFocusChanged' | 'onVisibilityChanged' | 'onWebviewFocusChanged'
+		| 'connect'
+		| 'focusChanged'
+		| 'onHostEnvironmentChanged'
+		| 'onHostWindowFocusChanged'
+		| 'onVisibilityChanged'
+		| 'onWebviewFocusChanged'
 	>;
 }
 
@@ -301,6 +306,17 @@ export class RpcController<TServices extends CoreWebviewServices> implements Rea
 					webview.onHostWindowFocusChanged(({ focused }) => {
 						// Host-window focus is exposed through the optional app-level callback.
 						this.options?.onHostWindowFocusChanged?.(focused);
+					}),
+				() =>
+					webview.onHostEnvironmentChanged(env => {
+						// Keeps the `<body>` attributes the host rendered at first paint (`#{hostEnvironment}`
+						// in each app's HTML) in sync with the Modern UI settings.
+						document.body.toggleAttribute('data-modern-ui', env.modernUI);
+						document.body.toggleAttribute('data-modern-ui-compact', env.compact);
+						document.body.toggleAttribute(
+							'data-modern-ui-uppercase-view-headers',
+							env.uppercaseViewHeaders,
+						);
 					}),
 			]);
 		});
