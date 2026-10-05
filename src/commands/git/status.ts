@@ -1,3 +1,4 @@
+import { undefinedOnGitWarning } from '@gitlens/git/errors.js';
 import type { GitStatus } from '@gitlens/git/models/status.js';
 import { createReference, getReferenceLabel } from '@gitlens/git/utils/reference.utils.js';
 import { pad } from '@gitlens/utils/string.js';
@@ -91,7 +92,7 @@ export class StatusGitCommand extends QuickCommand<State> {
 
 			assertStepState<State<GlRepository>>(state);
 
-			context.status = (await state.repo.git.status.getStatus())!;
+			context.status = (await state.repo.git.status.getStatus().catch(undefinedOnGitWarning))!;
 			if (context.status == null) break;
 
 			context.title = `${this.title}${pad(GlyphChars.Dot, 2, 2)}${getReferenceLabel(

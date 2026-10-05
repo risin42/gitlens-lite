@@ -1,4 +1,5 @@
 import { Disposable, MarkdownString, TreeItem, TreeItemCollapsibleState } from 'vscode';
+import { undefinedOnGitWarning } from '@gitlens/git/errors.js';
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitStatus } from '@gitlens/git/models/status.js';
 import { getLastFetchedUpdateInterval } from '@gitlens/git/utils/fetch.utils.js';
@@ -50,7 +51,7 @@ export class RepositoryNode extends SubscribeableViewNode<'repository', ViewsWit
 		this.updateContext({ repository: repo });
 		this._uniqueId = getViewNodeId(this.type, this.context);
 
-		this._status = this.repo.git.status.getStatus();
+		this._status = this.repo.git.status.getStatus().catch(undefinedOnGitWarning);
 
 		// Watch the working tree only while this node is expanded (its `StatusFilesNode` is shown), releasing on
 		// collapse/hide so collapsed repo nodes (e.g. the many in the Workspaces view) don't each hold an FS watcher.
@@ -313,7 +314,7 @@ export class RepositoryNode extends SubscribeableViewNode<'repository', ViewsWit
 		await super.refresh(reset);
 
 		if (reset) {
-			this._status = this.repo.git.status.getStatus();
+			this._status = this.repo.git.status.getStatus().catch(undefinedOnGitWarning);
 		}
 
 		await this.ensureSubscription();
@@ -407,7 +408,7 @@ export class RepositoryNode extends SubscribeableViewNode<'repository', ViewsWit
 
 	@trace({ args: e => ({ e: e.toString() }) })
 	private async onWorkingTreeChanged(_e: RepositoryWorkingTreeChangeEvent) {
-		this._status = this.repo.git.status.getStatus();
+		this._status = this.repo.git.status.getStatus().catch(undefinedOnGitWarning);
 
 		if (this.children !== undefined) {
 			const status = await this._status;
