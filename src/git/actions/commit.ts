@@ -995,7 +995,8 @@ export async function undoCommit(
 	}
 
 	// Check for uncommitted changes before prompting
-	const hasChanges = await svc.status.hasWorkingChanges();
+	// An unverified tree still gets the confirmation
+	const hasChanges = await svc.status.hasWorkingChanges().catch(() => true);
 	if (hasChanges) {
 		const confirm = { title: 'Undo Commit' };
 		const cancel = { title: 'Cancel', isCloseAffordance: true };

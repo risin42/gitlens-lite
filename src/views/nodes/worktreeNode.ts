@@ -23,6 +23,7 @@ import { getBranchAheadRange, getBranchRemote, setBranchDisposition } from '../.
 import { getBranchIconPath } from '../../git/utils/-webview/icons.js';
 import { getWorktreeHasWorkingChanges, getWorktreeStatus } from '../../git/utils/-webview/worktree.utils.js';
 import { getBestPath } from '../../system/-webview/path.js';
+import { exists } from '../../system/-webview/vscode/uris.js';
 import type { ViewsWithWorktrees } from '../viewBase.js';
 import { createViewDecorationUri } from '../viewDecorationProvider.js';
 import { CacheableChildrenViewNode } from './abstract/cacheableChildrenViewNode.js';
@@ -471,7 +472,8 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 				this._hasWorkingChanges = { hasChanges: hasChanges, missing: false };
 			} catch (ex) {
 				Logger.error(ex, `Worktree hasWorkingChanges failed: ${this.worktree.uri.toString(true)}`);
-				this._hasWorkingChanges = { hasChanges: undefined, missing: true };
+				// A failed check only means "missing" when the folder is actually gone; otherwise the changes are unknown
+				this._hasWorkingChanges = { hasChanges: undefined, missing: !(await exists(this.worktree.uri)) };
 			}
 		}
 
