@@ -2,6 +2,9 @@ import { getScopedCounter } from './counter.js';
 
 const cancellationErrorBrand = Symbol.for('CancellationError');
 
+/** Why an operation was cancelled: a caller abort, a timeout, or a termination whose cause is unknown. */
+export type CancellationReason = 'aborted' | 'timeout' | 'unknown';
+
 /**
  * A standalone CancellationError for use in the library.
  * Uses a symbol brand so that both this class and the extension's
@@ -11,7 +14,10 @@ const cancellationErrorBrand = Symbol.for('CancellationError');
 export class CancellationError extends Error {
 	readonly [cancellationErrorBrand] = true;
 
-	constructor(public readonly original?: Error) {
+	constructor(
+		public readonly original?: Error,
+		public readonly reason?: CancellationReason,
+	) {
 		super();
 		this.name = 'CancellationError';
 
@@ -71,7 +77,7 @@ export function raceWithSignal<T>(promise: Promise<T>, signal: AbortSignal): Pro
 export function raceWithTimeout<T>(promise: Promise<T>, ms: number, abortOnTimeout?: AbortController): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const timer = setTimeout(() => {
-			const error = new CancellationError(new Error(`Timed out after ${ms}ms`));
+			const error = new CancellationError(new Error(`Timed out after ${ms}ms`), 'timeout');
 			abortOnTimeout?.abort(error);
 			reject(error);
 		}, ms);
