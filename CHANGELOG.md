@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## [Unreleased]
 
+## [19.1.2] - 2026-10-08
+
+### Changed
+
+- Syncs fixes from upstream GitLens through October 6, 2026
+- Changes deleting a branch that is checked out in a worktree to hand off to a single _Delete Branch & Worktree_ (or _Prune Branch & Delete Worktree_) confirmation, with _Delete Branch_ pre-checked
+- Changes force-deleting a worktree to warn first when its uncommitted changes couldn't be checked, instead of treating it as clean
+- Changes the _Copy Changes to Worktree_ titles to drop the source-worktree wording
+- Changes webview section headers to match VS Code's Modern UI native headers &mdash; capitalized casing and native typography when Modern UI is on (webviews now carry VS Code's Modern UI state)
+- Changes webview radius, font size, and font weight styles to follow VS Code's design tokens
+- Improves performance when parsing `git status` in repositories with many changes
+- Updates dependencies, including `qs` past its parse-side advisories
+
+### Fixed
+
+- Fixes deleting a branch that has a worktree deleting only the worktree and leaving the branch behind
+- Fixes _Delete Upstream_ being offered when deleting a worktree whose branch's upstream is already gone
+- Fixes a branch whose upstream is gone (deleted) being treated as published in the _Push_ command
+- Fixes prefilled commit searches running before the picker is shown
+- Fixes worktree creation dropping a requested branch name ([#4501](https://github.com/gitkraken/vscode-gitlens/issues/4501))
+- Fixes the _Show_ command discarding an entered reference &mdash; branch and tag names now resolve to their commits, and an unresolved value is kept instead of acting on _Back_/_Cancel_ ([#5855](https://github.com/gitkraken/vscode-gitlens/issues/5855))
+- Fixes features treating a failed check for changes as "no changes" &mdash; _Copy Changes to Worktree_ could leave out untracked files without saying so, and a worktree could show as missing when only the check failed
+- Fixes a repository or worktree with no commits yet showing no changes when it has staged or modified files, and diffs from `HEAD` failing there
+- Fixes diffs against a repository's first commit failing in SHA-256 repositories
+- Fixes a failed fetch, pull, or push leaving branches and history stale until a file watcher caught up
+- Fixes removing a remote, or adding one with a fetch, leaving branch and history views stale
+- Fixes Git commands targeting the wrong repository when VS Code was launched with an inherited `GIT_DIR`
+- Fixes concurrent Git commands with different environments sharing one result
+- Fixes a cache reset in one repository dropping the in-flight Git commands of every other open repository
+- Fixes a Git command cancelled before it started being reported as a Git failure
+- Fixes a Git command given empty input waiting until it timed out
+- Fixes an uncaught `EPIPE` error when Git exits before reading its input
+- Fixes Azure DevOps Server remotes under a virtual directory, or with project or repository names that need encoding, producing wrong remote URLs
+- Fixes webview styles breaking when a CSS value ends in multiple interpolations ([#5696](https://github.com/gitkraken/vscode-gitlens/issues/5696))
+- Fixes typos and inconsistencies in setting descriptions and command titles, including the _Open Current Branch on Remote_ picker title
+
 ## [19.1.1] - 2026-09-04
 
 ### Changed
@@ -7350,6 +7386,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Initial release but still heavily a work in progress.
 
 [unreleased]: https://github.com/gitkraken/vscode-gitlens/compare/v19.1.1...HEAD
+[19.1.2]: https://github.com/risin42/gitlens-lite/compare/v19.1.1...v19.1.2
 [19.1.1]: https://github.com/gitkraken/vscode-gitlens/compare/v19.1.0...gitkraken:v19.1.1
 [19.1.0]: https://github.com/gitkraken/vscode-gitlens/compare/v19.0.1...gitkraken:v19.1.0
 [19.0.1]: https://github.com/gitkraken/vscode-gitlens/compare/v19.0.0...gitkraken:v19.0.1
