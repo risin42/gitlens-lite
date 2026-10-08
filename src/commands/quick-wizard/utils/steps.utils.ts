@@ -304,7 +304,7 @@ export function getValidateGitReferenceFn(
 			if (options?.revs?.resolveRefNames) {
 				quickpick.items = [
 					createDirectiveQuickPickItem(Directive.Noop, true, {
-						label: l10n.t('No matching reference or commit SHA'),
+						label: 'No matching reference or commit SHA',
 					}),
 					...(items?.filter(i => isDirectiveQuickPickItem(i)) ?? []),
 				];

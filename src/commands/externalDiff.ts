@@ -115,7 +115,7 @@ export class ExternalDiffCommand extends GlCommandBase {
 					if (isCancellationError(ex)) return;
 
 					Logger.error(ex, 'ExternalDiffCommand');
-					void showGenericErrorMessage(l10n.t('Unable to open changes in diff tool'));
+					void showGenericErrorMessage('Unable to open changes in diff tool');
 					return;
 				}
 

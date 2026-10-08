@@ -165,9 +165,7 @@ export class WorktreeCopyChangesGitCommand extends QuickCommand<State> {
 						} catch (ex) {
 							if (isCancellationError(ex)) return;
 
-							void window.showErrorMessage(
-								l10n.t('Unable to copy changes: {0}', getPresentableErrorMessage(ex)),
-							);
+							void window.showErrorMessage(`Unable to copy changes: ${getPresentableErrorMessage(ex)}`);
 							return;
 						}
 
