@@ -395,8 +395,7 @@ export class BranchDeleteGitCommand extends QuickCommand<State> {
 			rows = buildRows();
 		}
 
-		const confirmTitle = prune ? 'Confirm Prune Branches' : 'Confirm Delete Branches';
-		step = createConfirmStep(appendReposToTitle(confirmTitle, state, context), rows, confirmTitle);
+		step = createConfirmStep(appendReposToTitle(`Confirm ${context.title}`, state, context), rows, context);
 		const selection: StepSelection<typeof step> = yield step;
 		return canPickStepContinue(step, state, selection) ? selection[0].item : StepResultBreak;
 	}

@@ -11,7 +11,7 @@ import { raceWithTimeout } from '@gitlens/utils/cancellation.js';
 import { debug } from '@gitlens/utils/decorators/log.js';
 import { createDisposable } from '@gitlens/utils/disposable.js';
 import { getScopedLogger } from '@gitlens/utils/logger.scoped.js';
-import { normalizePath, splitPath, stripFolderGlob } from '@gitlens/utils/path.js';
+import { splitPath, stripFolderGlob } from '@gitlens/utils/path.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';
 import { PromiseMap } from '@gitlens/utils/promiseCache.js';
 import { iterateByDelimiter } from '@gitlens/utils/string.js';

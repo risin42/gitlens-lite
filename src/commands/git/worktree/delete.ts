@@ -674,20 +674,7 @@ export class WorktreeDeleteGitCommand extends QuickCommand<State> {
 			);
 		}
 
-		let confirmTitle: string;
-		if (state.fromBranchDelete === 'delete') {
-			confirmTitle = isSingleWorktree
-				? 'Confirm Delete Branch & Worktree'
-				: 'Confirm Delete Branches & Worktrees';
-		} else if (state.fromBranchDelete === 'prune') {
-			confirmTitle = isSingleWorktree
-				? 'Confirm Prune Branch & Delete Worktree'
-				: 'Confirm Prune Branches & Delete Worktrees';
-		} else {
-			confirmTitle = isSingleWorktree ? 'Confirm Delete Worktree' : 'Confirm Delete Worktrees';
-		}
-
-		step = createConfirmStep(appendReposToTitle(confirmTitle, state, context), buildRows(), confirmTitle);
+		step = createConfirmStep(appendReposToTitle(`Confirm ${context.title}`, state, context), buildRows(), context);
 
 		const selection: StepSelection<typeof step> = yield step;
 		context.dirtyCheckSettledBeforeConfirm = dirtyCheckSettled;
