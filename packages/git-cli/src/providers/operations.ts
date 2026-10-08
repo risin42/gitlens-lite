@@ -242,11 +242,14 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		const scope = getScopedLogger();
 
 		const { branch, ...opts } = options ?? {};
+		// Announced in `finally`: a rejected fetch may still have stored some refs; one that never ran git changed nothing
+		let ran = false;
 		try {
 			if (isBranchReference(branch)) {
 				const [branchName, remoteName] = getBranchNameAndRemote(branch);
 				if (remoteName == null) return;
 
+				ran = true;
 				await this.fetchCore(
 					repoPath,
 					{
@@ -258,14 +261,17 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 					runOptions,
 				);
 			} else {
+				ran = true;
 				await this.fetchCore(repoPath, opts, runOptions);
 			}
-
-			this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'tags');
-			this.context.hooks?.repository?.onChanged?.(repoPath, ['remotes']);
 		} catch (ex) {
 			scope?.error(ex);
 			throw ex;
+		} finally {
+			if (ran) {
+				this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'tags');
+				this.context.hooks?.repository?.onChanged?.(repoPath, ['remotes']);
+			}
 		}
 	}
 
@@ -412,10 +418,10 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 						);
 					} finally {
 						this.context.hooks?.operations?.onRebaseCapableOperation?.(worktreePath, 'pull', 'ended');
+						// A rejected pull may have fetched refs or stopped on a conflict after changing the index
+						this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'status', 'tags');
+						this.context.hooks?.repository?.onChanged?.(repoPath, ['head', 'heads', 'remotes', 'index']);
 					}
-
-					this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'status', 'tags');
-					this.context.hooks?.repository?.onChanged?.(repoPath, ['head', 'heads', 'remotes', 'index']);
 				} else {
 					// Branch is not checked out anywhere — can only fetch (no working tree to merge into)
 					await this.fetch(repoPath, { branch: branch }, runOptions);
@@ -436,10 +442,10 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 				);
 			} finally {
 				this.context.hooks?.operations?.onRebaseCapableOperation?.(repoPath, 'pull', 'ended');
+				// A rejected pull may have fetched refs or stopped on a conflict after changing the index
+				this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'status', 'tags');
+				this.context.hooks?.repository?.onChanged?.(repoPath, ['head', 'heads', 'remotes', 'index']);
 			}
-
-			this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'status', 'tags');
-			this.context.hooks?.repository?.onChanged?.(repoPath, ['head', 'heads', 'remotes', 'index']);
 		} catch (ex) {
 			scope?.error(ex);
 			throw ex;
@@ -573,15 +579,16 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 					scope?.error(ex, 'Unable to set upstream tracking after publish');
 				}
 			}
-
+		} catch (ex) {
+			scope?.error(ex);
+			throw ex;
+		} finally {
+			// Announced even when rejected: a partially-failed push may still have updated some remote refs
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches');
 			this.context.hooks?.repository?.onChanged?.(
 				repoPath,
 				options?.publish != null ? ['config', 'heads', 'remotes'] : ['remotes'],
 			);
-		} catch (ex) {
-			scope?.error(ex);
-			throw ex;
 		}
 	}
 
